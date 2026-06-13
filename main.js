@@ -3,6 +3,12 @@ const SPREAD_RATE   = 0.12
 const SPREAD_CHANCE = 0.35
 const UNIT_TYPES    = ['police', 'fire', 'civilian']
 
+const PRESETS = {
+  'default': { label: 'Default', seed: { 'millbrook': 15 } },
+}
+
+let tickInterval = null
+
 const ITEMS = {
   'gun':       { name: 'Gun',           description: 'Attack hit chance: 70%. Ranged — unit engages before contact, reducing counterattack exposure. Standard issue for Police.' },
   'fire-axe':  { name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
@@ -133,7 +139,7 @@ const adjacency = {
   'industrial':   ['commerce', 'southend'],
 }
 
-state.districts['millbrook'].zombies = 15
+// Zombie seeding happens in startGame()
 
 // Pre-build clip-paths so selected stroke renders inside polygon only
 function initClipPaths() {
@@ -427,7 +433,7 @@ function checkWin() {
   if (totalZombies > 0) return
 
   state.won = true
-  clearInterval(tickInterval)
+  if (tickInterval) clearInterval(tickInterval)
 
   const elapsed  = Math.floor((Date.now() - state.startTime) / 1000)
   const mins     = Math.floor(elapsed / 60)
@@ -580,5 +586,54 @@ function renderGodPanel() {
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
 
+// ── Start screen ──
+const customCounts = {}
+Object.keys(state.districts).forEach(id => customCounts[id] = 0)
+
+const presetSelect   = document.getElementById('preset-select')
+const customZoneGrid = document.getElementById('custom-zone-grid')
+
+function renderCustomGrid() {
+  customZoneGrid.innerHTML = Object.entries(state.districts)
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([id, d]) => `
+      <div class="zone-row">
+        <span class="zone-row-name">${d.label}</span>
+        <button class="zone-btn" data-id="${id}" data-action="dec">−</button>
+        <span class="zone-count" id="zc-${id}">0</span>
+        <button class="zone-btn" data-id="${id}" data-action="inc">+</button>
+      </div>`)
+    .join('')
+}
+renderCustomGrid()
+
+customZoneGrid.addEventListener('click', e => {
+  const btn = e.target.closest('.zone-btn')
+  if (!btn) return
+  const id  = btn.dataset.id
+  if (btn.dataset.action === 'inc') customCounts[id] = Math.min(99, customCounts[id] + 1)
+  if (btn.dataset.action === 'dec') customCounts[id] = Math.max(0,  customCounts[id] - 1)
+  document.getElementById(`zc-${id}`).textContent = customCounts[id]
+})
+
+presetSelect.addEventListener('change', () => {
+  customZoneGrid.classList.toggle('visible', presetSelect.value === 'custom')
+})
+
+function startGame() {
+  const value = presetSelect.value
+  if (value === 'custom') {
+    Object.entries(customCounts).forEach(([id, n]) => {
+      if (n > 0) state.districts[id].zombies = n
+    })
+  } else {
+    const seed = PRESETS[value]?.seed ?? {}
+    Object.entries(seed).forEach(([id, n]) => { state.districts[id].zombies = n })
+  }
+  document.getElementById('start-screen').classList.remove('visible')
+  tickInterval = setInterval(tick, TICK_MS)
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame)
+
 render()
-const tickInterval = setInterval(tick, TICK_MS)
