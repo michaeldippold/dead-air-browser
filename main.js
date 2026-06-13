@@ -87,6 +87,7 @@ const state = {
   tick: 0,
   startTime:       null,
   won:             false,
+  lost:            false,
   godMode:         JSON.parse(localStorage.getItem('godMode') ?? 'false'),
   selected:        null,
   selectedUnit:    null,
@@ -427,6 +428,23 @@ function renderUnitsPanel() {
   }).join('')
 }
 
+function checkLose() {
+  if (state.won || state.lost) return
+  const totalUnits = Object.values(state.districts).reduce((sum, d) => sum + d.units.length, 0)
+  if (totalUnits > 0) return
+
+  state.lost = true
+  if (tickInterval) clearInterval(tickInterval)
+
+  const elapsed = Math.floor((Date.now() - state.startTime) / 1000)
+  const timeStr = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
+
+  document.getElementById('win-title').textContent  = 'ALL UNITS LOST'
+  document.getElementById('win-ticks').textContent  = `${state.tick} TICKS`
+  document.getElementById('win-time').textContent   = timeStr
+  document.getElementById('win-overlay').classList.add('visible')
+}
+
 function checkWin() {
   if (state.won) return
   const totalZombies = Object.values(state.districts).reduce((sum, d) => sum + d.zombies, 0)
@@ -521,6 +539,7 @@ function tick() {
 
   checkCallEvent()
   render()
+  checkLose()
   checkWin()
 }
 
