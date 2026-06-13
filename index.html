@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dispatch</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header id="topbar">
+    <div id="game-title">DISPATCH</div>
+    <div id="topbar-right">
+      <span id="tick-display">—</span>
+      <span id="time-display">0:00</span>
+      <button id="btn-god-mode">GOD MODE: OFF</button>
+    </div>
+  </header>
+
+  <div id="layout">
+
+    <!-- Left panel: unit management -->
+    <div id="left-panel">
+
+      <div id="units-view">
+        <div class="panel-label">UNITS</div>
+        <div class="unit-type-legend">
+          <div class="utl-row"><span class="utl-swatch" data-unit="police"></span>Police</div>
+          <div class="utl-row"><span class="utl-swatch" data-unit="fire"></span>Fire</div>
+          <div class="utl-row"><span class="utl-swatch" data-unit="civilian"></span>Civilian</div>
+        </div>
+        <div id="units-list"></div>
+
+        <div id="contacts-section">
+          <div class="section-sep"></div>
+          <div class="panel-label">CONTACTS</div>
+          <div id="contacts-list"></div>
+        </div>
+      </div>
+
+      <div id="item-description-view">
+        <button id="btn-idv-back">← BACK</button>
+        <div id="idv-name"></div>
+        <div id="idv-description"></div>
+      </div>
+
+      <div id="contact-detail-view">
+        <button id="btn-cdv-back">← BACK</button>
+        <div id="cdv-name"></div>
+        <div id="cdv-messages"></div>
+      </div>
+
+      <div id="unit-detail-view">
+        <button id="btn-udv-back">← BACK</button>
+        <div class="panel-label">SQUAD</div>
+        <div id="udv-type"></div>
+        <div id="udv-location"></div>
+        <div id="udv-health"></div>
+        <div class="field-label">ITEMS</div>
+        <div id="udv-items"></div>
+        <div class="field-label">SEND TO</div>
+        <select id="udv-target"></select>
+        <button id="btn-udv-send">DISPATCH</button>
+      </div>
+
+    </div>
+
+    <!-- Map -->
+    <div id="map-container">
+      <svg id="city-map" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid meet"
+           xmlns="http://www.w3.org/2000/svg">
+
+        <rect x="0" y="0" width="1200" height="900" fill="none" stroke="var(--border)" stroke-width="1.5"/>
+
+        <g id="districts">
+          <polygon id="northgate"    data-category="residential"
+            points="0,0 480,0 480,180 340,180 340,280 0,280"/>
+          <polygon id="millbrook"    data-category="residential"
+            points="480,0 800,0 800,280 340,280 340,180 480,180"/>
+          <polygon id="eastridge"    data-category="residential"
+            points="800,0 1200,0 1200,280 800,280"/>
+          <polygon id="westgate"     data-category="residential"
+            points="0,280 240,280 240,520 0,520"/>
+          <polygon id="police-hq"    data-category="government"
+            points="240,280 440,280 440,420 240,420"/>
+          <polygon id="fire-station" data-category="government"
+            points="440,280 640,280 640,420 440,420"/>
+          <polygon id="city-hall"    data-category="government"
+            points="240,420 640,420 640,520 240,520"/>
+          <polygon id="memorial"     data-category="medical"
+            points="640,280 960,280 960,520 640,520"/>
+          <polygon id="ironworks"    data-category="industrial"
+            points="960,280 1200,280 1200,520 960,520"/>
+          <polygon id="riverside"    data-category="residential"
+            points="0,520 240,520 240,760 0,760"/>
+          <polygon id="market"       data-category="retail"
+            points="240,520 640,520 640,640 480,640 480,760 240,760"/>
+          <polygon id="commerce"     data-category="retail"
+            points="480,640 640,640 640,520 1200,520 1200,760 480,760"/>
+          <polygon id="southend"     data-category="residential"
+            points="0,760 700,760 700,900 0,900"/>
+          <polygon id="industrial"   data-category="industrial"
+            points="700,760 1200,760 1200,900 700,900"/>
+        </g>
+
+        <g id="district-labels" pointer-events="none">
+          <text x="200"  y="112" class="lbl-name">NORTHGATE</text>
+          <text x="200"  y="130" class="lbl-cat">Residential</text>
+          <text x="600"  y="108" class="lbl-name">MILLBROOK</text>
+          <text x="600"  y="126" class="lbl-cat">Residential</text>
+          <text x="1000" y="112" class="lbl-name">EASTRIDGE</text>
+          <text x="1000" y="130" class="lbl-cat">Residential</text>
+          <text x="120"  y="385" class="lbl-name">WESTGATE</text>
+          <text x="120"  y="403" class="lbl-cat">Residential</text>
+          <text x="340"  y="342" class="lbl-name">POLICE HQ</text>
+          <text x="340"  y="358" class="lbl-cat">Government</text>
+          <text x="540"  y="342" class="lbl-name">FIRE STATION</text>
+          <text x="540"  y="358" class="lbl-cat">Government</text>
+          <text x="440"  y="458" class="lbl-name">CITY HALL</text>
+          <text x="440"  y="474" class="lbl-cat">Government</text>
+          <text x="800"  y="385" class="lbl-name">MEMORIAL</text>
+          <text x="800"  y="403" class="lbl-cat">Medical</text>
+          <text x="1080" y="385" class="lbl-name">IRONWORKS</text>
+          <text x="1080" y="403" class="lbl-cat">Industrial</text>
+          <text x="120"  y="618" class="lbl-name">RIVERSIDE</text>
+          <text x="120"  y="636" class="lbl-cat">Residential</text>
+          <text x="380"  y="610" class="lbl-name">MARKET DISTRICT</text>
+          <text x="380"  y="628" class="lbl-cat">Retail</text>
+          <text x="870"  y="618" class="lbl-name">COMMERCE PARK</text>
+          <text x="870"  y="636" class="lbl-cat">Retail</text>
+          <text x="350"  y="812" class="lbl-name">SOUTHEND</text>
+          <text x="350"  y="830" class="lbl-cat">Residential</text>
+          <text x="950"  y="812" class="lbl-name">INDUSTRIAL ROW</text>
+          <text x="950"  y="830" class="lbl-cat">Industrial</text>
+        </g>
+
+      </svg>
+    </div>
+
+    <!-- Right panel: district info -->
+    <div id="right-panel">
+
+      <div id="info-panel">
+        <div id="info-name">—</div>
+        <div id="info-cat">Click a district</div>
+        <div id="info-pop"></div>
+      </div>
+
+      <div id="legend">
+        <div class="panel-label">DISTRICTS</div>
+        <div class="legend-row" data-cat="residential"><span class="swatch"></span>Residential</div>
+        <div class="legend-row" data-cat="government"><span class="swatch"></span>Government</div>
+        <div class="legend-row" data-cat="medical"><span class="swatch"></span>Medical</div>
+        <div class="legend-row" data-cat="retail"><span class="swatch"></span>Retail</div>
+        <div class="legend-row" data-cat="industrial"><span class="swatch"></span>Industrial</div>
+      </div>
+
+      <div id="god-panel" class="god-only">
+        <div class="panel-label">SITUATION REPORT</div>
+        <div id="god-table"></div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<div id="win-overlay">
+  <div id="win-card">
+    <div id="win-title">OUTBREAK CONTAINED</div>
+    <div id="win-stats">
+      <span id="win-ticks"></span>
+      <span id="win-time"></span>
+    </div>
+    <button id="btn-win-restart">RESTART</button>
+  </div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
