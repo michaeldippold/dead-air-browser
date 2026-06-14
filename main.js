@@ -290,7 +290,8 @@ const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
-const WIN_IDS = ['map', 'units', 'contacts', 'info', 'sitrep']
+const WIN_IDS = ['map', 'units', 'contacts', 'info', 'radio', 'sitrep', 'items']
+const LAYOUT_WIN_IDS = ['map', 'units', 'contacts', 'info', 'radio']
 const winState = {}
 let _topZ = 10
 
@@ -303,13 +304,15 @@ function getDefaultLayout() {
     units:    { x: 0,           y: 0,                           w: lw,                                h: mid                             },
     contacts: { x: 0,           y: mid + 2,                     w: lw,                                h: dh - mid - 2                    },
     info:     { x: dw - rw - 2, y: 0,                           w: rw,                                h: Math.floor(dh * 0.38)           },
-    sitrep:   { x: dw - rw - 2, y: Math.floor(dh * 0.38) + 2,  w: rw,                                h: dh - Math.floor(dh * 0.38) - 2  },
+    radio:    { x: dw - rw - 2, y: Math.floor(dh * 0.38) + 2,  w: rw,                                h: dh - Math.floor(dh * 0.38) - 2  },
+    sitrep:   { x: Math.floor((dw - 520) / 2),                  y: Math.floor((dh - 420) / 2),        w: 520,                               h: 420                             },
+    items:    { x: Math.floor((dw - 420) / 2),                  y: Math.floor((dh - 480) / 2),        w: 420,                               h: 480                             },
   }
 }
 
 function resetLayout() {
   const defaults = getDefaultLayout()
-  for (const id of WIN_IDS) {
+  for (const id of LAYOUT_WIN_IDS) {
     Object.assign(winState[id], defaults[id], { minimized: false, maximized: false, _restore: null })
     document.getElementById(`win-${id}`).classList.remove('win-minimized')
     applyWinGeometry(id)
@@ -368,6 +371,12 @@ function initWindowManager() {
     })
   })
 
+  // These panels start minimized — not part of the default tiled layout
+  for (const id of ['sitrep', 'items']) {
+    winState[id].minimized = true
+    document.getElementById(`win-${id}`).classList.add('win-minimized')
+  }
+
   bringToFront('map')
   syncTaskbar()
 }
@@ -423,7 +432,47 @@ function toggleMinimize(id) {
   ws.minimized = !ws.minimized
   document.getElementById(`win-${id}`).classList.toggle('win-minimized', ws.minimized)
   if (!ws.minimized) { clampWin(id); applyWinGeometry(id); bringToFront(id) }
+  // Closing the sitrep debug window turns off god mode
+  if (id === 'sitrep' && ws.minimized && state.godMode) {
+    state.godMode = false
+    localStorage.setItem('godMode', JSON.stringify(false))
+    document.body.classList.remove('god-mode')
+    syncGodBtn()
+    renderGodPanel()
+    updateRightPanel()
+  }
   syncTaskbar()
+}
+
+// ── RADIO / COMMS ──
+
+const RADIO_MAX = 3
+const RADIO_TTL = 10
+const STATIC_TAGS = ['[wzzt]', '[szzt]', '[krrk]', '[fssh]']
+let radioFeed = []
+
+function crackle() {
+  return Math.random() < 0.45 ? STATIC_TAGS[Math.floor(Math.random() * STATIC_TAGS.length)] + ' ' : ''
+}
+
+function broadcastEvent(text) {
+  if (!state?.startTime) return
+  radioFeed.unshift({ text, tick: state.tick })
+  if (radioFeed.length > RADIO_MAX) radioFeed.length = RADIO_MAX
+  renderRadio()
+}
+
+function renderRadio() {
+  const feed = document.getElementById('radio-feed')
+  if (!feed) return
+  const now = state.tick
+  radioFeed = radioFeed.filter(m => now - m.tick < RADIO_TTL)
+  feed.innerHTML = radioFeed.map(m => {
+    const age = now - m.tick
+    const cls = age < 2 ? 't0' : age < 5 ? 't1' : 't2'
+    const html = m.text.replace(/(\[wzzt\]|\[szzt\]|\[krrk\]|\[fssh\])/g, '<span class="radio-noise">$1</span>')
+    return `<div class="radio-msg radio-msg--${cls}">${html}</div>`
+  }).join('')
 }
 
 function toggleMaximize(id) {
@@ -456,7 +505,14 @@ godBtn.addEventListener('click', () => {
   state.godMode = !state.godMode
   localStorage.setItem('godMode', JSON.stringify(state.godMode))
   document.body.classList.toggle('god-mode', state.godMode)
+  // Sitrep is the god mode debug screen — open/close it together
+  if (winState['sitrep']) {
+    if (state.godMode && winState['sitrep'].minimized)  toggleMinimize('sitrep')
+    if (!state.godMode && !winState['sitrep'].minimized) toggleMinimize('sitrep')
+  }
   syncGodBtn()
+  renderGodPanel()
+  updateRightPanel()
 })
 
 function syncGodBtn() {
@@ -745,6 +801,7 @@ btnUdvSend.addEventListener('click', () => {
 
   const [unit] = src.units.splice(idx, 1)
   dest.units.push(unit)
+  broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
 
   hideUnitDetail()
   renderUnitsPanel()
@@ -785,6 +842,10 @@ function tick() {
   tickDisplay.textContent = `TICK ${String(state.tick).padStart(3, '0')}`
   timeDisplay.textContent = elapsedTime()
 
+  // Snapshot humans before spread — needed to detect newly-overrun districts
+  const prevHumans = {}
+  for (const [id, d] of Object.entries(state.districts)) prevHumans[id] = d.humans
+
   // Local spread using suppressed rate
   for (const d of Object.values(state.districts)) {
     if (d.zombies === 0 || d.humans === 0) continue
@@ -793,6 +854,13 @@ function tick() {
     if (n > 0) {
       d.zombies += n
       d.humans   = Math.max(0, d.humans - n)
+    }
+  }
+
+  // Detect newly-overrun districts
+  for (const [id, d] of Object.entries(state.districts)) {
+    if (d.humans === 0 && prevHumans[id] > 0) {
+      broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] ${crackle()}SIGNAL LOST — district fallen.`)
     }
   }
 
@@ -806,7 +874,9 @@ function tick() {
       if (Math.random() >= blockChance) {
         const neighbors = adjacency[src].filter(id => state.districts[id].humans > 0)
         if (neighbors.length) {
-          state.districts[neighbors[Math.floor(Math.random() * neighbors.length)]].zombies += 1
+          const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
+          state.districts[spreadDest].zombies += 1
+          broadcastEvent(`${crackle()}[${state.districts[spreadDest].label.toUpperCase()}] Movement detected — infected advancing.`)
         }
       }
     }
@@ -836,7 +906,10 @@ function tick() {
         target.health -= 10
         if (target.health <= 0) {
           const idx = d.units.indexOf(target)
-          if (idx !== -1) d.units.splice(idx, 1)
+          if (idx !== -1) {
+            d.units.splice(idx, 1)
+            broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] UNIT DOWN — ${crackle()}no further contact.`)
+          }
         }
       }
     }
@@ -849,6 +922,11 @@ function tick() {
       const patient = wounded.shift()
       patient.health = Math.min(100, patient.health + 20)
       medic.items.splice(medic.items.indexOf('first-aid'), 1)
+    }
+
+    // District cleared in combat this tick
+    if (d.zombies === 0) {
+      broadcastEvent(`[${d.label.toUpperCase()}] — area clear. All contacts neutralized.`)
     }
   }
 
@@ -875,6 +953,7 @@ function render() {
   renderUnitsPanel()
   renderContactsPanel()
   renderGodPanel()
+  renderRadio()
 
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
     const { unitId, districtId } = state.selectedUnit

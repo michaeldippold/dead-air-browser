@@ -224,7 +224,89 @@
       <div class="win-resize" data-win="info"></div>
     </div>
 
-    <!-- Window: Situation Report -->
+    <!-- Window: Items Reference -->
+    <div class="win" id="win-items">
+      <div class="win-titlebar">
+        <span class="win-title">ITEMS</span>
+        <div class="win-controls">
+          <button class="win-btn win-min-btn" data-win="items">_</button>
+          <button class="win-btn win-max-btn" data-win="items">□</button>
+          <button class="win-btn win-close-btn" data-win="items">×</button>
+        </div>
+      </div>
+      <div class="win-body" id="items-panel">
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">Gun</span>
+            <span class="item-chip item-chip--gun">GUN</span>
+          </div>
+          <p class="item-ref-desc">Your best tool for putting down zombies. Units armed with a Gun have a strong chance to score a kill each engagement, and their range lets them open fire before contact — meaning they take less return damage. Police units start with one. Rare everywhere else.</p>
+        </div>
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">Fire Axe</span>
+            <span class="item-chip item-chip--fire-axe">AXE</span>
+          </div>
+          <p class="item-ref-desc">A solid close-quarters weapon. Slightly less effective than a firearm, but far better than going in empty-handed. Fire units start with one, and they turn up often in industrial areas. Good to have; great if a Gun isn't available.</p>
+        </div>
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">First Aid Kit</span>
+            <span class="item-chip item-chip--first-aid">FAK</span>
+          </div>
+          <p class="item-ref-desc">Emergency triage. When any unit in the district falls to critically low health, a Civilian carrying a FAK will automatically patch them up — restoring a meaningful chunk of health before they go down. One kit, one use: it's consumed in the process. Best carried by Civilians who sit just behind your fighters.</p>
+        </div>
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">Radio</span>
+            <span class="item-chip item-chip--radio">RAD</span>
+          </div>
+          <p class="item-ref-desc">Intel from the ground. While a Civilian carrying a Radio is stationed in a district, that district's live human and infected counts appear in the District Info panel. No Radio means no numbers — you're making decisions blind. The intel cuts out if the Civilian dies or redeployes.</p>
+        </div>
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">Rations</span>
+            <span class="item-chip item-chip--rations">RAT</span>
+          </div>
+          <p class="item-ref-desc">Slow recovery, never runs out. Any unit carrying Rations heals a small amount each tick, passively, for as long as they hold it. The Rations are never consumed. Best suited for units in prolonged engagements who can't be pulled back for rest.</p>
+        </div>
+
+        <div class="item-ref-entry">
+          <div class="item-ref-header">
+            <span class="item-ref-name">Binoculars</span>
+            <span class="item-chip item-chip--binoculars">BNO</span>
+          </div>
+          <p class="item-ref-desc">See farther, react sooner. While any unit carrying Binoculars is stationed in a district, the human and infected counts of every neighboring district also appear in your District Info panel. A single unit in the right position becomes an early warning system for threats you don't yet have eyes on.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Window: COMMS (radio feed) -->
+    <div class="win" id="win-radio">
+      <div class="win-titlebar">
+        <span class="win-title">COMMS</span>
+        <div class="win-controls">
+          <button class="win-btn win-min-btn" data-win="radio">_</button>
+          <button class="win-btn win-max-btn" data-win="radio">□</button>
+          <button class="win-btn win-close-btn" data-win="radio">×</button>
+        </div>
+      </div>
+      <div class="win-body" id="radio-panel">
+        <div id="radio-status-bar">
+          <span id="radio-carrier">◉ CARRIER ACTIVE</span>
+          <span id="radio-freq">FREQ 155.340</span>
+        </div>
+        <div id="radio-feed"></div>
+      </div>
+    </div>
+
+    <!-- Window: Situation Report (debug) -->
     <div class="win" id="win-sitrep">
       <div class="win-titlebar">
         <span class="win-title">SITUATION REPORT</span>
@@ -250,8 +332,9 @@
     <button class="task-btn" data-win="units">UNIT DISPATCH</button>
     <button class="task-btn" data-win="contacts">CONTACTS</button>
     <button class="task-btn" data-win="info">DISTRICT INFO</button>
-    <button class="task-btn" data-win="sitrep">SITUATION REPORT</button>
+    <button class="task-btn" data-win="radio">COMMS</button>
     <div style="flex:1"></div>
+    <button class="task-btn task-btn--utility" data-win="items">ITEMS</button>
     <button id="btn-reset-ui">Reset UI</button>
   </div>
 
