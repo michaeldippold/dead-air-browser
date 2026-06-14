@@ -13,6 +13,8 @@
     <div id="start-title">DISPATCH</div>
     <div id="start-tagline">Zombie Outbreak Response Coordinator</div>
 
+    <div id="start-flavor">The first calls came in before the situation was officially declared. By the time dispatch was fully operational, the infected count was already rising faster than anyone had modeled. You have units in the field, a map of the city, and a radio feed that is already going to static in places. This is not a rescue operation. The only variable is how long it takes.</div>
+
     <div class="start-field">
       <div class="field-label">SCENARIO</div>
       <select id="preset-select">
@@ -21,9 +23,20 @@
       </select>
     </div>
 
+    <div class="start-field">
+      <div class="field-label">SPREAD RATE</div>
+      <div class="spread-row">
+        <button class="zone-btn" id="spread-dec">−</button>
+        <span id="spread-val">35</span><span class="spread-pct">%</span>
+        <button class="zone-btn" id="spread-inc">+</button>
+        <span class="spread-hint">chance per tick of outbreak crossing district lines</span>
+      </div>
+    </div>
+
     <div id="custom-zone-grid"></div>
 
     <button id="btn-start">START MISSION</button>
+    <div id="start-epitaph">The city will not be saved. Do what you can.</div>
   </div>
 </div>
 
@@ -347,6 +360,7 @@
       <span id="win-ticks"></span>
       <span id="win-time"></span>
     </div>
+    <div id="win-flavor"></div>
     <button id="btn-win-restart">RESTART</button>
   </div>
 </div>

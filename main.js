@@ -2,7 +2,7 @@
 
 const TICK_MS       = 3500
 const SPREAD_RATE   = 0.12
-const SPREAD_CHANCE = 0.35
+let spreadChance = 0.35
 const UNIT_TYPES    = ['police', 'fire', 'civilian']
 
 const PRESETS = {
@@ -820,6 +820,7 @@ function checkLose() {
   document.getElementById('win-title').textContent  = 'ALL UNITS LOST'
   document.getElementById('win-ticks').textContent  = `${state.tick} TICKS`
   document.getElementById('win-time').textContent   = elapsedTime()
+  document.getElementById('win-flavor').textContent = 'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.'
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -833,6 +834,7 @@ function checkWin() {
 
   document.getElementById('win-ticks').textContent = `${state.tick} TICKS`
   document.getElementById('win-time').textContent  = elapsedTime()
+  document.getElementById('win-flavor').textContent = 'At some point in the early hours, the last confirmed contact went down and the radio stopped reporting new movement. Nobody believed it right away — the instinct was to wait for the next transmission, the next district going dark. But it didn\'t come. The city held. Not cleanly, not without cost, but it held. The logs were reviewed for days afterward, trying to identify the decision that made the difference. Nobody could agree on which one it was.'
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -865,7 +867,7 @@ function tick() {
   }
 
   // Inter-district spread: units in source district can block
-  if (Math.random() < SPREAD_CHANCE) {
+  if (Math.random() < spreadChance) {
     const sources = Object.keys(state.districts).filter(id => state.districts[id].zombies > 0)
     if (sources.length) {
       const src  = sources[Math.floor(Math.random() * sources.length)]
@@ -1076,7 +1078,7 @@ function renderCustomGrid() {
       <div class="zone-row">
         <span class="zone-row-name">${d.label}</span>
         <button class="zone-btn" data-id="${id}" data-action="dec">−</button>
-        <span class="zone-count" id="zc-${id}">0</span>
+        <span class="zone-count" id="zc-${id}">${customCounts[id]}</span>
         <button class="zone-btn" data-id="${id}" data-action="inc">+</button>
       </div>`)
     .join('')
@@ -1093,7 +1095,22 @@ customZoneGrid.addEventListener('click', e => {
 })
 
 presetSelect.addEventListener('change', () => {
+  if (presetSelect.value === 'custom') {
+    const defaultSeed = PRESETS['default']?.seed ?? {}
+    Object.keys(customCounts).forEach(id => { customCounts[id] = defaultSeed[id] ?? 0 })
+    renderCustomGrid()
+  }
   customZoneGrid.classList.toggle('visible', presetSelect.value === 'custom')
+})
+
+document.getElementById('spread-dec').addEventListener('click', () => {
+  spreadChance = Math.max(0.05, Math.round((spreadChance - 0.05) * 100) / 100)
+  document.getElementById('spread-val').textContent = Math.round(spreadChance * 100)
+})
+
+document.getElementById('spread-inc').addEventListener('click', () => {
+  spreadChance = Math.min(0.80, Math.round((spreadChance + 0.05) * 100) / 100)
+  document.getElementById('spread-val').textContent = Math.round(spreadChance * 100)
 })
 
 function startGame() {

@@ -10,11 +10,19 @@ The long game is this: **the player never gets clean numbers.** The simulation r
 
 The current god mode is a dev tool, not a game mode. Eventually it disappears entirely (or becomes a late-game unlock that feels like cheating). The player should be flying *mostly* blind and making good decisions anyway. That's the skill expression.
 
+**The win screen is a myth — and that's intentional.** Winning requires both skill and luck. The backend randomization makes it genuinely hard. If players finished a full run and assumed a win state didn't exist, that is the correct experience. It's about the decisions under pressure, the radio going quiet, the moment a district goes dark. Not the end state. Design every feature with this in mind: don't optimize for winning, optimize for meaningful play until you lose. The win screen exists, but it should feel like a rumor.
+
+**Simulation speed is load-bearing.** The pace needs to give players enough time to understand the interface before they lose. Too fast and it becomes an RTS — reflex-based, click-heavy, not the target. The goal is: you lose, but you feel like you *almost* had it. You were reading the radio, you were dispatching, you were trying to understand the map — and the city still fell. That's the feeling. Tick intervals should be tuned so that understanding and losing happen at roughly the same time, not sequentially.
+
 ---
 
 ## Up Next (current arc)
 
 ### 1. Radio / Broadcast Feed  ✅ SHIPPED
+### 2. UX Pass — Start Screen + Taskbar  ✅ SHIPPED
+Custom game form pre-fills from default preset. Spread rate stepper on start screen (5–80%, default 35%). Start card sized with VW units. Taskbar and interface text doubled in size.
+
+### 1. Radio / Broadcast Feed  ✅ SHIPPED (v0.1)
 The dispatch consequences system, styled as an inbound-only radio/emergency broadcast channel instead of a clean log. This is the first "narrative machine" expression.
 
 **What it is:**
@@ -37,8 +45,8 @@ The dispatch consequences system, styled as an inbound-only radio/emergency broa
 
 ---
 
-### 2. Version bump → v0.2  ← **DO THIS NEXT**
-What we have: windowed UI, loot rarity, rations, binoculars, items reference, COMMS radio feed, GOD MODE → sitrep coupling. That's a real game upgrade from v0.1.
+### 3. Version bump → v0.2  ✅ SHIPPED
+Windowed UI, loot rarity, rations, binoculars, items reference, COMMS radio feed, GOD MODE → sitrep coupling, spread rate config, bigger start screen, bigger taskbar.
 
 ---
 
@@ -114,3 +122,4 @@ This is a late-stage pass, not something to design around now. But keep it in mi
 ## Known Bugs / Polish
 - Window resize from N/W edges doesn't clamp (can push window off-screen while resizing — low priority)
 - SITREP window shows "GOD MODE REQUIRED" as primary content in normal play — this should eventually become the radio feed
+- **Contrast pass needed across the whole UI.** Many text elements are too dim against their backgrounds — readable in dev but not in real play conditions. Needs a systematic audit: panel labels, radio messages, district info text, start screen epitaph, taskbar states, item descriptions. Target: everything intentionally dim should still be legible; only decorative/idle elements should be near-invisible.
