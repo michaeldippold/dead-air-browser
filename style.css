@@ -18,32 +18,32 @@
   --border-active: #2e4e30;
 
   /* ── Text ── */
-  --text:        #72c872;
-  --text-dim:    #4e724e;
-  --text-dimmer: #1e381e;
-  --accent:      #9ee09e;
+  --text:        #7ed87e;
+  --text-dim:    #5a8e5a;
+  --text-dimmer: #38623a;
+  --accent:      #a8eaa8;
 
   /* ── Interactive (buttons, taskbar) ── */
   --btn-bg:            #080f08;
   --btn-bg-hover:      #0e1a0e;
   --btn-bg-active:     #0c180c;
-  --btn-border:        #111e11;
-  --btn-border-hover:  #264026;
-  --btn-border-active: #1e321e;
-  --btn-color:         #233023;
-  --btn-color-active:  #4e724e;
+  --btn-border:        #162e16;
+  --btn-border-hover:  #2a4a2a;
+  --btn-border-active: #223622;
+  --btn-color:         #3e5e3e;
+  --btn-color-active:  #5a8e5a;
 
   /* ── Window chrome ── */
-  --win-border:             #162616;
+  --win-border:             #1a2e1a;
   --titlebar-bg:            #090f09;
   --titlebar-bg-active:     #0d1a0d;
-  --titlebar-border-active: #2a4230;
-  --win-title-color:        #1f301f;
+  --titlebar-border-active: #2e4a30;
+  --win-title-color:        #2e4e2e;
   --winbtn-bg:              #0b140b;
-  --winbtn-border:          #162616;
-  --winbtn-color:           #253825;
+  --winbtn-border:          #1a2e1a;
+  --winbtn-color:           #2e4a2e;
   --winbtn-hover-bg:        #111e11;
-  --winbtn-hover-border:    #2a4230;
+  --winbtn-hover-border:    #2e4a30;
   --winbtn-close-bg:        #1a0808;
   --winbtn-close-color:     #c04040;
   --winbtn-close-border:    #501818;
@@ -55,8 +55,8 @@
   /* ── Radio / COMMS (amber channel — intentional contrast) ── */
   --radio-bg:      #040804;
   --radio-border:  #0a120a;
-  --radio-carrier: #4a7a4a;
-  --radio-freq:    #162616;
+  --radio-carrier: #5a8e5a;
+  --radio-freq:    #2e4e2e;
   --radio-t0:      #c8a030;
   --radio-t1:      #88661a;
   --radio-t2:      #4a3810;
