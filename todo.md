@@ -4,6 +4,12 @@
 
 ---
 
+## Era / World Canon (do not break this frame)
+
+The green terminal aesthetic implicitly sets the game in the late 1980s / very early 1990s. This is load-bearing — it's why information is scarce, why the radio is text, why contacts call on landlines with no ID, why there's no live CCTV. **All future flavor text and narrative additions must stay inside this frame.** Don't write dialogue that implies smartphones, streaming, or instant global comms. The crappy terminal IS state of the art. The radio feed IS the best available intelligence. That's the whole point.
+
+---
+
 ## Design North Star (capture before it drifts)
 
 The long game is this: **the player never gets clean numbers.** The simulation runs in the background with full fidelity, but everything the player sees is mediated — through a radio feed, a voice on the line, a unit's last transmission, a map color that's going the wrong way. You have an engine on one side, a player on the other, and a machine in the middle that turns state into narrative.

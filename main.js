@@ -392,7 +392,7 @@ function applyWinGeometry(id) {
 function clampWin(id) {
   const ws = winState[id]
   const desktop = document.getElementById('desktop')
-  ws.y = Math.max(0, Math.min(desktop.clientHeight - 24, ws.y))
+  ws.y = Math.max(0, Math.min(desktop.clientHeight - 30, ws.y))
   ws.x = Math.max(80 - ws.w, Math.min(desktop.clientWidth - 80, ws.x))
 }
 

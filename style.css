@@ -285,16 +285,16 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win.win-minimized { display: none; }
 
 .win-titlebar {
-  height: 24px;
+  height: 30px;
   background: var(--titlebar-bg);
   border-bottom: 1px solid var(--win-border);
   display: flex;
   align-items: center;
-  padding: 0 5px;
+  padding: 0 7px;
   cursor: move;
   user-select: none;
   flex-shrink: 0;
-  gap: 5px;
+  gap: 6px;
 }
 
 .win-title {
@@ -310,15 +310,15 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win.win-active .win-titlebar { background: var(--titlebar-bg-active); border-bottom-color: var(--titlebar-border-active); }
 .win.win-active .win-title    { color: var(--text-dim); }
 
-.win-controls { display: flex; gap: 2px; flex-shrink: 0; }
+.win-controls { display: flex; gap: 4px; flex-shrink: 0; }
 
 .win-btn {
-  width: 15px;
-  height: 15px;
+  width: 22px;
+  height: 22px;
   background: var(--winbtn-bg);
   border: 1px solid var(--winbtn-border);
   color: var(--winbtn-color);
-  font-size: 8px;
+  font-size: 11px;
   cursor: pointer;
   display: flex;
   align-items: center;
