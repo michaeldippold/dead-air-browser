@@ -52,6 +52,14 @@
   --winbtn-max-border:      #1e301e;
   --winbtn-min-bg:          #0f1a0f;
 
+  /* ── Contact chat bubbles ── */
+  --chat-npc-bg:      #122012;
+  --chat-npc-border:  #1e381e;
+  --chat-npc-color:   #9ee89e;
+  --chat-player-bg:   #0e1e30;
+  --chat-player-border: #1a3050;
+  --chat-player-color: #7ac4e8;
+
   /* ── Radio / COMMS (analog hardware channel — intentional contrast) ── */
   --radio-bg:          #0c0a02;
   --radio-border:      #786858;
@@ -373,21 +381,90 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win-edge--se { bottom: -3px; right: -3px;  width: 14px;  height: 14px; cursor: se-resize; }
 .win-edge--sw { bottom: -3px; left: -3px;   width: 14px;  height: 14px; cursor: sw-resize; }
 
-/* ── Map window ── */
+/* ── Map window — flex column: info bar / map / roster ── */
 #map-container {
-  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
+  flex-direction: column;
   overflow: hidden;
   background: var(--map-panel-bg);
 }
 
+/* District info bar */
+#district-info-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 16px;
+  height: 64px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+#info-panel {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+#info-name {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#info-cat {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-dimmer);
+  text-transform: uppercase;
+}
+
+#info-pop {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  margin-left: auto;
+}
+
+#legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 20px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-dimmer);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Map SVG area */
+#map-svg-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  padding: 10px;
+}
+
 #map-palette-select {
   position: absolute;
-  bottom: 10px;
-  right: 12px;
+  bottom: 12px;
+  right: 14px;
   z-index: 2;
   background: var(--btn-bg);
   color: var(--text-dim);
@@ -411,18 +488,250 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   display: block;
 }
 
-/* ── Units panel view switching ── */
-#units-view { padding: 16px; }
+/* Roster hover highlight on map */
+#districts polygon.roster-hover {
+  filter: brightness(1.35);
+  stroke: var(--accent) !important;
+  stroke-width: 4 !important;
+}
 
-#unit-detail-view,
-#item-description-view { display: none; flex-direction: column; gap: 14px; padding: 16px; }
+/* ── Dispatch Roster strip ── */
+#units-panel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  transition: height 0.15s ease;
+  height: 120px;
+}
 
-#units-panel > div                                         { display: none; }
-#units-panel > #units-view                                 { display: block; }
-#units-panel[data-view="unit-detail"] > #units-view        { display: none; }
-#units-panel[data-view="unit-detail"] > #unit-detail-view  { display: flex; }
-#units-panel[data-view="item-description"] > #units-view            { display: none; }
-#units-panel[data-view="item-description"] > #item-description-view { display: flex; }
+#units-panel[data-view="unit-detail"],
+#units-panel[data-view="item-description"] { height: 200px; }
+
+/* View switching */
+#units-panel > div                                                   { display: none; }
+#units-panel > #units-view                                           { display: block; }
+#units-panel[data-view="unit-detail"] > #units-view                  { display: none; }
+#units-panel[data-view="unit-detail"] > #unit-detail-view            { display: flex; }
+#units-panel[data-view="item-description"] > #units-view             { display: none; }
+#units-panel[data-view="item-description"] > #item-description-view  { display: flex; }
+
+#units-view {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 12px;
+}
+
+#units-list {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  height: 100%;
+  align-items: stretch;
+}
+
+/* ── Roster cards ── */
+.roster-card {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  min-width: 130px;
+  cursor: default;
+  transition: border-color 0.12s;
+}
+
+.roster-card:hover {
+  border-color: var(--accent);
+  background: var(--chrome-raised);
+}
+
+.roster-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.roster-card-name {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.roster-status {
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.roster-status--ok       { color: var(--accent);      border: 1px solid var(--accent); }
+.roster-status--hurt     { color: var(--radio-t0);    border: 1px solid var(--radio-t0); }
+.roster-status--critical { color: var(--status-lost); border: 1px solid var(--status-lost); }
+
+.unit-cards {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.roster-unit-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.roster-unit-chip:hover .roster-unit-dot { filter: brightness(1.5); transform: scale(1.15); }
+
+.roster-unit-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  transition: filter 0.1s, transform 0.1s;
+}
+
+.roster-unit-dot[data-type="police"]   { background: var(--unit-police); }
+.roster-unit-dot[data-type="fire"]     { background: var(--unit-fire); }
+.roster-unit-dot[data-type="civilian"] { background: var(--unit-civilian); }
+
+.roster-hp-bar {
+  width: 18px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.roster-hp-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 1px;
+  transition: width 0.3s;
+}
+
+.roster-unit-chip.unit-hurt .roster-hp-fill     { background: var(--radio-t0); }
+.roster-unit-chip.unit-critical .roster-hp-fill  { background: var(--status-lost); }
+.roster-unit-chip.unit-critical .roster-unit-dot { opacity: 0.5; outline: 1px solid var(--status-lost); }
+
+.roster-card-items {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.roster-item-abbrev {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--text-dimmer);
+  background: var(--chrome-raised);
+  border: 1px solid var(--border-sub);
+  padding: 1px 3px;
+}
+
+.no-units {
+  font-size: 11px;
+  color: var(--text-dimmer);
+  letter-spacing: 0.5px;
+  font-style: italic;
+  padding: 4px 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Unit detail view — landscape layout in roster ── */
+#unit-detail-view {
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 16px;
+  height: 100%;
+  overflow-x: auto;
+}
+
+#unit-detail-view #udv-type {
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#unit-detail-view #udv-location {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#unit-detail-view #udv-health {
+  flex-shrink: 0;
+}
+
+#unit-detail-view #udv-items {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+#unit-detail-view #udv-target {
+  flex-shrink: 0;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+#unit-detail-view #btn-udv-send {
+  flex-shrink: 0;
+}
+
+#unit-detail-view #btn-udv-back {
+  flex-shrink: 0;
+}
+
+/* ── Item description view — landscape ── */
+#item-description-view {
+  display: none;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 16px;
+  height: 100%;
+  overflow: auto;
+}
+
+#item-description-view #idv-name {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+}
+
+#item-description-view #idv-description {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
 
 /* ── Contacts panel view switching ── */
 #contacts-view { display: flex; flex-direction: column; padding: 16px; }
@@ -547,7 +856,7 @@ polygon.selected {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 10px 12px 12px;
   gap: 10px;
   overflow: hidden;
@@ -573,6 +882,12 @@ polygon.selected {
 .radio-msg--t0 { color: var(--radio-t0); }
 .radio-msg--t1 { color: var(--radio-t1); }
 .radio-msg--t2 { color: var(--radio-t2); }
+
+.radio-time {
+  opacity: 0.45;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
 
 .radio-noise {
   color: var(--radio-noise);
@@ -606,68 +921,6 @@ polygon.selected {
   text-transform: uppercase;
 }
 
-/* ── Right panel: info ── */
-#info-panel {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  min-height: 90px;
-}
-
-#info-name {
-  font-size: 15px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--text);
-  margin-bottom: 4px;
-}
-
-#info-cat {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  margin-bottom: 12px;
-}
-
-#info-pop {
-  font-size: 13px;
-  color: var(--text);
-  line-height: 1.9;
-}
-
-.no-intel {
-  font-size: 11px;
-  color: var(--text-dimmer);
-  letter-spacing: 0.5px;
-  font-style: italic;
-}
-
-.radio-intel-badge {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--accent);
-  margin-bottom: 6px;
-}
-
-/* ── Right panel: legend ── */
-#legend {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.legend-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-}
 
 .swatch {
   width: 12px;
@@ -782,79 +1035,6 @@ polygon.selected {
   letter-spacing: 0.05em;
 }
 
-/* ── Left panel: unit type legend ── */
-.unit-type-legend {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.utl-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.utl-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.utl-swatch[data-unit="police"]   { background: var(--unit-police); }
-.utl-swatch[data-unit="fire"]     { background: var(--unit-fire); }
-.utl-swatch[data-unit="civilian"] { background: var(--unit-civilian); }
-
-/* ── Left panel: unit district groups ── */
-.unit-district-group {
-  margin-bottom: 18px;
-}
-
-.unit-district-name {
-  font-size: 12px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 9px;
-}
-
-.unit-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.unit-card {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: filter 0.1s, transform 0.1s;
-}
-
-.unit-card:hover  { filter: brightness(1.4); transform: scale(1.1); }
-.unit-card:active { filter: brightness(1.8); transform: scale(0.95); }
-
-.unit-hurt     { opacity: 0.65; }
-.unit-critical { opacity: 0.4; outline: 1.5px solid #e03c3c; outline-offset: 1px; }
-
-.unit-card[data-type="police"]   { background: var(--unit-police); }
-.unit-card[data-type="fire"]     { background: var(--unit-fire); }
-.unit-card[data-type="civilian"] { background: var(--unit-civilian); }
-
-.no-units {
-  font-size: 12px;
-  color: var(--text-dimmer);
-  letter-spacing: 0.5px;
-}
 
 /* ── Contacts section ── */
 .section-sep {
@@ -865,8 +1045,11 @@ polygon.selected {
 #contact-detail-view {
   display: none;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px 14px 0;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 #cdv-name {
@@ -914,7 +1097,11 @@ polygon.selected {
 #cdv-messages {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
+  padding: 4px 4px 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .contact-card {
@@ -959,13 +1146,41 @@ polygon.selected {
   font-style: italic;
 }
 
+.chat-timestamp {
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-dimmer);
+  letter-spacing: 1px;
+  margin: 6px 0 2px;
+  opacity: 0.6;
+}
+
 .chat-bubble {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 2px 8px 8px 8px;
-  padding: 10px 12px;
-  max-width: 94%;
+  padding: 8px 11px;
+  max-width: 80%;
+  border-radius: 12px;
+}
+
+.chat-bubble--npc {
   align-self: flex-start;
+  background: var(--chat-npc-bg);
+  border: 1px solid var(--chat-npc-border);
+  border-radius: 2px 12px 12px 12px;
+}
+
+.chat-bubble--npc .chat-text {
+  color: var(--chat-npc-color);
+}
+
+.chat-bubble--player {
+  align-self: flex-end;
+  background: var(--chat-player-bg);
+  border: 1px solid var(--chat-player-border);
+  border-radius: 12px 2px 12px 12px;
+}
+
+.chat-bubble--player .chat-text {
+  color: var(--chat-player-color);
 }
 
 .chat-bubble--lost {
@@ -989,15 +1204,17 @@ polygon.selected {
 
 .chat-text {
   font-size: 12px;
-  color: var(--text);
   line-height: 1.6;
 }
 
-.chat-time {
+.chat-waiting {
+  align-self: flex-start;
   font-size: 10px;
   color: var(--text-dimmer);
-  margin-top: 5px;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  font-style: italic;
+  padding: 4px 2px;
+  opacity: 0.7;
 }
 
 /* ── Narrative caller choices ── */
@@ -1182,8 +1399,10 @@ polygon.selected {
   inset: 0;
   background: rgba(0, 0, 0, 0.92);
   z-index: 200;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  overflow-y: auto;
+  padding: 24px 0;
 }
 
 #start-screen.visible { display: flex; }
@@ -1191,11 +1410,13 @@ polygon.selected {
 #start-card {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 52px 68px;
+  padding: 44px 60px;
   width: min(800px, 92vw);
+  flex-shrink: 0;
+  margin: auto 0;
 }
 
 #start-title {

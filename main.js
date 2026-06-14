@@ -217,15 +217,14 @@ const NARRATIVE_SCRIPTS = {
       // ── Ignored path ──────────────────────────────────────────────
 
       'no-answer': {
-        text: "...I understand. I'll figure something out on my own.",
-        choices: null,
-        timer: 15, timerNext: 'no-answer-2',
+        text: null,
+        timer: 18, timerNext: 'no-answer-final',
       },
 
-      'no-answer-2': {
-        text: "I barricaded the door. Found some food. I think I can last another day if I'm careful. If anyone is listening — Room B2, refrigerated cabinet. Antibiotics. Just in case.",
+      'no-answer-final': {
+        text: "...they found the loading bay door. I can hear them on the other side. Room B2 — refrigerated cabinet. The antibiotics. For whoever gets there after.",
         choices: null,
-        timer: 20, timerNext: 'no-answer-lost',
+        timer: 6, timerNext: 'no-answer-lost',
       },
 
       'no-answer-lost': {
@@ -280,7 +279,7 @@ const NARRATIVE_SCRIPTS = {
       },
       'webb-lost':   { text: null, resolve: 'lost' },
       'webb-silent': {
-        text: "Fine. We'll handle it.",
+        text: "We'll handle it.",
         choices: null,
         resolve: 'waiting',
       },
@@ -344,7 +343,12 @@ const NARRATIVE_SCRIPTS = {
       'danny-no-answer': {
         text: "Hello? Is anyone — okay. I'll just wait.",
         choices: null,
-        timer: 20, timerNext: 'danny-no-answer-lost',
+        timer: 20, timerNext: 'danny-no-answer-final',
+      },
+      'danny-no-answer-final': {
+        text: "...someone's at the front door. They're knocking but it doesn't sound like my dad. I put the chair against it like in the movies. I'm going to stay quiet now.",
+        choices: null,
+        timer: 6, timerNext: 'danny-no-answer-lost',
       },
       'danny-no-answer-lost': { text: null, resolve: 'lost' },
     },
@@ -396,7 +400,12 @@ const NARRATIVE_SCRIPTS = {
       'holt-no-answer': {
         text: "I see. Well. We'll handle this through the appropriate office.",
         choices: null,
-        timer: 15, timerNext: 'holt-lost',
+        timer: 15, timerNext: 'holt-no-answer-final',
+      },
+      'holt-no-answer-final': {
+        text: "I've been unable to reach anyone in the chain of command. The building has gone very quiet. I want it on record — for whatever record still exists — that I followed procedure.",
+        choices: null,
+        timer: 8, timerNext: 'holt-lost',
       },
       'holt-lost': { text: null, resolve: 'lost' },
     },
@@ -409,8 +418,10 @@ function spawnNarrativeCaller(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
   const contact = makeContact(script.name, script.district ?? null)
-  contact.type     = 'narrative'
-  contact.scriptId = scriptId
+  contact.type        = 'narrative'
+  contact.scriptId    = scriptId
+  contact.pendingNext = null
+  contact.replyDelay  = 0
   state.contacts.push(contact)
   advanceNarrativeCaller(contact, 0)
 }
@@ -425,7 +436,7 @@ function advanceNarrativeCaller(contact, nodeId) {
   contact.timer = node.timer ?? null
 
   if (node.text) {
-    contact.messages.push({ text: node.text, time: elapsedTime() })
+    contact.messages.push({ text: node.text, time: elapsedTime(), sender: 'npc' })
     contact.unread = true
   }
 
@@ -447,7 +458,20 @@ function advanceNarrativeCaller(contact, nodeId) {
 
 function processNarrativeCallers() {
   for (const contact of state.contacts) {
-    if (contact.type !== 'narrative' || contact.timer === null) continue
+    if (contact.type !== 'narrative') continue
+
+    // Pending reply: player chose, waiting for NPC to "type back"
+    if (contact.pendingNext !== null) {
+      contact.replyDelay--
+      if (contact.replyDelay <= 0) {
+        const next = contact.pendingNext
+        contact.pendingNext = null
+        advanceNarrativeCaller(contact, next)
+      }
+      continue
+    }
+
+    if (contact.timer === null) continue
     contact.timer--
     if (contact.timer <= 0) {
       const script = NARRATIVE_SCRIPTS[contact.scriptId]
@@ -638,23 +662,21 @@ const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
-const WIN_IDS = ['map', 'units', 'contacts', 'info', 'radio', 'sitrep', 'items']
-const LAYOUT_WIN_IDS = ['map', 'units', 'contacts', 'info', 'radio']
+const WIN_IDS = ['map', 'contacts', 'radio', 'sitrep', 'items']
+const LAYOUT_WIN_IDS = ['map', 'contacts', 'radio']
 const winState = {}
 let _topZ = 10
 
 function getDefaultLayout() {
   const desktop = document.getElementById('desktop')
   const dw = desktop.clientWidth, dh = desktop.clientHeight
-  const mid = Math.floor(dh * 0.54), rw = 292, lw = 272
+  const rw = 292, lw = 288
   return {
-    map:      { x: lw + 2,      y: 0,                           w: dw - lw - rw - 6,                 h: dh                              },
-    units:    { x: 0,           y: 0,                           w: lw,                                h: mid                             },
-    contacts: { x: 0,           y: mid + 2,                     w: lw,                                h: dh - mid - 2                    },
-    info:     { x: dw - rw - 2, y: 0,                           w: rw,                                h: Math.floor(dh * 0.38)           },
-    radio:    { x: dw - rw - 2, y: Math.floor(dh * 0.38) + 2,  w: rw,                                h: dh - Math.floor(dh * 0.38) - 2  },
-    sitrep:   { x: Math.floor((dw - 520) / 2),                  y: Math.floor((dh - 420) / 2),        w: 520,                               h: 420                             },
-    items:    { x: Math.floor((dw - 420) / 2),                  y: Math.floor((dh - 480) / 2),        w: 420,                               h: 480                             },
+    map:      { x: lw + 2,     y: 0, w: dw - lw - rw - 4, h: dh },
+    contacts: { x: 0,          y: 0, w: lw,                h: dh },
+    radio:    { x: dw - rw,    y: 0, w: rw,                h: dh },
+    sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
+    items:    { x: Math.floor((dw - 420) / 2), y: Math.floor((dh - 480) / 2), w: 420, h: 480 },
   }
 }
 
@@ -683,7 +705,7 @@ function initWindowManager() {
 
     titlebar.addEventListener('mousedown', e => {
       if (e.target.closest('.win-btn')) return
-      if (winState[id].pinned || winState[id].pinBack) return
+      if (winState[id].pinned) return
       e.preventDefault()
       const ws = winState[id]
       if (ws.maximized) return
@@ -706,16 +728,14 @@ function initWindowManager() {
       winEl.appendChild(edge)
     }
 
-    // Generate window controls — order: BACK | PIN | MIN | MAX | CLOSE (do not reorder)
+    // Generate window controls — order: PIN | MIN | MAX | CLOSE
     const controls = winEl.querySelector('.win-controls')
     controls.innerHTML = `
-      <button class="win-btn win-back-btn">BACK</button>
       <button class="win-btn win-pin-btn">PIN</button>
-      <button class="win-btn win-min-btn">MIN</button>
-      <button class="win-btn win-max-btn">MAX</button>
-      <button class="win-btn win-close-btn">CLOSE</button>
+      <button class="win-btn win-min-btn">−</button>
+      <button class="win-btn win-max-btn">□</button>
+      <button class="win-btn win-close-btn">×</button>
     `
-    controls.querySelector('.win-back-btn').addEventListener('click',  () => sendToBack(id))
     controls.querySelector('.win-pin-btn').addEventListener('click',   () => togglePin(id))
     controls.querySelector('.win-min-btn').addEventListener('click',   () => toggleMinimize(id))
     controls.querySelector('.win-max-btn').addEventListener('click',   () => toggleMaximize(id))
@@ -759,7 +779,7 @@ function clampWin(id) {
 function startResize(id, dir, e) {
   e.preventDefault(); e.stopPropagation()
   const ws = winState[id]
-  if (ws.pinned || ws.pinBack || ws.maximized) return
+  if (ws.pinned || ws.maximized) return
   bringToFront(id)
   const sx = e.clientX, sy = e.clientY
   const ox = ws.x, oy = ws.y, ow = ws.w, oh = ws.h
@@ -779,7 +799,6 @@ function startResize(id, dir, e) {
 let _activeWin = null
 
 function bringToFront(id) {
-  if (winState[id]?.pinBack) return
   _activeWin = id
   document.querySelectorAll('.win').forEach(w => w.classList.remove('win-active'))
   const el = document.getElementById(`win-${id}`)
@@ -796,32 +815,11 @@ function togglePin(id) {
   btn.classList.toggle('win-btn-active', ws.pinned)
 }
 
-function sendToBack(id) {
-  const ws  = winState[id]
-  ws.pinBack = !ws.pinBack
-  const el  = document.getElementById(`win-${id}`)
-  const btn = el.querySelector('.win-back-btn')
-  if (ws.pinBack) {
-    ws.z = 1; el.style.zIndex = 1
-    btn.textContent = 'UNBACK'
-    btn.classList.add('win-btn-active')
-  } else {
-    btn.textContent = 'BACK'
-    btn.classList.remove('win-btn-active')
-    bringToFront(id)
-  }
-}
-
 function toggleMinimize(id) {
   const ws = winState[id]
   ws.minimized = !ws.minimized
   document.getElementById(`win-${id}`).classList.toggle('win-minimized', ws.minimized)
   if (!ws.minimized) {
-    if (ws.pinBack) {
-      ws.pinBack = false
-      const backBtn = document.getElementById(`win-${id}`).querySelector('.win-back-btn')
-      if (backBtn) { backBtn.textContent = 'BACK'; backBtn.classList.remove('win-btn-active') }
-    }
     clampWin(id); applyWinGeometry(id); bringToFront(id)
   }
   // Closing the sitrep debug window turns off god mode
@@ -837,7 +835,7 @@ function toggleMinimize(id) {
 
 // ── RADIO / COMMS ──
 
-const RADIO_MAX = 3
+const RADIO_MAX = 5
 const RADIO_TTL = 10
 const STATIC_TAGS = ['[wzzt]', '[szzt]', '[krrk]', '[fssh]']
 let radioFeed = []
@@ -848,7 +846,7 @@ function crackle() {
 
 function broadcastEvent(text) {
   if (!state?.startTime) return
-  radioFeed.unshift({ text, tick: state.tick })
+  radioFeed.unshift({ text, tick: state.tick, time: elapsedTime() })
   if (radioFeed.length > RADIO_MAX) radioFeed.length = RADIO_MAX
   renderRadio()
 }
@@ -862,7 +860,7 @@ function renderRadio() {
     const age = now - m.tick
     const cls = age < 2 ? 't0' : age < 5 ? 't1' : 't2'
     const html = m.text.replace(/(\[wzzt\]|\[szzt\]|\[krrk\]|\[fssh\])/g, '<span class="radio-noise">$1</span>')
-    return `<div class="radio-msg radio-msg--${cls}">${html}</div>`
+    return `<div class="radio-msg radio-msg--${cls}"><span class="radio-time">[${m.time}]</span> ${html}</div>`
   }).join('')
 }
 
@@ -969,9 +967,21 @@ function setUnitsView(view)    { unitsPanel.dataset.view    = view || '' }
 function setContactsView(view) { contactsPanel.dataset.view = view || '' }
 
 unitsList.addEventListener('click', e => {
-  const card = e.target.closest('.unit-card')
+  const chip = e.target.closest('.roster-unit-chip')
+  if (!chip) return
+  showUnitDetail(chip.dataset.unitId)
+})
+
+unitsList.addEventListener('mouseover', e => {
+  const card = e.target.closest('.roster-card')
   if (!card) return
-  showUnitDetail(card.dataset.unitId)
+  document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
+  const poly = document.getElementById(card.dataset.districtId)
+  if (poly) poly.classList.add('roster-hover')
+})
+
+unitsList.addEventListener('mouseleave', () => {
+  document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
 })
 
 function showUnitDetail(unitId) {
@@ -1040,6 +1050,7 @@ function showContactDetail(contactId) {
   if (!contact) return
   state.selectedContact = contactId
   contact.unread = false
+  renderContactsPanel()
   cdvName.textContent = contact.name
   renderContactMeta(contact)
   renderContactMessages(contact)
@@ -1064,19 +1075,34 @@ function hideItemDescription() {
 }
 
 function renderContactMessages(contact) {
-  cdvMessages.innerHTML = contact.messages.length === 0
-    ? '<div class="no-messages">No messages yet.</div>'
-    : contact.messages.map(m => {
-        const isLost = m.text === '[contact lost]'
-        return `<div class="chat-bubble${isLost ? ' chat-bubble--lost' : ''}">
-          <div class="chat-text">${m.text}</div>
-          ${!isLost ? `<div class="chat-time">sent at ${m.time}</div>` : ''}
-        </div>`
-      }).join('')
+  if (contact.messages.length === 0) {
+    cdvMessages.innerHTML = '<div class="no-messages">No messages yet.</div>'
+  } else {
+    let lastTime = null
+    const parts = contact.messages.map(m => {
+      const isLost   = m.text === '[contact lost]'
+      const isPlayer = m.sender === 'player'
+      if (isLost) {
+        return `<div class="chat-bubble chat-bubble--lost"><div class="chat-text">${m.text}</div></div>`
+      }
+      const stamp = m.time !== lastTime
+        ? `<div class="chat-timestamp">${m.time}</div>` : ''
+      lastTime = m.time
+      return `${stamp}<div class="chat-bubble ${isPlayer ? 'chat-bubble--player' : 'chat-bubble--npc'}"><div class="chat-text">${m.text}</div></div>`
+    })
+    cdvMessages.innerHTML = parts.join('')
+  }
+
+  // Show a "typing..." indicator while waiting for NPC reply
+  if (contact.pendingNext !== null) {
+    cdvMessages.innerHTML += '<div class="chat-waiting">...</div>'
+  }
+
+  cdvMessages.scrollTop = cdvMessages.scrollHeight
 
   const choicesEl = document.getElementById('cdv-choices')
   if (!choicesEl) return
-  if (contact.type === 'narrative' && contact.alive) {
+  if (contact.type === 'narrative' && contact.alive && !contact.pendingNext) {
     const node = NARRATIVE_SCRIPTS[contact.scriptId]?.nodes[contact.phase]
     if (node?.choices?.length) {
       choicesEl.innerHTML = `<div class="cdv-choices-label">RESPOND:</div>` +
@@ -1126,7 +1152,7 @@ function checkCallEvent() {
   const pool = CALL_TEMPLATES[getCallTier(reportDist.zombies)]
   const text = pool[Math.floor(Math.random() * pool.length)](reportDist)
 
-  contact.messages.push({ text, time: timeStr })
+  contact.messages.push({ text, time: timeStr, sender: 'npc' })
   contact.unread = true
 }
 
@@ -1207,7 +1233,16 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   const node = NARRATIVE_SCRIPTS[contact.scriptId]?.nodes[contact.phase]
   const choice = node?.choices?.[parseInt(btn.dataset.choiceIdx, 10)]
   if (!choice) return
-  advanceNarrativeCaller(contact, choice.next)
+
+  // Log player's reply as an outgoing message
+  contact.messages.push({ text: choice.label, time: elapsedTime(), sender: 'player' })
+
+  // Stop the choice timer, queue NPC reply with a short random delay
+  contact.timer       = null
+  contact.pendingNext = choice.next
+  contact.replyDelay  = 2 + Math.floor(Math.random() * 3)
+
+  renderContactMessages(contact)
   renderContactsPanel()
 })
 
@@ -1425,21 +1460,38 @@ function renderUnitsPanel() {
     .filter(([, d]) => d.units.length > 0)
 
   if (active.length === 0) {
-    unitsList.innerHTML = '<div class="no-units">No units deployed</div>'
+    unitsList.innerHTML = '<div class="no-units">No active units</div>'
     return
   }
 
   unitsList.innerHTML = active.map(([id, d]) => {
-    const cards = d.units.map(u => {
-      const hpClass = u.health <= 49 ? ' unit-critical'
-                    : u.health <= 79 ? ' unit-hurt'
-                    : ''
-      return `<div class="unit-card${hpClass}" data-unit-id="${u.id}" data-type="${u.type}" title="${u.type} · HP ${u.health}"></div>`
+    const avgHp = d.units.reduce((s, u) => s + u.health, 0) / d.units.length
+    const statusClass = avgHp <= 49 ? 'roster-status--critical'
+                      : avgHp <= 79 ? 'roster-status--hurt'
+                      : 'roster-status--ok'
+    const statusText  = avgHp <= 49 ? 'CRITICAL' : avgHp <= 79 ? 'WOUNDED' : 'READY'
+
+    const chips = d.units.map(u => {
+      const hpClass = u.health <= 49 ? ' unit-critical' : u.health <= 79 ? ' unit-hurt' : ''
+      const hpBar = `<div class="roster-hp-bar"><div class="roster-hp-fill" style="width:${u.health}%"></div></div>`
+      return `<div class="roster-unit-chip${hpClass}" data-unit-id="${u.id}" data-type="${u.type}" title="${u.type} · HP ${u.health}">
+        <div class="roster-unit-dot" data-type="${u.type}"></div>
+        ${hpBar}
+      </div>`
     }).join('')
 
-    return `<div class="unit-district-group">
-      <div class="unit-district-name">${d.label}</div>
-      <div class="unit-cards">${cards}</div>
+    const allItems = [...new Set(d.units.flatMap(u => u.items))]
+    const itemsHtml = allItems.map(k =>
+      `<span class="roster-item-abbrev">${ITEM_ABBREV[k] ?? k}</span>`
+    ).join('')
+
+    return `<div class="roster-card" data-district-id="${id}">
+      <div class="roster-card-top">
+        <span class="roster-card-name">${d.label.toUpperCase()}</span>
+        <span class="roster-status ${statusClass}">${statusText}</span>
+      </div>
+      <div class="unit-cards">${chips}</div>
+      ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
     </div>`
   }).join('')
 }
@@ -1623,7 +1675,7 @@ const MAP_PALETTES = {
     '--col-ind': '#f3dcfc', '--col-ind-h': '#dbc4e4',
   },
   paper: {
-    '--map-panel-bg':  '#F8F3E6',
+    '--map-panel-bg':  'transparent',
     '--map-label':     'rgba(35,25,20,0.85)',
     '--map-label-sub': 'rgba(35,25,20,0.55)',
     '--col-res': '#E0BAA5', '--col-res-h': '#D1A792',
