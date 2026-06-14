@@ -1,3 +1,5 @@
+// ── CONFIG & CONSTANTS ──
+
 const TICK_MS       = 3500
 const SPREAD_RATE   = 0.12
 const SPREAD_CHANCE = 0.35
@@ -9,17 +11,32 @@ const PRESETS = {
 
 let tickInterval = null
 
+// ── ITEMS ──
+
 const ITEMS = {
-  'gun':       { name: 'Gun',           description: 'Attack hit chance: 70%. Ranged — unit engages before contact, reducing counterattack exposure. Standard issue for Police.' },
-  'fire-axe':  { name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
-  'first-aid': { name: 'First Aid Kit', description: 'Civilian automatically heals the most critically wounded unit in the district when any unit drops to 50 HP or below. Restores 20 HP. Single use — consumed on use.' },
-  'radio':     { name: 'Radio',         description: 'While a Civilian carrying a Radio is present in a district, live human and infected counts are visible in the info panel. Intel is lost if the Civilian dies or redeploys.' },
+  'gun':         { weight: 2, name: 'Gun',           description: 'Attack hit chance: 70%. Ranged — unit engages before contact, reducing counterattack exposure. Standard issue for Police.' },
+  'fire-axe':    { weight: 4, name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
+  'first-aid':   { weight: 5, name: 'First Aid Kit', description: 'Civilian automatically heals the most critically wounded unit in the district when any unit drops to 50 HP or below. Restores 20 HP. Single use — consumed on use.' },
+  'radio':       { weight: 3, name: 'Radio',         description: 'While a Civilian carrying a Radio is present in a district, live human and infected counts are visible in the info panel. Intel is lost if the Civilian dies or redeploys.' },
+  'rations':     { weight: 8, name: 'Rations',       description: 'Passively restores 5 HP per tick to the carrying unit. Not consumed — provides sustained recovery for units in prolonged engagements.' },
+  'binoculars':  { weight: 2, name: 'Binoculars',    description: 'While any unit carrying Binoculars is present in a district, adjacent districts\' human and infected counts are also visible in the info panel. Position strategically to extend your intel range.' },
 }
+
+// ── FACTORIES ──
+
+const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'FAK', 'radio': 'RAD', 'rations': 'RAT', 'binoculars': 'BNO' }
 
 let _uid = 0
 const uid         = ()            => `u${++_uid}`
 const makeUnit    = (type, items) => ({ id: uid(), type, health: 100, items })
-const makeContact = (name)        => ({ id: uid(), name, messages: [], unread: false })
+const makeContact = (name, districtId = null) => ({
+  id: uid(), name, messages: [], unread: false,
+  location: districtId,
+  status:   districtId ? 'hiding' : null,
+  alive:    true,
+  group:    districtId ? [{ name, kind: 'self' }] : [],
+  unitId:   null,
+})
 
 const CALLER_POOL = [
   'Unknown Caller',
@@ -35,15 +52,65 @@ const CALLER_POOL = [
 ]
 let _callerIdx = 0
 
+// Tiered by zombie count — vague by design, no numbers surface to the player
+function getCallTier(zombies) {
+  if (zombies >= 51) return 4
+  if (zombies >= 26) return 3
+  if (zombies >= 11) return 2
+  if (zombies >= 4)  return 1
+  return 0
+}
+
 const CALL_TEMPLATES = [
-  d => `${d.label} is in trouble! There's ${d.zombies} infected here.`,
-  d => `This is ${d.label} — we're seeing ${d.zombies} zombies. Send help.`,
-  d => `${d.label} reporting. ${d.zombies} infected and it's getting worse.`,
-  d => `Hello? Anyone there? ${d.label} has ${d.zombies} zombies. We need units!`,
-  d => `I'm calling from ${d.label}. ${d.zombies} infected spotted. Please respond.`,
+  // Tier 0: Minimal (1–3) — uncertain, could be nothing
+  [
+    d => `I don't want to overreact but I saw something near ${d.label}. One of my neighbors. I've locked my door.`,
+    d => `This is probably nothing. But I'm in ${d.label} and I heard something I can't explain. Wanted someone to know.`,
+    d => `Can someone check on ${d.label}? I think there's a person outside — something isn't right with them.`,
+    d => `I saw one of them, I think. Just the one. I'm near ${d.label}. I'm inside now.`,
+    d => `I might be wrong. I hope I'm wrong. But something happened at the corner near ${d.label}. Be careful.`,
+    d => `There's something wrong. I don't know how to describe it. Calling from ${d.label}. Please send someone.`,
+  ],
+  // Tier 1: Low (4–10) — confirmed, limited, contained panic
+  [
+    d => `There's a small group of them outside. I can still count them from the window. ${d.label}, please hurry.`,
+    d => `I can hear them. More than one. I've locked everything I can. Calling from ${d.label}.`,
+    d => `We're not going outside. There's a handful of infected near ${d.label}. It's getting worse.`,
+    d => `My kids are upstairs. I can see them from the second floor. A few of those things. ${d.label}. Please.`,
+    d => `We barricaded the front door. There are a few of them in the street near ${d.label}. Not many yet.`,
+    d => `I counted them before I stopped looking. ${d.label} needs units right now.`,
+  ],
+  // Tier 2: Moderate (11–25) — many, trapped
+  [
+    d => `There are too many to count now. We can't leave the building. ${d.label} is bad.`,
+    d => `I watched them from the roof — there are a lot of them. The whole street. ${d.label}.`,
+    d => `We tried to run and had to come back. Every road out of ${d.label} is cut off.`,
+    d => `I stopped counting. There are enough of them that it doesn't matter anymore. Send help to ${d.label}.`,
+    d => `It's spreading faster than anyone expected. ${d.label} is not safe. We're on the third floor and not moving.`,
+    d => `I can hear screaming from the building next door. ${d.label}. I don't know how many of them there are.`,
+  ],
+  // Tier 3: High (26–50) — desperate, things deteriorating fast
+  [
+    d => `Please. There are so many. I don't know where they're all coming from. ${d.label}.`,
+    d => `We've lost the lower floors. Six of us left up here. ${d.label} — send everything you have.`,
+    d => `I don't know how long we have. The barricades won't hold. ${d.label}, please hurry.`,
+    d => `It happened so fast. An hour ago this was fine. Now I can barely see the street through them. ${d.label}.`,
+    d => `Half the people I knew in this building are gone. The rest of us are hiding. ${d.label} needs help now.`,
+    d => `They're on every road out. We're completely surrounded in ${d.label}. Don't stop trying to reach us.`,
+  ],
+  // Tier 4: Critical (51+) — barely coherent
+  [
+    d => `[static] ...${d.label}... can anyone hear me... please...`,
+    d => `I can barely talk. They're right outside the door. ${d.label}. If you can hear this — please come.`,
+    d => `If anyone gets this — don't send people to ${d.label}. Just don't. It's over here.`,
+    d => `There's no one left on my floor. I don't know how many. ${d.label}. [call drops]`,
+    d => `[muffled] ...they're inside... I can hear them on the stairs... ${d.label}...`,
+    d => `We were thirty people this morning. I can hear maybe four of us breathing right now. ${d.label}.`,
+  ],
 ]
 
-// Hit chance based on what the unit is carrying
+// ── COMBAT & UTILITIES ──
+
 function makeHpBar(health) {
   const filled = Math.round(health / 10)
   const color  = health > 70 ? '#4a9a6a' : health > 40 ? '#c8a030' : '#c84040'
@@ -72,16 +139,53 @@ function pickCounterTarget(units) {
   return units[units.length - 1]
 }
 
-// Local growth rate reduced by units present (each unit -12%, cap 80%)
 function districtHasRadio(districtId) {
   const d = state.districts[districtId]
   return d?.units.some(u => u.type === 'civilian' && u.items.includes('radio'))
 }
 
+function districtHasBinoView(districtId) {
+  return (adjacency[districtId] || []).some(adjId =>
+    state.districts[adjId]?.units.some(u => u.items.includes('binoculars'))
+  )
+}
+
+// Local growth rate reduced by units present (each unit -12%, cap 80%)
 function getEffectiveSpreadRate(d) {
   const suppression = Math.min(0.80, d.units.length * 0.12)
   return SPREAD_RATE * (1 - suppression)
 }
+
+function elapsedTime() {
+  const s = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+// ── LOOT ──
+
+const LOOT_POOLS = {
+  'police-hq':    [{ item: 'gun',        w: 7 }, { item: 'first-aid', w: 2 }, { item: 'rations',    w: 2 }],
+  'fire-station': [{ item: 'fire-axe',   w: 7 }, { item: 'first-aid', w: 2 }, { item: 'rations',    w: 2 }],
+  residential:    [{ item: 'rations',    w: 8 }, { item: 'first-aid', w: 4 }, { item: 'radio',      w: 3 }, { item: 'binoculars', w: 1 }],
+  medical:        [{ item: 'first-aid',  w: 9 }, { item: 'rations',   w: 5 }, { item: 'radio',      w: 2 }],
+  retail:         [{ item: 'rations',    w: 7 }, { item: 'radio',     w: 5 }, { item: 'first-aid',  w: 3 }, { item: 'binoculars', w: 2 }],
+  industrial:     [{ item: 'fire-axe',   w: 6 }, { item: 'rations',   w: 5 }, { item: 'first-aid',  w: 2 }],
+  government:     [{ item: 'gun',        w: 3 }, { item: 'fire-axe',  w: 3 }, { item: 'first-aid',  w: 4 }, { item: 'rations',    w: 4 }],
+}
+
+function weightedPick(pool) {
+  const total = pool.reduce((s, e) => s + e.w, 0)
+  let r = Math.random() * total
+  for (const e of pool) { r -= e.w; if (r <= 0) return e.item }
+  return pool[pool.length - 1].item
+}
+
+function rollLoot(districtId, category, count) {
+  const pool = LOOT_POOLS[districtId] ?? LOOT_POOLS[category]
+  return Array.from({ length: count }, () => weightedPick(pool))
+}
+
+// ── STATE ──
 
 const state = {
   tick: 0,
@@ -94,32 +198,32 @@ const state = {
   selectedContact: null,
   contacts:        [ makeContact('City Hall') ],
   districts: {
-    'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, units: [] },
-    'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, units: [] },
-    'eastridge':    { label: 'Eastridge',       category: 'residential', humans: 1200, zombies: 0, units: [] },
-    'westgate':     { label: 'Westgate',        category: 'residential', humans: 900,  zombies: 0, units: [] },
+    'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, units: [], loot: rollLoot('northgate',    'residential', 2) },
+    'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, units: [], loot: rollLoot('millbrook',    'residential', 2) },
+    'eastridge':    { label: 'Eastridge',       category: 'residential', humans: 1200, zombies: 0, units: [], loot: rollLoot('eastridge',    'residential', 2) },
+    'westgate':     { label: 'Westgate',        category: 'residential', humans: 900,  zombies: 0, units: [], loot: rollLoot('westgate',     'residential', 1) },
     'police-hq':    { label: 'Police HQ',       category: 'government',  humans: 80,   zombies: 0, units: [
       makeUnit('police', ['gun']),
       makeUnit('police', ['gun']),
       makeUnit('police', ['gun']),
-    ]},
+    ], loot: rollLoot('police-hq',    'government', 3) },
     'fire-station': { label: 'Fire Station',    category: 'government',  humans: 60,   zombies: 0, units: [
       makeUnit('fire', ['fire-axe']),
       makeUnit('fire', ['fire-axe']),
       makeUnit('fire', ['fire-axe']),
-    ]},
+    ], loot: rollLoot('fire-station', 'government', 3) },
     'city-hall':    { label: 'City Hall',       category: 'government',  humans: 200,  zombies: 0, units: [
       makeUnit('civilian', ['first-aid', 'radio']),
       makeUnit('civilian', ['first-aid', 'radio']),
       makeUnit('civilian', ['first-aid']),
-    ]},
-    'memorial':     { label: 'Memorial',        category: 'medical',     humans: 600,  zombies: 0, units: [] },
-    'ironworks':    { label: 'Ironworks',       category: 'industrial',  humans: 380,  zombies: 0, units: [] },
-    'riverside':    { label: 'Riverside',       category: 'residential', humans: 1100, zombies: 0, units: [] },
-    'market':       { label: 'Market District', category: 'retail',      humans: 700,  zombies: 0, units: [] },
-    'commerce':     { label: 'Commerce Park',   category: 'retail',      humans: 650,  zombies: 0, units: [] },
-    'southend':     { label: 'Southend',        category: 'residential', humans: 950,  zombies: 0, units: [] },
-    'industrial':   { label: 'Industrial Row',  category: 'industrial',  humans: 400,  zombies: 0, units: [] },
+    ], loot: rollLoot('city-hall',    'government', 2) },
+    'memorial':     { label: 'Memorial',        category: 'medical',     humans: 600,  zombies: 0, units: [], loot: rollLoot('memorial',     'medical',     4) },
+    'ironworks':    { label: 'Ironworks',       category: 'industrial',  humans: 380,  zombies: 0, units: [], loot: rollLoot('ironworks',    'industrial',  2) },
+    'riverside':    { label: 'Riverside',       category: 'residential', humans: 1100, zombies: 0, units: [], loot: rollLoot('riverside',    'residential', 2) },
+    'market':       { label: 'Market District', category: 'retail',      humans: 700,  zombies: 0, units: [], loot: rollLoot('market',       'retail',      3) },
+    'commerce':     { label: 'Commerce Park',   category: 'retail',      humans: 650,  zombies: 0, units: [], loot: rollLoot('commerce',     'retail',      2) },
+    'southend':     { label: 'Southend',        category: 'residential', humans: 950,  zombies: 0, units: [], loot: rollLoot('southend',     'residential', 2) },
+    'industrial':   { label: 'Industrial Row',  category: 'industrial',  humans: 400,  zombies: 0, units: [], loot: rollLoot('industrial',   'industrial',  2) },
   }
 }
 
@@ -140,7 +244,7 @@ const adjacency = {
   'industrial':   ['commerce', 'southend'],
 }
 
-// Zombie seeding happens in startGame()
+// ── INIT ──
 
 // Pre-build clip-paths so selected stroke renders inside polygon only
 function initClipPaths() {
@@ -158,14 +262,16 @@ function initClipPaths() {
 }
 initClipPaths()
 
-// DOM refs
+// ── DOM REFS ──
+
 const godBtn      = document.getElementById('btn-god-mode')
 const tickDisplay = document.getElementById('tick-display')
 const timeDisplay = document.getElementById('time-display')
 const infoName    = document.getElementById('info-name')
 const infoCat     = document.getElementById('info-cat')
 const infoPop     = document.getElementById('info-pop')
-const leftPanel   = document.getElementById('left-panel')
+const unitsPanel    = document.getElementById('units-panel')
+const contactsPanel = document.getElementById('contacts-panel')
 const unitsList   = document.getElementById('units-list')
 const udvType     = document.getElementById('udv-type')
 const udvLocation = document.getElementById('udv-location')
@@ -175,13 +281,174 @@ const udvTarget   = document.getElementById('udv-target')
 const btnUdvSend  = document.getElementById('btn-udv-send')
 const btnUdvBack  = document.getElementById('btn-udv-back')
 const cdvName     = document.getElementById('cdv-name')
+const cdvMeta     = document.getElementById('cdv-meta')
 const cdvMessages = document.getElementById('cdv-messages')
 const btnCdvBack  = document.getElementById('btn-cdv-back')
 const idvName     = document.getElementById('idv-name')
 const idvDesc     = document.getElementById('idv-description')
 const btnIdvBack  = document.getElementById('btn-idv-back')
 
-// God mode
+// ── WINDOW MANAGER ──
+
+const WIN_IDS = ['map', 'units', 'contacts', 'info', 'sitrep']
+const winState = {}
+let _topZ = 10
+
+function getDefaultLayout() {
+  const desktop = document.getElementById('desktop')
+  const dw = desktop.clientWidth, dh = desktop.clientHeight
+  const mid = Math.floor(dh * 0.54), rw = 292, lw = 272
+  return {
+    map:      { x: lw + 2,      y: 0,                           w: dw - lw - rw - 6,                 h: dh                              },
+    units:    { x: 0,           y: 0,                           w: lw,                                h: mid                             },
+    contacts: { x: 0,           y: mid + 2,                     w: lw,                                h: dh - mid - 2                    },
+    info:     { x: dw - rw - 2, y: 0,                           w: rw,                                h: Math.floor(dh * 0.38)           },
+    sitrep:   { x: dw - rw - 2, y: Math.floor(dh * 0.38) + 2,  w: rw,                                h: dh - Math.floor(dh * 0.38) - 2  },
+  }
+}
+
+function resetLayout() {
+  const defaults = getDefaultLayout()
+  for (const id of WIN_IDS) {
+    Object.assign(winState[id], defaults[id], { minimized: false, maximized: false, _restore: null })
+    document.getElementById(`win-${id}`).classList.remove('win-minimized')
+    applyWinGeometry(id)
+  }
+  syncTaskbar()
+  bringToFront('map')
+}
+
+function initWindowManager() {
+  const defaults = getDefaultLayout()
+
+  for (const id of WIN_IDS) {
+    winState[id] = { ...defaults[id], minimized: false, maximized: false, _restore: null, z: ++_topZ }
+    applyWinGeometry(id)
+
+    const winEl    = document.getElementById(`win-${id}`)
+    const titlebar = winEl.querySelector('.win-titlebar')
+
+    winEl.addEventListener('mousedown', () => bringToFront(id), true)
+
+    titlebar.addEventListener('mousedown', e => {
+      if (e.target.closest('.win-btn')) return
+      e.preventDefault()
+      const ws = winState[id]
+      if (ws.maximized) return
+      const ox = e.clientX - ws.x, oy = e.clientY - ws.y
+      const onMove = ev => { ws.x = ev.clientX - ox; ws.y = ev.clientY - oy; clampWin(id); applyWinGeometry(id) }
+      const onUp   = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    })
+
+    titlebar.addEventListener('dblclick', e => { if (!e.target.closest('.win-btn')) toggleMaximize(id) })
+
+    // Remove old single-corner resize, add full 8-edge resize handles
+    const oldResize = winEl.querySelector('.win-resize')
+    if (oldResize) oldResize.remove()
+    for (const dir of ['n','ne','e','se','s','sw','w','nw']) {
+      const edge = document.createElement('div')
+      edge.className = `win-edge win-edge--${dir}`
+      edge.addEventListener('mousedown', e => startResize(id, dir, e))
+      winEl.appendChild(edge)
+    }
+
+    winEl.querySelector('.win-min-btn').addEventListener('click',   () => toggleMinimize(id))
+    winEl.querySelector('.win-max-btn').addEventListener('click',   () => toggleMaximize(id))
+    winEl.querySelector('.win-close-btn').addEventListener('click', () => toggleMinimize(id))
+  }
+
+  document.querySelectorAll('.task-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.win
+      if (winState[id].minimized) { toggleMinimize(id) }
+      else if (_activeWin === id)  { toggleMinimize(id) }
+      else                         { bringToFront(id) }
+    })
+  })
+
+  bringToFront('map')
+  syncTaskbar()
+}
+
+function applyWinGeometry(id) {
+  const ws = winState[id]
+  const el = document.getElementById(`win-${id}`)
+  el.style.left = ws.x + 'px'; el.style.top    = ws.y + 'px'
+  el.style.width = ws.w + 'px'; el.style.height = ws.h + 'px'
+  el.style.zIndex = ws.z
+}
+
+function clampWin(id) {
+  const ws = winState[id]
+  const desktop = document.getElementById('desktop')
+  ws.y = Math.max(0, Math.min(desktop.clientHeight - 24, ws.y))
+  ws.x = Math.max(80 - ws.w, Math.min(desktop.clientWidth - 80, ws.x))
+}
+
+function startResize(id, dir, e) {
+  e.preventDefault(); e.stopPropagation()
+  bringToFront(id)
+  const ws = winState[id]
+  if (ws.maximized) return
+  const sx = e.clientX, sy = e.clientY
+  const ox = ws.x, oy = ws.y, ow = ws.w, oh = ws.h
+  const onMove = ev => {
+    const dx = ev.clientX - sx, dy = ev.clientY - sy
+    if (dir.includes('e'))  ws.w = Math.max(220, ow + dx)
+    if (dir.includes('s'))  ws.h = Math.max(120, oh + dy)
+    if (dir.includes('w')) { ws.w = Math.max(220, ow - dx); ws.x = ox + (ow - ws.w) }
+    if (dir.includes('n')) { ws.h = Math.max(120, oh - dy); ws.y = oy + (oh - ws.h) }
+    applyWinGeometry(id)
+  }
+  const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+let _activeWin = null
+
+function bringToFront(id) {
+  _activeWin = id
+  document.querySelectorAll('.win').forEach(w => w.classList.remove('win-active'))
+  const el = document.getElementById(`win-${id}`)
+  el.classList.add('win-active')
+  winState[id].z = ++_topZ
+  el.style.zIndex = _topZ
+}
+
+function toggleMinimize(id) {
+  const ws = winState[id]
+  ws.minimized = !ws.minimized
+  document.getElementById(`win-${id}`).classList.toggle('win-minimized', ws.minimized)
+  if (!ws.minimized) { clampWin(id); applyWinGeometry(id); bringToFront(id) }
+  syncTaskbar()
+}
+
+function toggleMaximize(id) {
+  const ws = winState[id]
+  const desktop = document.getElementById('desktop')
+  if (ws.maximized) {
+    Object.assign(ws, ws._restore)
+    ws.maximized = false; ws._restore = null
+  } else {
+    ws._restore  = { x: ws.x, y: ws.y, w: ws.w, h: ws.h }
+    ws.x = 0; ws.y = 0; ws.w = desktop.clientWidth; ws.h = desktop.clientHeight
+    ws.maximized = true
+  }
+  applyWinGeometry(id)
+  bringToFront(id)
+}
+
+function syncTaskbar() {
+  document.querySelectorAll('.task-btn').forEach(btn => {
+    btn.classList.toggle('win-minimized', winState[btn.dataset.win].minimized)
+  })
+}
+
+// ── GOD MODE ──
+
 if (state.godMode) document.body.classList.add('god-mode')
 syncGodBtn()
 
@@ -196,7 +463,8 @@ function syncGodBtn() {
   godBtn.textContent = `GOD MODE: ${state.godMode ? 'ON' : 'OFF'}`
 }
 
-// Map — click to select, hover handled by CSS
+// ── MAP ──
+
 document.querySelectorAll('#districts polygon').forEach(poly => {
   poly.addEventListener('click', () => selectDistrict(poly.id))
 })
@@ -234,15 +502,26 @@ function updateRightPanel() {
   infoName.textContent = d.label
   infoCat.textContent  = d.category
 
-  if (state.godMode || districtHasRadio(state.selected)) {
-    const badge = !state.godMode ? '<div class="radio-intel-badge">RADIO INTEL</div>' : ''
+  const hasRadio = districtHasRadio(state.selected)
+  const hasBino  = districtHasBinoView(state.selected)
+  if (state.godMode || hasRadio || hasBino) {
+    let badge = ''
+    if (!state.godMode) badge = hasRadio
+      ? '<div class="radio-intel-badge">RADIO INTEL</div>'
+      : '<div class="radio-intel-badge">BINOC INTEL</div>'
     infoPop.innerHTML = `${badge}Humans:&nbsp; ${d.humans.toLocaleString()}<br>Infected: ${d.zombies.toLocaleString()}`
   } else {
     infoPop.innerHTML = '<span class="no-intel">No intel</span>'
   }
 }
 
-// Unit cards — event delegation
+// ── LEFT PANEL ──
+
+initWindowManager()
+
+function setUnitsView(view)    { unitsPanel.dataset.view    = view || '' }
+function setContactsView(view) { contactsPanel.dataset.view = view || '' }
+
 unitsList.addEventListener('click', e => {
   const card = e.target.closest('.unit-card')
   if (!card) return
@@ -262,7 +541,7 @@ function showUnitDetail(unitId) {
 
   state.selectedUnit = { unitId, districtId }
   renderUnitDetail(unit, districtId)
-  leftPanel.classList.add('unit-detail-mode')
+  setUnitsView('unit-detail')
 }
 
 function renderUnitDetail(unit, districtId) {
@@ -289,7 +568,25 @@ function renderUnitDetail(unit, districtId) {
 
 function hideUnitDetail() {
   state.selectedUnit = null
-  leftPanel.classList.remove('unit-detail-mode')
+  setUnitsView(null)
+}
+
+function renderContactMeta(contact) {
+  if (!contact.location) { cdvMeta.style.display = 'none'; return }
+  const d = state.districts[contact.location]
+  const locLabel   = d ? d.label : '—'
+  const statusText = contact.alive ? contact.status : 'lost'
+  const statusCls  = contact.alive ? contact.status : 'dead'
+  cdvMeta.innerHTML = `
+    <div class="cdv-meta-row">
+      <span class="cdv-meta-label">Status</span>
+      <span class="cdv-meta-value cdv-meta-value--${statusCls}">${statusText}</span>
+    </div>
+    <div class="cdv-meta-row">
+      <span class="cdv-meta-label">Location</span>
+      <span class="cdv-meta-value">${locLabel}</span>
+    </div>`
+  cdvMeta.style.display = ''
 }
 
 function showContactDetail(contactId) {
@@ -298,14 +595,14 @@ function showContactDetail(contactId) {
   state.selectedContact = contactId
   contact.unread = false
   cdvName.textContent = contact.name
+  renderContactMeta(contact)
   renderContactMessages(contact)
-  leftPanel.classList.remove('unit-detail-mode')
-  leftPanel.classList.add('contact-detail-mode')
+  setContactsView('contact-detail')
 }
 
 function hideContactDetail() {
   state.selectedContact = null
-  leftPanel.classList.remove('contact-detail-mode')
+  setContactsView(null)
 }
 
 function showItemDescription(key) {
@@ -313,62 +610,111 @@ function showItemDescription(key) {
   if (!item) return
   idvName.textContent = item.name
   idvDesc.textContent = item.description
-  leftPanel.classList.remove('unit-detail-mode')
-  leftPanel.classList.add('item-description-mode')
+  setUnitsView('item-description')
 }
 
 function hideItemDescription() {
-  leftPanel.classList.remove('item-description-mode')
-  leftPanel.classList.add('unit-detail-mode')
+  setUnitsView('unit-detail')
 }
 
 function renderContactMessages(contact) {
   cdvMessages.innerHTML = contact.messages.length === 0
     ? '<div class="no-messages">No messages yet.</div>'
-    : contact.messages.map(m =>
-        `<div class="chat-bubble">
+    : contact.messages.map(m => {
+        const isLost = m.text === '[contact lost]'
+        return `<div class="chat-bubble${isLost ? ' chat-bubble--lost' : ''}">
           <div class="chat-text">${m.text}</div>
-          <div class="chat-time">sent at ${m.time}</div>
+          ${!isLost ? `<div class="chat-time">sent at ${m.time}</div>` : ''}
         </div>`
-      ).join('')
+      }).join('')
 }
+
+// ── CONTACTS ──
 
 function checkCallEvent() {
   if (Math.random() > 0.10) return
   const infected = Object.entries(state.districts).filter(([, d]) => d.zombies > 0)
   if (!infected.length) return
 
-  const [, dist] = infected[Math.floor(Math.random() * infected.length)]
+  const [triggerId, triggerDist] = infected[Math.floor(Math.random() * infected.length)]
 
   let contact
   const useExisting = state.contacts.length > 0 && (Math.random() < 0.5 || _callerIdx >= CALLER_POOL.length)
   if (useExisting) {
-    contact = state.contacts[Math.floor(Math.random() * state.contacts.length)]
+    // Only reuse alive contacts
+    const candidates = state.contacts.filter(c => c.alive)
+    if (!candidates.length) return
+    contact = candidates[Math.floor(Math.random() * candidates.length)]
   } else {
-    contact = makeContact(CALLER_POOL[_callerIdx++])
+    const name = CALLER_POOL[_callerIdx++]
+    const isNamed = name !== 'Unknown Caller'
+    contact = makeContact(name, isNamed ? triggerId : null)
     state.contacts.push(contact)
   }
 
-  const elapsed = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0
-  const timeStr = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
-  const text = CALL_TEMPLATES[Math.floor(Math.random() * CALL_TEMPLATES.length)](dist)
+  // Named callers report from their fixed location; unknowns from the triggered district
+  const reportDist = (contact.location && state.districts[contact.location])
+    ? state.districts[contact.location]
+    : triggerDist
+
+  // Named callers in safe zones go quiet
+  if (contact.location && reportDist.zombies === 0) return
+
+  const timeStr = elapsedTime()
+  const pool = CALL_TEMPLATES[getCallTier(reportDist.zombies)]
+  const text = pool[Math.floor(Math.random() * pool.length)](reportDist)
 
   contact.messages.push({ text, time: timeStr })
   contact.unread = true
 }
 
+function checkCallerSurvival() {
+  for (const contact of state.contacts) {
+    if (!contact.location || !contact.alive) continue
+    const d = state.districts[contact.location]
+    if (!d || d.zombies === 0) continue
+
+    const dangerRatio = d.zombies / Math.max(1, d.humans + d.zombies)
+    let deathChance = dangerRatio * 0.04
+    if (contact.status === 'hiding') deathChance *= 0.25
+
+    if (Math.random() < deathChance) {
+      contact.alive = false
+      contact.status = 'dead'
+      contact.messages.push({ text: '[contact lost]', time: elapsedTime() })
+      contact.unread = true
+    }
+  }
+}
+
 function renderContactsPanel() {
   const list = document.getElementById('contacts-list')
   if (!list) return
-  list.innerHTML = state.contacts.length === 0
+
+  const sorted = state.contacts.slice().sort((a, b) => {
+    if (b.unread !== a.unread) return (b.unread ? 1 : 0) - (a.unread ? 1 : 0)
+    if (b.alive !== a.alive)   return (b.alive  ? 1 : 0) - (a.alive  ? 1 : 0)
+    return 0
+  })
+
+  list.innerHTML = sorted.length === 0
     ? '<div class="no-contacts">No contacts yet.</div>'
-    : state.contacts.map(c =>
-        `<div class="contact-card${c.unread ? ' has-unread' : ''}" data-contact-id="${c.id}">
+    : sorted.map(c => {
+        const deadClass   = !c.alive ? ' contact-dead' : ''
+        const unreadClass = c.unread ? ' has-unread'   : ''
+        const dot = !c.alive && c.unread
+          ? '<span class="unread-dot unread-dot--lost"></span>'
+          : c.unread
+          ? '<span class="unread-dot"></span>'
+          : ''
+        return `<div class="contact-card${unreadClass}${deadClass}" data-contact-id="${c.id}">
           <span>${c.name}</span>
-          ${c.unread ? '<span class="unread-dot"></span>' : ''}
+          ${dot}
         </div>`
-      ).join('')
+      }).join('')
 }
+
+// ── EVENT LISTENERS ──
 
 btnUdvBack.addEventListener('click', hideUnitDetail)
 btnCdvBack.addEventListener('click', hideContactDetail)
@@ -404,29 +750,7 @@ btnUdvSend.addEventListener('click', () => {
   renderUnitsPanel()
 })
 
-function renderUnitsPanel() {
-  const active = Object.entries(state.districts)
-    .filter(([, d]) => d.units.length > 0)
-
-  if (active.length === 0) {
-    unitsList.innerHTML = '<div class="no-units">No units deployed</div>'
-    return
-  }
-
-  unitsList.innerHTML = active.map(([id, d]) => {
-    const cards = d.units.map(u => {
-      const hpClass = u.health <= 49 ? ' unit-critical'
-                    : u.health <= 79 ? ' unit-hurt'
-                    : ''
-      return `<div class="unit-card${hpClass}" data-unit-id="${u.id}" data-type="${u.type}" title="${u.type} · HP ${u.health}"></div>`
-    }).join('')
-
-    return `<div class="unit-district-group">
-      <div class="unit-district-name">${d.label}</div>
-      <div class="unit-cards">${cards}</div>
-    </div>`
-  }).join('')
-}
+// ── SIMULATION ──
 
 function checkLose() {
   if (state.won || state.lost) return
@@ -436,12 +760,9 @@ function checkLose() {
   state.lost = true
   if (tickInterval) clearInterval(tickInterval)
 
-  const elapsed = Math.floor((Date.now() - state.startTime) / 1000)
-  const timeStr = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
-
   document.getElementById('win-title').textContent  = 'ALL UNITS LOST'
   document.getElementById('win-ticks').textContent  = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent   = timeStr
+  document.getElementById('win-time').textContent   = elapsedTime()
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -453,13 +774,8 @@ function checkWin() {
   state.won = true
   if (tickInterval) clearInterval(tickInterval)
 
-  const elapsed  = Math.floor((Date.now() - state.startTime) / 1000)
-  const mins     = Math.floor(elapsed / 60)
-  const secs     = elapsed % 60
-  const timeStr  = `${mins}:${String(secs).padStart(2, '0')}`
-
   document.getElementById('win-ticks').textContent = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent  = timeStr
+  document.getElementById('win-time').textContent  = elapsedTime()
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -467,10 +783,9 @@ function tick() {
   if (!state.startTime) state.startTime = Date.now()
   state.tick++
   tickDisplay.textContent = `TICK ${String(state.tick).padStart(3, '0')}`
-  const elapsed = Math.floor((Date.now() - state.startTime) / 1000)
-  timeDisplay.textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
+  timeDisplay.textContent = elapsedTime()
 
-  // ── Spread: local growth using suppressed rate ──
+  // Local spread using suppressed rate
   for (const d of Object.values(state.districts)) {
     if (d.zombies === 0 || d.humans === 0) continue
     const rate = getEffectiveSpreadRate(d)
@@ -481,7 +796,7 @@ function tick() {
     }
   }
 
-  // ── Inter-district spread: units in source district can block ──
+  // Inter-district spread: units in source district can block
   if (Math.random() < SPREAD_CHANCE) {
     const sources = Object.keys(state.districts).filter(id => state.districts[id].zombies > 0)
     if (sources.length) {
@@ -497,11 +812,11 @@ function tick() {
     }
   }
 
-  // ── Combat: units fight zombies in occupied infected districts ──
+  // Combat: units fight zombies in occupied infected districts
   for (const d of Object.values(state.districts)) {
     if (d.zombies === 0 || d.units.length === 0) continue
 
-    // Units attack — each gets one roll
+    // Attack phase — each unit gets one roll
     for (const unit of d.units) {
       if (d.zombies <= 0) break
       if (Math.random() < getHitChance(unit)) {
@@ -509,7 +824,7 @@ function tick() {
       }
     }
 
-    // Zombies counterattack — weighted targeting by threat modifier
+    // Counterattack — weighted targeting by threat modifier
     const dangerRatio   = d.zombies / (d.humans + d.zombies)
     const counterChance = dangerRatio * 0.40
     const numStrikes    = d.units.length
@@ -537,40 +852,78 @@ function tick() {
     }
   }
 
+  // Rations — passive HP recovery for all carrying units, not consumed
+  for (const d of Object.values(state.districts)) {
+    for (const unit of d.units) {
+      if (unit.items.includes('rations') && unit.health < 100) {
+        unit.health = Math.min(100, unit.health + 5)
+      }
+    }
+  }
+
   checkCallEvent()
+  checkCallerSurvival()
   render()
   checkLose()
   checkWin()
 }
 
+// ── RENDERING ──
+
 function render() {
   updateRightPanel()
-  if (leftPanel.classList.contains('unit-detail-mode')) {
-    if (state.selectedUnit) {
-      const { unitId, districtId } = state.selectedUnit
-      const d = state.districts[districtId]
-      const unit = d?.units.find(u => u.id === unitId)
-      if (!unit) {
-        hideUnitDetail()
-      } else {
-        renderUnitDetail(unit, districtId)
-      }
-    }
-  } else if (leftPanel.classList.contains('contact-detail-mode')) {
-    if (state.selectedContact) {
-      const contact = state.contacts.find(c => c.id === state.selectedContact)
-      if (contact) renderContactMessages(contact)
-    }
-  } else {
-    renderUnitsPanel()
-  }
+  renderUnitsPanel()
   renderContactsPanel()
   renderGodPanel()
+
+  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
+    const { unitId, districtId } = state.selectedUnit
+    const unit = state.districts[districtId]?.units.find(u => u.id === unitId)
+    if (!unit) { hideUnitDetail() }
+    else        { renderUnitDetail(unit, districtId) }
+  }
+
+  if (contactsPanel.dataset.view === 'contact-detail' && state.selectedContact) {
+    const contact = state.contacts.find(c => c.id === state.selectedContact)
+    if (contact) {
+      renderContactMessages(contact)
+      renderContactMeta(contact)
+    }
+  }
+}
+
+function renderUnitsPanel() {
+  const active = Object.entries(state.districts)
+    .filter(([, d]) => d.units.length > 0)
+
+  if (active.length === 0) {
+    unitsList.innerHTML = '<div class="no-units">No units deployed</div>'
+    return
+  }
+
+  unitsList.innerHTML = active.map(([id, d]) => {
+    const cards = d.units.map(u => {
+      const hpClass = u.health <= 49 ? ' unit-critical'
+                    : u.health <= 79 ? ' unit-hurt'
+                    : ''
+      return `<div class="unit-card${hpClass}" data-unit-id="${u.id}" data-type="${u.type}" title="${u.type} · HP ${u.health}"></div>`
+    }).join('')
+
+    return `<div class="unit-district-group">
+      <div class="unit-district-name">${d.label}</div>
+      <div class="unit-cards">${cards}</div>
+    </div>`
+  }).join('')
 }
 
 function renderGodPanel() {
   const table = document.getElementById('god-table')
   if (!table) return
+
+  if (!state.godMode) {
+    table.innerHTML = '<div class="sitrep-no-access">— GOD MODE REQUIRED —</div>'
+    return
+  }
 
   const header = `<div class="gsr gsr-header">
     <span class="gsr-name"></span>
@@ -579,33 +932,58 @@ function renderGodPanel() {
     <span class="gsr-rate">SPD</span>
   </div>`
 
-  const rows = Object.values(state.districts).sort((a, b) => a.label.localeCompare(b.label)).map(d => {
-    const total = d.humans + d.zombies
-    const ratio = total > 0 ? d.zombies / total : 0
-    let cls = 'clear'
-    if (d.humans === 0)     cls = 'overrun'
-    else if (ratio > 0.5)   cls = 'critical'
-    else if (ratio > 0.15)  cls = 'danger'
-    else if (d.zombies > 0) cls = 'infected'
+  const rows = Object.entries(state.districts)
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([id, d]) => {
+      const total = d.humans + d.zombies
+      const ratio = total > 0 ? d.zombies / total : 0
+      let cls = 'clear'
+      if (d.humans === 0)     cls = 'overrun'
+      else if (ratio > 0.5)   cls = 'critical'
+      else if (ratio > 0.15)  cls = 'danger'
+      else if (d.zombies > 0) cls = 'infected'
 
-    const spdValue    = (getEffectiveSpreadRate(d) * 100).toFixed(1) + '%'
-    const spdLabel    = d.zombies > 0 ? spdValue : '—'
-    const suppressed  = d.zombies > 0 && d.units.length > 0
+      const spdValue   = (getEffectiveSpreadRate(d) * 100).toFixed(1) + '%'
+      const spdLabel   = d.zombies > 0 ? spdValue : '—'
+      const suppressed = d.zombies > 0 && d.units.length > 0
 
-    return `<div class="gsr">
-      <span class="gsr-name">${d.label}</span>
-      <span class="gsr-pop">${d.humans.toLocaleString()}</span>
-      <span class="gsr-inf ${cls}">${d.zombies.toLocaleString()}</span>
-      <span class="gsr-rate${suppressed ? ' suppressed' : ''}">${spdLabel}</span>
-    </div>`
-  }).join('')
+      // Loot as item chips (same visual as unit detail view)
+      const lootHtml = d.loot
+        .map(k => `<span class="item-chip item-chip--${k}">${ITEM_ABBREV[k]}</span>`)
+        .join('')
+
+      // Named callers present and alive
+      const persons = state.contacts
+        .filter(c => c.location === id && c.alive)
+        .map(c => c.name)
+        .join(', ')
+
+      const detail = (lootHtml || persons)
+        ? `<div class="gsr-detail">
+            ${lootHtml ? `<div class="gsr-loot">${lootHtml}</div>` : ''}
+            ${persons  ? `<div class="gsr-persons">${persons}</div>` : ''}
+          </div>`
+        : ''
+
+      return `<div class="gsr-block">
+        <div class="gsr">
+          <span class="gsr-name">${d.label}</span>
+          <span class="gsr-pop">${d.humans.toLocaleString()}</span>
+          <span class="gsr-inf ${cls}">${d.zombies.toLocaleString()}</span>
+          <span class="gsr-rate${suppressed ? ' suppressed' : ''}">${spdLabel}</span>
+        </div>
+        ${detail}
+      </div>`
+    }).join('')
 
   table.innerHTML = header + rows
 }
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
+document.getElementById('btn-reset-ui').addEventListener('click', resetLayout)
 
-// ── Start screen ──
+// ── START SCREEN ──
+
 const customCounts = {}
 Object.keys(state.districts).forEach(id => customCounts[id] = 0)
 
