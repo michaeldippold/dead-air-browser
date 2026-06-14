@@ -6,11 +6,11 @@
    ══════════════════════════════════════════════════════ */
 :root {
   /* ── Surfaces (darkest → lightest) ── */
-  --desktop-bg:    #030603;
-  --taskbar-bg:    #050a05;
-  --bg:            #090f09;
-  --surface:       #0d180d;
-  --chrome-raised: #111e11;
+  --desktop-bg:    #020402;
+  --taskbar-bg:    #040804;
+  --bg:            #060b06;
+  --surface:       #0a1208;
+  --chrome-raised: #0e180e;
 
   /* ── Borders ── */
   --border:        #1a2e1a;
@@ -19,31 +19,31 @@
 
   /* ── Text ── */
   --text:        #7ed87e;
-  --text-dim:    #5a8e5a;
-  --text-dimmer: #38623a;
+  --text-dim:    #7ed87e;
+  --text-dimmer: #7ed87e;
   --accent:      #a8eaa8;
 
   /* ── Interactive (buttons, taskbar) ── */
   --btn-bg:            #080f08;
   --btn-bg-hover:      #0e1a0e;
   --btn-bg-active:     #0c180c;
-  --btn-border:        #162e16;
-  --btn-border-hover:  #2a4a2a;
-  --btn-border-active: #223622;
-  --btn-color:         #3e5e3e;
-  --btn-color-active:  #5a8e5a;
+  --btn-border:        #2a4a2a;
+  --btn-border-hover:  #3a6a3a;
+  --btn-border-active: #2e4e30;
+  --btn-color:         #7ed87e;
+  --btn-color-active:  #a8eaa8;
 
   /* ── Window chrome ── */
   --win-border:             #1a2e1a;
   --titlebar-bg:            #090f09;
   --titlebar-bg-active:     #0d1a0d;
   --titlebar-border-active: #2e4a30;
-  --win-title-color:        #2e4e2e;
+  --win-title-color:        #7ed87e;
   --winbtn-bg:              #0b140b;
-  --winbtn-border:          #1a2e1a;
-  --winbtn-color:           #2e4a2e;
+  --winbtn-border:          #2a4a2a;
+  --winbtn-color:           #7ed87e;
   --winbtn-hover-bg:        #111e11;
-  --winbtn-hover-border:    #2e4a30;
+  --winbtn-hover-border:    #3a6a3a;
   --winbtn-close-bg:        #1a0808;
   --winbtn-close-color:     #c04040;
   --winbtn-close-border:    #501818;
@@ -52,14 +52,17 @@
   --winbtn-max-border:      #1e301e;
   --winbtn-min-bg:          #0f1a0f;
 
-  /* ── Radio / COMMS (amber channel — intentional contrast) ── */
-  --radio-bg:      #040804;
-  --radio-border:  #0a120a;
+  /* ── Radio / COMMS (analog hardware channel — intentional contrast) ── */
+  --radio-bg:          #0c0a02;
+  --radio-border:      #786858;
+  --radio-chrome:      #0e0c0a;
+  --radio-win-border:  #8a7a60;
+  --radio-title-color: #c8c0a0;
   --radio-carrier: #5a8e5a;
   --radio-freq:    #2e4e2e;
-  --radio-t0:      #c8a030;
-  --radio-t1:      #88661a;
-  --radio-t2:      #4a3810;
+  --radio-t0:      #e0b840;
+  --radio-t1:      #b08828;
+  --radio-t2:      #786020;
   --radio-noise:   #302810;
 
   /* ── Threat levels (god panel) ── */
@@ -68,18 +71,18 @@
   --inf-critical: #9c2810;
   --inf-overrun:  #800808;
 
-  /* ── District map (tactical display mode) ── */
-  --col-res:   #8c3030;
-  --col-gov:   #245490;
-  --col-med:   #227842;
-  --col-ret:   #502888;
-  --col-ind:   #7e2a5c;
+  /* ── District map (lighter = default, darker = hover/selected) ── */
+  --col-res:   #a83c3c;
+  --col-gov:   #2e6aaa;
+  --col-med:   #2c9050;
+  --col-ret:   #6232a4;
+  --col-ind:   #98386e;
 
-  --col-res-h: #a83c3c;
-  --col-gov-h: #2e6aaa;
-  --col-med-h: #2c9050;
-  --col-ret-h: #6232a4;
-  --col-ind-h: #98386e;
+  --col-res-h: #8c3030;
+  --col-gov-h: #245490;
+  --col-med-h: #227842;
+  --col-ret-h: #502888;
+  --col-ind-h: #7e2a5c;
 
   /* ── Unit type colors ── */
   --unit-police:   #2a6090;
@@ -94,7 +97,8 @@
   --chip-rat-border:      #3a6030;  --chip-rat-bg:      #0a180a;  --chip-rat-color:      #70a858;
   --chip-bno-border:      #284878;  --chip-bno-bg:      #080e1c;  --chip-bno-color:      #4888d8;
 
-  /* ── Map labels ── */
+  /* ── Map labels + panel bg ── */
+  --map-panel-bg:  transparent;
   --map-label:     rgba(255,255,255,0.82);
   --map-label-sub: rgba(255,255,255,0.50);
 
@@ -132,6 +136,12 @@ html, body {
   background: var(--surface);
 }
 
+#topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 #game-title {
   font-size: 16px;
   font-weight: bold;
@@ -142,8 +152,15 @@ html, body {
 #topbar-right {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
 }
+
+#btn-test-win, #btn-test-lose {
+  color: var(--text-dimmer);
+  border-color: var(--border-sub);
+}
+#btn-test-win:hover  { color: var(--text); border-color: var(--btn-border-hover); }
+#btn-test-lose:hover { color: var(--status-lost); border-color: var(--winbtn-close-border); }
 
 #tick-display {
   font-size: 12px;
@@ -313,20 +330,25 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win-controls { display: flex; gap: 4px; flex-shrink: 0; }
 
 .win-btn {
-  width: 22px;
-  height: 22px;
   background: var(--winbtn-bg);
   border: 1px solid var(--winbtn-border);
   color: var(--winbtn-color);
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: monospace;
-  padding: 0;
+  padding: 3px 7px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.win-btn-active {
+  background: var(--btn-bg-active);
+  border-color: var(--border-active);
+  color: var(--accent);
 }
 
 .win-btn:hover        { background: var(--winbtn-hover-bg);    color: var(--text-dim);          border-color: var(--winbtn-hover-border);  }
@@ -353,11 +375,34 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* ── Map window ── */
 #map-container {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
   overflow: hidden;
+  background: var(--map-panel-bg);
+}
+
+#map-palette-select {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  z-index: 2;
+  background: var(--btn-bg);
+  color: var(--text-dim);
+  border: 1px solid var(--btn-border);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+}
+
+#map-palette-select:hover {
+  border-color: var(--btn-border-hover);
+  color: var(--text);
 }
 
 #city-map {
@@ -402,11 +447,16 @@ polygon[data-category="medical"]     { fill: var(--col-med); }
 polygon[data-category="retail"]      { fill: var(--col-ret); }
 polygon[data-category="industrial"]  { fill: var(--col-ind); }
 
-polygon[data-category="residential"]:hover { fill: var(--col-res-h); }
-polygon[data-category="government"]:hover  { fill: var(--col-gov-h); }
-polygon[data-category="medical"]:hover     { fill: var(--col-med-h); }
-polygon[data-category="retail"]:hover      { fill: var(--col-ret-h); }
-polygon[data-category="industrial"]:hover  { fill: var(--col-ind-h); }
+polygon[data-category="residential"]:hover,
+polygon[data-category="residential"].selected { fill: var(--col-res-h); }
+polygon[data-category="government"]:hover,
+polygon[data-category="government"].selected  { fill: var(--col-gov-h); }
+polygon[data-category="medical"]:hover,
+polygon[data-category="medical"].selected     { fill: var(--col-med-h); }
+polygon[data-category="retail"]:hover,
+polygon[data-category="retail"].selected      { fill: var(--col-ret-h); }
+polygon[data-category="industrial"]:hover,
+polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 
 polygon.selected {
   stroke: var(--selection-stroke) !important;
@@ -429,6 +479,32 @@ polygon.selected {
   fill: var(--map-label-sub);
   text-anchor: middle;
   letter-spacing: 0.5px;
+}
+
+/* ── COMMS window: amber channel treatment ── */
+#win-radio {
+  border-color: var(--radio-win-border);
+}
+
+#win-radio .win-titlebar {
+  background: var(--radio-chrome);
+  border-bottom-color: var(--radio-win-border);
+}
+
+#win-radio .win-title {
+  color: var(--radio-title-color);
+}
+
+#win-radio .win-btn {
+  background: var(--radio-chrome);
+  border-color: var(--radio-border);
+  color: var(--radio-title-color);
+}
+
+#win-radio .win-btn:hover {
+  background: #181410;
+  border-color: var(--radio-win-border);
+  color: var(--text-dim);
 }
 
 /* ── COMMS / Radio feed ── */
@@ -608,40 +684,64 @@ polygon.selected {
 
 /* ── God panel ── */
 #god-panel {
-  padding: 16px;
+  padding: 14px;
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 #god-table {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.gsr-block {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  margin-top: 8px;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  background: var(--btn-bg);
 }
 
-.gsr {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: 6px;
-  font-size: 12px;
-  align-items: baseline;
+.gsr-block--infected { border-left-color: var(--inf-infected); }
+.gsr-block--danger   { border-left-color: var(--inf-danger); }
+.gsr-block--critical { border-left-color: var(--inf-critical); }
+.gsr-block--overrun  { border-left-color: var(--inf-overrun); }
+
+.gsr-card-name {
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--text);
+  letter-spacing: 0.05em;
 }
 
-.gsr-name  { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gsr-pop   { color: var(--text-dim); text-align: right; }
-.gsr-inf   { text-align: right; min-width: 32px; }
-.gsr-rate  { text-align: right; min-width: 40px; color: var(--text-dimmer); }
-.gsr-rate.suppressed { color: var(--accent); }
+.gsr-card-stats {
+  display: flex;
+  gap: 18px;
+}
 
-.gsr-header .gsr-pop,
-.gsr-header .gsr-inf,
-.gsr-header .gsr-rate {
-  font-size: 10px;
+.gsr-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gsr-stat-lbl {
+  font-size: 9px;
   letter-spacing: 1.5px;
   color: var(--text-dimmer);
   text-transform: uppercase;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
 }
+
+.gsr-stat-val {
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.gsr-stat-val.suppressed { color: var(--accent); }
 
 .gsr-inf.clear    { color: var(--text-dimmer); }
 .gsr-inf.infected { color: var(--inf-infected); }
@@ -649,41 +749,38 @@ polygon.selected {
 .gsr-inf.critical { color: var(--inf-critical); }
 .gsr-inf.overrun  { color: var(--inf-overrun); }
 
-.gsr-block {
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.gsr-block:last-child { border-bottom: none; }
-
-.gsr-detail {
+.gsr-loot {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin-top: 6px;
 }
 
-.gsr-loot {
+.gsr-chip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid;
+  border-radius: 0;
+  font-size: 11px;
+  cursor: default;
+  user-select: none;
+}
+
+.gsr-chip-abbrev {
+  font-weight: bold;
+  letter-spacing: 0.1em;
+}
+
+.gsr-chip-name {
+  opacity: 0.75;
 }
 
 .gsr-persons {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--accent);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
 }
-
-/* Smaller chips scoped to the god panel */
-#god-panel .item-chip {
-  font-size: 9px;
-  padding: 2px 7px;
-  cursor: default;
-}
-
-#god-panel .item-chip:hover  { filter: none; }
-#god-panel .item-chip:active { filter: none; }
 
 /* ── Left panel: unit type legend ── */
 .unit-type-legend {
@@ -1049,11 +1146,11 @@ polygon.selected {
 #start-card {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 32px;
   background: var(--surface);
   border: 1px solid var(--border);
   padding: 52px 68px;
-  width: min(660px, 90vw);
+  width: min(800px, 92vw);
 }
 
 #start-title {
@@ -1078,14 +1175,18 @@ polygon.selected {
   gap: 8px;
 }
 
+.start-field .field-label {
+  font-size: 15px;
+}
+
 #preset-select {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text-dim);
   font-family: inherit;
-  font-size: 14px;
-  padding: 9px 12px;
+  font-size: 16px;
+  padding: 11px 14px;
   cursor: pointer;
 }
 
@@ -1093,45 +1194,51 @@ polygon.selected {
 
 #custom-zone-grid {
   display: none;
-  flex-direction: column;
-  gap: 5px;
-  max-height: 300px;
-  overflow-y: auto;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
   border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: 4px;
 }
 
-#custom-zone-grid.visible { display: flex; }
+#custom-zone-grid.visible { display: grid; }
 
 .zone-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  background: var(--btn-bg);
 }
 
 .zone-row-name {
-  flex: 1;
   font-size: 13px;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.zone-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .zone-count {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text);
-  min-width: 20px;
+  min-width: 28px;
   text-align: center;
 }
 
 .zone-btn {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
   text-align: center;
   flex-shrink: 0;
@@ -1250,6 +1357,15 @@ polygon.selected {
   letter-spacing: 0.02em;
   text-align: center;
   max-width: 440px;
+}
+
+.win-override-notice {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 1.2em;
 }
 
 #win-time {

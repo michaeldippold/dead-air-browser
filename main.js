@@ -18,13 +18,13 @@ const ITEMS = {
   'fire-axe':    { weight: 4, name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
   'first-aid':   { weight: 5, name: 'First Aid Kit', description: 'Civilian automatically heals the most critically wounded unit in the district when any unit drops to 50 HP or below. Restores 20 HP. Single use — consumed on use.' },
   'radio':       { weight: 3, name: 'Radio',         description: 'While a Civilian carrying a Radio is present in a district, live human and infected counts are visible in the info panel. Intel is lost if the Civilian dies or redeploys.' },
-  'rations':     { weight: 8, name: 'Rations',       description: 'Passively restores 5 HP per tick to the carrying unit. Not consumed — provides sustained recovery for units in prolonged engagements.' },
+  'rations':     { weight: 8, name: 'Food - Nonperishable', description: 'Passively restores 5 HP per tick to the carrying unit. Not consumed — provides sustained recovery for units in prolonged engagements.' },
   'binoculars':  { weight: 2, name: 'Binoculars',    description: 'While any unit carrying Binoculars is present in a district, adjacent districts\' human and infected counts are also visible in the info panel. Position strategically to extend your intel range.' },
 }
 
 // ── FACTORIES ──
 
-const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'FAK', 'radio': 'RAD', 'rations': 'RAT', 'binoculars': 'BNO' }
+const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'FAK', 'radio': 'RAD', 'rations': 'FOOD', 'binoculars': 'BNO' }
 
 let _uid = 0
 const uid         = ()            => `u${++_uid}`
@@ -192,7 +192,7 @@ const state = {
   startTime:       null,
   won:             false,
   lost:            false,
-  godMode:         JSON.parse(localStorage.getItem('godMode') ?? 'false'),
+  godMode:         false,
   selected:        null,
   selectedUnit:    null,
   selectedContact: null,
@@ -335,6 +335,7 @@ function initWindowManager() {
 
     titlebar.addEventListener('mousedown', e => {
       if (e.target.closest('.win-btn')) return
+      if (winState[id].pinned || winState[id].pinBack) return
       e.preventDefault()
       const ws = winState[id]
       if (ws.maximized) return
@@ -357,9 +358,20 @@ function initWindowManager() {
       winEl.appendChild(edge)
     }
 
-    winEl.querySelector('.win-min-btn').addEventListener('click',   () => toggleMinimize(id))
-    winEl.querySelector('.win-max-btn').addEventListener('click',   () => toggleMaximize(id))
-    winEl.querySelector('.win-close-btn').addEventListener('click', () => toggleMinimize(id))
+    // Generate window controls — order: BACK | PIN | MIN | MAX | CLOSE (do not reorder)
+    const controls = winEl.querySelector('.win-controls')
+    controls.innerHTML = `
+      <button class="win-btn win-back-btn">BACK</button>
+      <button class="win-btn win-pin-btn">PIN</button>
+      <button class="win-btn win-min-btn">MIN</button>
+      <button class="win-btn win-max-btn">MAX</button>
+      <button class="win-btn win-close-btn">CLOSE</button>
+    `
+    controls.querySelector('.win-back-btn').addEventListener('click',  () => sendToBack(id))
+    controls.querySelector('.win-pin-btn').addEventListener('click',   () => togglePin(id))
+    controls.querySelector('.win-min-btn').addEventListener('click',   () => toggleMinimize(id))
+    controls.querySelector('.win-max-btn').addEventListener('click',   () => toggleMaximize(id))
+    controls.querySelector('.win-close-btn').addEventListener('click', () => toggleMinimize(id))
   }
 
   document.querySelectorAll('.task-btn').forEach(btn => {
@@ -398,9 +410,9 @@ function clampWin(id) {
 
 function startResize(id, dir, e) {
   e.preventDefault(); e.stopPropagation()
-  bringToFront(id)
   const ws = winState[id]
-  if (ws.maximized) return
+  if (ws.pinned || ws.pinBack || ws.maximized) return
+  bringToFront(id)
   const sx = e.clientX, sy = e.clientY
   const ox = ws.x, oy = ws.y, ow = ws.w, oh = ws.h
   const onMove = ev => {
@@ -419,6 +431,7 @@ function startResize(id, dir, e) {
 let _activeWin = null
 
 function bringToFront(id) {
+  if (winState[id]?.pinBack) return
   _activeWin = id
   document.querySelectorAll('.win').forEach(w => w.classList.remove('win-active'))
   const el = document.getElementById(`win-${id}`)
@@ -427,15 +440,45 @@ function bringToFront(id) {
   el.style.zIndex = _topZ
 }
 
+function togglePin(id) {
+  const ws = winState[id]
+  ws.pinned = !ws.pinned
+  const btn = document.getElementById(`win-${id}`).querySelector('.win-pin-btn')
+  btn.textContent = ws.pinned ? 'UNPIN' : 'PIN'
+  btn.classList.toggle('win-btn-active', ws.pinned)
+}
+
+function sendToBack(id) {
+  const ws  = winState[id]
+  ws.pinBack = !ws.pinBack
+  const el  = document.getElementById(`win-${id}`)
+  const btn = el.querySelector('.win-back-btn')
+  if (ws.pinBack) {
+    ws.z = 1; el.style.zIndex = 1
+    btn.textContent = 'UNBACK'
+    btn.classList.add('win-btn-active')
+  } else {
+    btn.textContent = 'BACK'
+    btn.classList.remove('win-btn-active')
+    bringToFront(id)
+  }
+}
+
 function toggleMinimize(id) {
   const ws = winState[id]
   ws.minimized = !ws.minimized
   document.getElementById(`win-${id}`).classList.toggle('win-minimized', ws.minimized)
-  if (!ws.minimized) { clampWin(id); applyWinGeometry(id); bringToFront(id) }
+  if (!ws.minimized) {
+    if (ws.pinBack) {
+      ws.pinBack = false
+      const backBtn = document.getElementById(`win-${id}`).querySelector('.win-back-btn')
+      if (backBtn) { backBtn.textContent = 'BACK'; backBtn.classList.remove('win-btn-active') }
+    }
+    clampWin(id); applyWinGeometry(id); bringToFront(id)
+  }
   // Closing the sitrep debug window turns off god mode
   if (id === 'sitrep' && ws.minimized && state.godMode) {
     state.godMode = false
-    localStorage.setItem('godMode', JSON.stringify(false))
     document.body.classList.remove('god-mode')
     syncGodBtn()
     renderGodPanel()
@@ -503,7 +546,6 @@ syncGodBtn()
 
 godBtn.addEventListener('click', () => {
   state.godMode = !state.godMode
-  localStorage.setItem('godMode', JSON.stringify(state.godMode))
   document.body.classList.toggle('god-mode', state.godMode)
   // Sitrep is the god mode debug screen — open/close it together
   if (winState['sitrep']) {
@@ -809,6 +851,9 @@ btnUdvSend.addEventListener('click', () => {
 
 // ── SIMULATION ──
 
+const LOSE_FLAVOR = 'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.'
+const WIN_FLAVOR  = 'At some point in the early hours, the last confirmed contact went down and the radio stopped reporting new movement. Nobody believed it right away — the instinct was to wait for the next transmission, the next district going dark. But it didn\'t come. The city held. Not cleanly, not without cost, but it held. The logs were reviewed for days afterward, trying to identify the decision that made the difference. Nobody could agree on which one it was. Society could begin to rebuild. For now.'
+
 function checkLose() {
   if (state.won || state.lost) return
   const totalUnits = Object.values(state.districts).reduce((sum, d) => sum + d.units.length, 0)
@@ -817,10 +862,11 @@ function checkLose() {
   state.lost = true
   if (tickInterval) clearInterval(tickInterval)
 
-  document.getElementById('win-title').textContent  = 'ALL UNITS LOST'
-  document.getElementById('win-ticks').textContent  = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent   = elapsedTime()
-  document.getElementById('win-flavor').textContent = 'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.'
+  document.getElementById('win-title').textContent        = 'ALL UNITS LOST'
+  document.getElementById('win-ticks').textContent        = `${state.tick} TICKS`
+  document.getElementById('win-time').textContent         = elapsedTime()
+  document.getElementById('btn-win-restart').textContent  = 'TRY AGAIN'
+  document.getElementById('win-flavor').textContent       = LOSE_FLAVOR
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -832,9 +878,10 @@ function checkWin() {
   state.won = true
   if (tickInterval) clearInterval(tickInterval)
 
-  document.getElementById('win-ticks').textContent = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent  = elapsedTime()
-  document.getElementById('win-flavor').textContent = 'At some point in the early hours, the last confirmed contact went down and the radio stopped reporting new movement. Nobody believed it right away — the instinct was to wait for the next transmission, the next district going dark. But it didn\'t come. The city held. Not cleanly, not without cost, but it held. The logs were reviewed for days afterward, trying to identify the decision that made the difference. Nobody could agree on which one it was.'
+  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
+  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
+  document.getElementById('win-flavor').textContent      = WIN_FLAVOR
   document.getElementById('win-overlay').classList.add('visible')
 }
 
@@ -1006,13 +1053,6 @@ function renderGodPanel() {
     return
   }
 
-  const header = `<div class="gsr gsr-header">
-    <span class="gsr-name"></span>
-    <span class="gsr-pop">HUM</span>
-    <span class="gsr-inf">ZOM</span>
-    <span class="gsr-rate">SPD</span>
-  </div>`
-
   const rows = Object.entries(state.districts)
     .sort(([, a], [, b]) => a.label.localeCompare(b.label))
     .map(([id, d]) => {
@@ -1028,40 +1068,68 @@ function renderGodPanel() {
       const spdLabel   = d.zombies > 0 ? spdValue : '—'
       const suppressed = d.zombies > 0 && d.units.length > 0
 
-      // Loot as item chips (same visual as unit detail view)
       const lootHtml = d.loot
-        .map(k => `<span class="item-chip item-chip--${k}">${ITEM_ABBREV[k]}</span>`)
+        .map(k => `<div class="gsr-chip item-chip--${k}">
+            <span class="gsr-chip-abbrev">${ITEM_ABBREV[k]}</span>
+            <span class="gsr-chip-name">${ITEMS[k]?.name ?? k}</span>
+          </div>`)
         .join('')
 
-      // Named callers present and alive
       const persons = state.contacts
         .filter(c => c.location === id && c.alive)
         .map(c => c.name)
         .join(', ')
 
-      const detail = (lootHtml || persons)
-        ? `<div class="gsr-detail">
-            ${lootHtml ? `<div class="gsr-loot">${lootHtml}</div>` : ''}
-            ${persons  ? `<div class="gsr-persons">${persons}</div>` : ''}
-          </div>`
-        : ''
-
-      return `<div class="gsr-block">
-        <div class="gsr">
-          <span class="gsr-name">${d.label}</span>
-          <span class="gsr-pop">${d.humans.toLocaleString()}</span>
-          <span class="gsr-inf ${cls}">${d.zombies.toLocaleString()}</span>
-          <span class="gsr-rate${suppressed ? ' suppressed' : ''}">${spdLabel}</span>
+      return `<div class="gsr-block gsr-block--${cls}">
+        <div class="gsr-card-name">${d.label}</div>
+        <div class="gsr-card-stats">
+          <div class="gsr-stat">
+            <span class="gsr-stat-lbl">HUM</span>
+            <span class="gsr-stat-val">${d.humans.toLocaleString()}</span>
+          </div>
+          <div class="gsr-stat">
+            <span class="gsr-stat-lbl">ZOM</span>
+            <span class="gsr-stat-val gsr-inf ${cls}">${d.zombies.toLocaleString()}</span>
+          </div>
+          <div class="gsr-stat">
+            <span class="gsr-stat-lbl">SPD</span>
+            <span class="gsr-stat-val${suppressed ? ' suppressed' : ''}">${spdLabel}</span>
+          </div>
         </div>
-        ${detail}
+        ${lootHtml ? `<div class="gsr-loot">${lootHtml}</div>` : ''}
+        ${persons   ? `<div class="gsr-persons">${persons}</div>` : ''}
       </div>`
     }).join('')
 
-  table.innerHTML = header + rows
+  table.innerHTML = rows
 }
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
 document.getElementById('btn-reset-ui').addEventListener('click', resetLayout)
+
+document.getElementById('btn-test-win').addEventListener('click', () => {
+  if (state.won || state.lost) return
+  state.won = true
+  if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
+  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
+  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
+  document.getElementById('win-title').textContent       = 'OUTBREAK CONTAINED'
+  document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${WIN_FLAVOR}`
+  document.getElementById('win-overlay').classList.add('visible')
+})
+
+document.getElementById('btn-test-lose').addEventListener('click', () => {
+  if (state.won || state.lost) return
+  state.lost = true
+  if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
+  document.getElementById('win-title').textContent       = 'ALL UNITS LOST'
+  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
+  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('btn-win-restart').textContent = 'TRY AGAIN'
+  document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${LOSE_FLAVOR}`
+  document.getElementById('win-overlay').classList.add('visible')
+})
 
 // ── START SCREEN ──
 
@@ -1077,9 +1145,11 @@ function renderCustomGrid() {
     .map(([id, d]) => `
       <div class="zone-row">
         <span class="zone-row-name">${d.label}</span>
-        <button class="zone-btn" data-id="${id}" data-action="dec">−</button>
-        <span class="zone-count" id="zc-${id}">${customCounts[id]}</span>
-        <button class="zone-btn" data-id="${id}" data-action="inc">+</button>
+        <div class="zone-controls">
+          <button class="zone-btn" data-id="${id}" data-action="dec">−</button>
+          <span class="zone-count" id="zc-${id}">${customCounts[id]}</span>
+          <button class="zone-btn" data-id="${id}" data-action="inc">+</button>
+        </div>
       </div>`)
     .join('')
 }
@@ -1128,5 +1198,55 @@ function startGame() {
 }
 
 document.getElementById('btn-start').addEventListener('click', startGame)
+
+// ── Map palette switcher ──
+
+const MAP_PALETTES = {
+  original: {
+    '--map-panel-bg':  'transparent',
+    '--map-label':     'rgba(255,255,255,0.82)',
+    '--map-label-sub': 'rgba(255,255,255,0.50)',
+    '--col-res': '#a83c3c', '--col-res-h': '#8c3030',
+    '--col-gov': '#2e6aaa', '--col-gov-h': '#245490',
+    '--col-med': '#2c9050', '--col-med-h': '#227842',
+    '--col-ret': '#6232a4', '--col-ret-h': '#502888',
+    '--col-ind': '#98386e', '--col-ind-h': '#7e2a5c',
+  },
+  dusty: {
+    '--map-panel-bg':  'transparent',
+    '--map-label':     'rgba(40,30,25,0.85)',
+    '--map-label-sub': 'rgba(40,30,25,0.55)',
+    '--col-res': '#CEB3A8', '--col-res-h': '#BFA299',
+    '--col-gov': '#d3e0f5', '--col-gov-h': '#b8c8e0',
+    '--col-med': '#d3f5bf', '--col-med-h': '#b8dda0',
+    '--col-ret': '#fcf4b6', '--col-ret-h': '#e4dc90',
+    '--col-ind': '#f3dcfc', '--col-ind-h': '#dbc4e4',
+  },
+  paper: {
+    '--map-panel-bg':  '#F8F3E6',
+    '--map-label':     'rgba(35,25,20,0.85)',
+    '--map-label-sub': 'rgba(35,25,20,0.55)',
+    '--col-res': '#E0BAA5', '--col-res-h': '#D1A792',
+    '--col-gov': '#AADAEB', '--col-gov-h': '#99CADB',
+    '--col-med': '#B4E1C4', '--col-med-h': '#A2D1B2',
+    '--col-ret': '#DACCE3', '--col-ret-h': '#C8BBD1',
+    '--col-ind': '#F0C8CE', '--col-ind-h': '#E6B4BB',
+  }
+}
+
+function setMapPalette(key) {
+  const palette = MAP_PALETTES[key]
+  if (!palette) return
+  const root = document.documentElement
+  Object.entries(palette).forEach(([prop, val]) => root.style.setProperty(prop, val))
+}
+
+document.getElementById('map-palette-select').addEventListener('change', e => {
+  setMapPalette(e.target.value)
+})
+
+const mapPaletteSelect = document.getElementById('map-palette-select')
+mapPaletteSelect.value = 'dusty'
+setMapPalette('dusty')
 
 render()

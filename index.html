@@ -23,6 +23,8 @@
       </select>
     </div>
 
+    <div id="custom-zone-grid"></div>
+
     <div class="start-field">
       <div class="field-label">SPREAD RATE</div>
       <div class="spread-row">
@@ -33,8 +35,6 @@
       </div>
     </div>
 
-    <div id="custom-zone-grid"></div>
-
     <button id="btn-start">START MISSION</button>
     <div id="start-epitaph">The city will not be saved. Do what you can.</div>
   </div>
@@ -43,11 +43,16 @@
 <div id="app">
 
   <header id="topbar">
-    <div id="game-title">DISPATCH</div>
-    <div id="topbar-right">
+    <div id="topbar-left">
+      <span id="game-title">DISPATCH</span>
       <span id="tick-display">—</span>
       <span id="time-display">0:00</span>
+    </div>
+    <div id="topbar-right">
+      <!-- God Mode is always the leftmost button here — do not reorder -->
       <button id="btn-god-mode">GOD MODE: OFF</button>
+      <button id="btn-test-win">WIN</button>
+      <button id="btn-test-lose">LOSE</button>
     </div>
   </header>
 
@@ -64,6 +69,11 @@
         </div>
       </div>
       <div class="win-body" id="map-container">
+        <select id="map-palette-select">
+          <option value="original">Original</option>
+          <option value="dusty">Post-it</option>
+          <option value="paper">Paper Map</option>
+        </select>
         <svg id="city-map" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid meet"
              xmlns="http://www.w3.org/2000/svg">
 
