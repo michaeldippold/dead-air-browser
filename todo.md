@@ -86,7 +86,19 @@ Phantom contacts — no body on the map, no health, no items. They exist only in
 - A kid on a landline who doesn't know what's happening
 - Levity: a deli owner very upset about something unrelated
 
-### 5. Events System (proper)
+### 5. More Narrative Scripts
+
+**Serious callers (write next):**
+- A kid on a landline who doesn't know what's happening
+- A confused city official who doesn't believe you and won't evacuate until convinced (stakes: unlocks district evacuation)
+- Sandra Hill — she's already in the ambient pool, promote her to a narrative arc
+
+**Comedy/levity callers (write when tone needs balancing):**
+- **The Oblivious Guy** — calls about something completely unrelated (a parking dispute, a noise complaint, a question about hours). Does not believe in zombies. Suffers zero consequences regardless of how long the game runs. Resolves peacefully every time.
+- **The Prank Caller** — shows up periodically, never has anything useful to say, hangs up before you can respond or just breathes into the phone. No narrative arc, just occasional chaos.
+- **The Song Request Guy** — keeps calling back specifically until you answer once. When you do, he yells a song request for a song you've never heard of. Never calls again after that one response. Implement with a `one-shot-acknowledged` resolve type.
+
+### 6. Events System (proper)
 Game-driven triggers that can:
 - Spawn a narrative caller ("Sandra Hill calls back")
 - Advance an existing caller to a new phase ("she heard the explosion — she knows now")
