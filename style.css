@@ -69,17 +69,17 @@
   --inf-overrun:  #800808;
 
   /* ── District map (tactical display mode) ── */
-  --col-res:   #7a2828;
-  --col-gov:   #204878;
-  --col-med:   #1e5c38;
-  --col-ret:   #7a5c10;
-  --col-ind:   #6a3818;
+  --col-res:   #8c3030;
+  --col-gov:   #245490;
+  --col-med:   #227842;
+  --col-ret:   #502888;
+  --col-ind:   #7e2a5c;
 
-  --col-res-h: #9a3838;
-  --col-gov-h: #2a6090;
-  --col-med-h: #287848;
-  --col-ret-h: #987818;
-  --col-ind-h: #884e28;
+  --col-res-h: #a83c3c;
+  --col-gov-h: #2e6aaa;
+  --col-med-h: #2c9050;
+  --col-ret-h: #6232a4;
+  --col-ind-h: #98386e;
 
   /* ── Unit type colors ── */
   --unit-police:   #2a6090;
