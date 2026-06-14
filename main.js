@@ -113,7 +113,7 @@ const CALL_TEMPLATES = [
 
 function makeHpBar(health) {
   const filled = Math.round(health / 10)
-  const color  = health > 70 ? '#4a9a6a' : health > 40 ? '#c8a030' : '#c84040'
+  const color  = health > 70 ? '#3aaa3a' : health > 40 ? '#c8a030' : '#c84040'
   return `<div class="hp-bar">${
     Array.from({ length: 10 }, (_, i) =>
       `<div class="hp-seg" style="${i < filled ? `background:${color}` : ''}"></div>`

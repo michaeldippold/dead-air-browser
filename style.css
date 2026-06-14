@@ -1,27 +1,106 @@
+/* ══════════════════════════════════════════════════════
+   THEME: Green Terminal
+   To switch themes: replace this :root block entirely.
+   All hardcoded chrome values are defined here — nothing
+   in the stylesheet below should use a raw hex for color.
+   ══════════════════════════════════════════════════════ */
 :root {
-  --bg:          #1c1c1c;
-  --surface:     #222222;
-  --border:      #3a3a3a;
-  --text:        #e8e4df;
-  --text-dim:    #b8b4ae;
-  --text-dimmer: #787470;
-  --accent:      #78bcbe;
+  /* ── Surfaces (darkest → lightest) ── */
+  --desktop-bg:    #030603;
+  --taskbar-bg:    #050a05;
+  --bg:            #090f09;
+  --surface:       #0d180d;
+  --chrome-raised: #111e11;
 
-  --col-res:  #c8888c;
-  --col-gov:  #7aacc0;
-  --col-med:  #7abf9a;
-  --col-ret:  #c0b870;
-  --col-ind:  #b89870;
+  /* ── Borders ── */
+  --border:        #1a2e1a;
+  --border-sub:    #0e180e;
+  --border-active: #2e4e30;
 
-  --col-res-h: #daa0a4;
-  --col-gov-h: #92c4d8;
-  --col-med-h: #92d4b0;
-  --col-ret-h: #d4cc88;
-  --col-ind-h: #ccac84;
+  /* ── Text ── */
+  --text:        #72c872;
+  --text-dim:    #4e724e;
+  --text-dimmer: #1e381e;
+  --accent:      #9ee09e;
 
-  --unit-police:   #7aacc0;
-  --unit-fire:     #d07060;
-  --unit-civilian: #c0a870;
+  /* ── Interactive (buttons, taskbar) ── */
+  --btn-bg:            #080f08;
+  --btn-bg-hover:      #0e1a0e;
+  --btn-bg-active:     #0c180c;
+  --btn-border:        #111e11;
+  --btn-border-hover:  #264026;
+  --btn-border-active: #1e321e;
+  --btn-color:         #233023;
+  --btn-color-active:  #4e724e;
+
+  /* ── Window chrome ── */
+  --win-border:             #162616;
+  --titlebar-bg:            #090f09;
+  --titlebar-bg-active:     #0d1a0d;
+  --titlebar-border-active: #2a4230;
+  --win-title-color:        #1f301f;
+  --winbtn-bg:              #0b140b;
+  --winbtn-border:          #162616;
+  --winbtn-color:           #253825;
+  --winbtn-hover-bg:        #111e11;
+  --winbtn-hover-border:    #2a4230;
+  --winbtn-close-bg:        #1a0808;
+  --winbtn-close-color:     #c04040;
+  --winbtn-close-border:    #501818;
+  --winbtn-max-bg:          #0c180c;
+  --winbtn-max-color:       #6ab06a;
+  --winbtn-max-border:      #1e301e;
+  --winbtn-min-bg:          #0f1a0f;
+
+  /* ── Radio / COMMS (amber channel — intentional contrast) ── */
+  --radio-bg:      #040804;
+  --radio-border:  #0a120a;
+  --radio-carrier: #4a7a4a;
+  --radio-freq:    #162616;
+  --radio-t0:      #c8a030;
+  --radio-t1:      #88661a;
+  --radio-t2:      #4a3810;
+  --radio-noise:   #302810;
+
+  /* ── Threat levels (god panel) ── */
+  --inf-infected: #c87830;
+  --inf-danger:   #b84c18;
+  --inf-critical: #9c2810;
+  --inf-overrun:  #800808;
+
+  /* ── District map (tactical display mode) ── */
+  --col-res:   #7a2828;
+  --col-gov:   #204878;
+  --col-med:   #1e5c38;
+  --col-ret:   #7a5c10;
+  --col-ind:   #6a3818;
+
+  --col-res-h: #9a3838;
+  --col-gov-h: #2a6090;
+  --col-med-h: #287848;
+  --col-ret-h: #987818;
+  --col-ind-h: #884e28;
+
+  /* ── Unit type colors ── */
+  --unit-police:   #2a6090;
+  --unit-fire:     #b83030;
+  --unit-civilian: #906820;
+
+  /* ── Item chip colors (semantic — survive theme changes) ── */
+  --chip-gun-border:      #7a6828;  --chip-gun-bg:      #1c1808;  --chip-gun-color:      #c09848;
+  --chip-axe-border:      #7a4018;  --chip-axe-bg:      #1c1008;  --chip-axe-color:      #c07040;
+  --chip-fak-border:      #903020;  --chip-fak-bg:      #200808;  --chip-fak-color:      #d06050;
+  --chip-rad-border:      #3a5a3a;  --chip-rad-bg:      #0e1a0e;  --chip-rad-color:      #5a9a5a;
+  --chip-rat-border:      #3a6030;  --chip-rat-bg:      #0a180a;  --chip-rat-color:      #70a858;
+  --chip-bno-border:      #284878;  --chip-bno-bg:      #080e1c;  --chip-bno-color:      #4888d8;
+
+  /* ── Map labels ── */
+  --map-label:     rgba(255,255,255,0.82);
+  --map-label-sub: rgba(255,255,255,0.50);
+
+  /* ── Misc semantic ── */
+  --status-lost:    #c84040;
+  --selection-stroke: #e03c3c;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,7 +147,7 @@ html, body {
 
 #tick-display {
   font-size: 12px;
-  color: #fff;
+  color: var(--text);
   letter-spacing: 2px;
   min-width: 64px;
   text-align: right;
@@ -76,7 +155,7 @@ html, body {
 
 #time-display {
   font-size: 12px;
-  color: #fff;
+  color: var(--text);
   letter-spacing: 2px;
   min-width: 36px;
 }
@@ -100,14 +179,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   position: relative;
   flex: 1;
   overflow: hidden;
-  background: #080810;
+  background: var(--desktop-bg);
 }
 
 /* ── Taskbar ── */
 #taskbar {
   height: 46px;
-  background: #0c0c14;
-  border-top: 1px solid #222230;
+  background: var(--taskbar-bg);
+  border-top: 1px solid var(--border-sub);
   display: flex;
   align-items: center;
   gap: 3px;
@@ -117,9 +196,9 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 .task-btn {
   padding: 7px 14px;
-  background: #14141e;
-  border: 1px solid #242438;
-  color: #484860;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-color);
   font-family: inherit;
   font-size: 13px;
   letter-spacing: 0.08em;
@@ -128,8 +207,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   white-space: nowrap;
 }
 
-.task-btn:hover              { background: #1a1a28; color: var(--text-dim); border-color: #383858; }
-.task-btn:not(.win-minimized) { background: #181826; color: var(--text-dim); border-color: #303050; }
+.task-btn:hover               { background: var(--btn-bg-hover);   color: var(--text-dim); border-color: var(--btn-border-hover); }
+.task-btn:not(.win-minimized) { background: var(--btn-bg-active);  color: var(--text-dim); border-color: var(--btn-border-active); }
 
 /* Items panel */
 #items-panel {
@@ -142,7 +221,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 .item-ref-entry {
   padding: 10px 0;
-  border-bottom: 1px solid #1a1a28;
+  border-bottom: 1px solid var(--border);
 }
 
 .item-ref-entry:last-child { border-bottom: none; }
@@ -171,25 +250,25 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* Utility task buttons (right side of taskbar — dimmer than window buttons) */
 .task-btn--utility {
-  color: #3a3a52;
-  border-color: #1c1c2c;
+  color: var(--text-dimmer);
+  border-color: var(--border-sub);
 }
-.task-btn--utility:hover { color: var(--text-dim); border-color: #383858; }
-.task-btn--utility.win-minimized { color: #3a3a52; background: #0c0c14; }
-.task-btn--utility:not(.win-minimized) { color: #666688; background: #181826; border-color: #303050; }
+.task-btn--utility:hover { color: var(--text-dim); border-color: var(--btn-border-hover); }
+.task-btn--utility.win-minimized { color: var(--text-dimmer); background: var(--taskbar-bg); }
+.task-btn--utility:not(.win-minimized) { color: var(--btn-color-active); background: var(--btn-bg-active); border-color: var(--btn-border-active); }
 
 #btn-reset-ui {
   padding: 7px 14px;
-  background: #0c0c14;
-  border: 1px solid #242438;
-  color: #444460;
+  background: var(--taskbar-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-color);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
   letter-spacing: 0.04em;
 }
-#btn-reset-ui:hover { background: #1a1a28; color: #888; border-color: #383858; }
+#btn-reset-ui:hover { background: var(--btn-bg-hover); color: var(--text-dim); border-color: var(--btn-border-hover); }
 
 /* ── Windows ── */
 .win {
@@ -197,18 +276,18 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border: 1px solid #282838;
+  border: 1px solid var(--win-border);
   min-width: 220px;
   min-height: 100px;
-  box-shadow: 3px 3px 12px rgba(0,0,0,0.6);
+  box-shadow: 3px 3px 16px rgba(0,0,0,0.7);
 }
 
 .win.win-minimized { display: none; }
 
 .win-titlebar {
   height: 24px;
-  background: #121220;
-  border-bottom: 1px solid #282838;
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--win-border);
   display: flex;
   align-items: center;
   padding: 0 5px;
@@ -221,14 +300,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win-title {
   font-size: 12px;
   letter-spacing: 0.12em;
-  color: #383858;
+  color: var(--win-title-color);
   flex: 1;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.win.win-active .win-titlebar { background: #16162a; border-bottom-color: #383858; }
+.win.win-active .win-titlebar { background: var(--titlebar-bg-active); border-bottom-color: var(--titlebar-border-active); }
 .win.win-active .win-title    { color: var(--text-dim); }
 
 .win-controls { display: flex; gap: 2px; flex-shrink: 0; }
@@ -236,9 +315,9 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win-btn {
   width: 15px;
   height: 15px;
-  background: #1a1a28;
-  border: 1px solid #282840;
-  color: #38385a;
+  background: var(--winbtn-bg);
+  border: 1px solid var(--winbtn-border);
+  color: var(--winbtn-color);
   font-size: 8px;
   cursor: pointer;
   display: flex;
@@ -250,10 +329,10 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-shrink: 0;
 }
 
-.win-btn:hover        { background: #20203a; color: var(--text-dim); border-color: #484870; }
-.win-close-btn:hover  { background: #280e0e; color: #d06060; border-color: #602020; }
-.win-max-btn:hover    { background: #0e1830; color: #5080c0; border-color: #204070; }
-.win-min-btn:hover    { background: #181828; color: var(--text-dim); border-color: #404060; }
+.win-btn:hover        { background: var(--winbtn-hover-bg);    color: var(--text-dim);          border-color: var(--winbtn-hover-border);  }
+.win-close-btn:hover  { background: var(--winbtn-close-bg);    color: var(--winbtn-close-color); border-color: var(--winbtn-close-border);  }
+.win-max-btn:hover    { background: var(--winbtn-max-bg);      color: var(--winbtn-max-color);   border-color: var(--winbtn-max-border);    }
+.win-min-btn:hover    { background: var(--winbtn-min-bg);      color: var(--text-dim);          border-color: var(--winbtn-hover-border);  }
 
 .win-body {
   flex: 1;
@@ -330,7 +409,7 @@ polygon[data-category="retail"]:hover      { fill: var(--col-ret-h); }
 polygon[data-category="industrial"]:hover  { fill: var(--col-ind-h); }
 
 polygon.selected {
-  stroke: #e03c3c !important;
+  stroke: var(--selection-stroke) !important;
   stroke-width: 8 !important;
 }
 
@@ -339,19 +418,17 @@ polygon.selected {
   font-family: 'Courier New', Courier, monospace;
   font-size: 18px;
   font-weight: bold;
-  fill: #0a0a0a;
+  fill: var(--map-label);
   text-anchor: middle;
   letter-spacing: 1.5px;
-  opacity: 0.82;
 }
 
 .lbl-cat {
   font-family: 'Courier New', Courier, monospace;
   font-size: 12px;
-  fill: #0a0a0a;
+  fill: var(--map-label-sub);
   text-anchor: middle;
   letter-spacing: 0.5px;
-  opacity: 0.60;
 }
 
 /* ── COMMS / Radio feed ── */
@@ -360,7 +437,7 @@ polygon.selected {
   flex-direction: column;
   padding: 0;
   overflow: hidden;
-  background: #050508;
+  background: var(--radio-bg);
 }
 
 #radio-status-bar {
@@ -368,14 +445,14 @@ polygon.selected {
   justify-content: space-between;
   align-items: center;
   padding: 5px 10px 4px;
-  border-bottom: 1px solid #111118;
+  border-bottom: 1px solid var(--radio-border);
   flex-shrink: 0;
 }
 
 #radio-carrier {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.12em;
-  color: #2a5a2a;
+  color: var(--radio-carrier);
   animation: radio-blink 2.4s ease-in-out infinite;
 }
 
@@ -385,9 +462,9 @@ polygon.selected {
 }
 
 #radio-freq {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
-  color: #222232;
+  color: var(--radio-freq);
 }
 
 #radio-feed {
@@ -402,7 +479,7 @@ polygon.selected {
 
 #radio-feed:empty::before {
   content: '— awaiting transmissions —';
-  color: #1e1e2e;
+  color: var(--text-dimmer);
   font-size: 12px;
   display: block;
   text-align: center;
@@ -417,12 +494,12 @@ polygon.selected {
   transition: color 0.6s;
 }
 
-.radio-msg--t0 { color: #c8a030; }
-.radio-msg--t1 { color: #88661a; }
-.radio-msg--t2 { color: #4a3810; }
+.radio-msg--t0 { color: var(--radio-t0); }
+.radio-msg--t1 { color: var(--radio-t1); }
+.radio-msg--t2 { color: var(--radio-t2); }
 
 .radio-noise {
-  color: #302810;
+  color: var(--radio-noise);
   font-size: 9px;
   letter-spacing: 0.02em;
 }
@@ -567,10 +644,10 @@ polygon.selected {
 }
 
 .gsr-inf.clear    { color: var(--text-dimmer); }
-.gsr-inf.infected { color: #c87830; }
-.gsr-inf.danger   { color: #b84c18; }
-.gsr-inf.critical { color: #9c2810; }
-.gsr-inf.overrun  { color: #800808; }
+.gsr-inf.infected { color: var(--inf-infected); }
+.gsr-inf.danger   { color: var(--inf-danger); }
+.gsr-inf.critical { color: var(--inf-critical); }
+.gsr-inf.overrun  { color: var(--inf-overrun); }
 
 .gsr-block {
   padding: 8px 0;
@@ -735,7 +812,7 @@ polygon.selected {
 }
 
 .cdv-meta-value--hiding { color: var(--accent); }
-.cdv-meta-value--dead   { color: #c84040; }
+.cdv-meta-value--dead   { color: var(--status-lost); }
 
 #cdv-messages {
   display: flex;
@@ -769,7 +846,7 @@ polygon.selected {
   flex-shrink: 0;
 }
 
-.unread-dot--lost { background: #c84040; }
+.unread-dot--lost { background: var(--status-lost); }
 
 .no-contacts, .no-messages {
   font-size: 11px;
@@ -779,7 +856,7 @@ polygon.selected {
 }
 
 .chat-bubble {
-  background: #282828;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 2px 8px 8px 8px;
   padding: 10px 12px;
@@ -899,12 +976,12 @@ polygon.selected {
 .item-chip:hover  { filter: brightness(1.5); }
 .item-chip:active { filter: brightness(1.9); }
 
-.item-chip--gun       { border-color: #7a6828; background: #1c1808; color: #c09848; }
-.item-chip--fire-axe  { border-color: #7a4018; background: #1c1008; color: #c07040; }
-.item-chip--first-aid { border-color: #903020; background: #200808; color: #d06050; }
-.item-chip--radio      { border-color: #585858; background: #181818; color: #909090; }
-.item-chip--rations    { border-color: #4a6830; background: #0e1808; color: #80a858; }
-.item-chip--binoculars { border-color: #284878; background: #080e1c; color: #4888d8; }
+.item-chip--gun       { border-color: var(--chip-gun-border); background: var(--chip-gun-bg); color: var(--chip-gun-color); }
+.item-chip--fire-axe  { border-color: var(--chip-axe-border); background: var(--chip-axe-bg); color: var(--chip-axe-color); }
+.item-chip--first-aid { border-color: var(--chip-fak-border); background: var(--chip-fak-bg); color: var(--chip-fak-color); }
+.item-chip--radio      { border-color: var(--chip-rad-border); background: var(--chip-rad-bg); color: var(--chip-rad-color); }
+.item-chip--rations    { border-color: var(--chip-rat-border); background: var(--chip-rat-bg); color: var(--chip-rat-color); }
+.item-chip--binoculars { border-color: var(--chip-bno-border); background: var(--chip-bno-bg); color: var(--chip-bno-color); }
 
 /* ── Item description view ── */
 #item-description-view {
@@ -1116,7 +1193,7 @@ polygon.selected {
   margin-top: 8px;
   font-size: 12px;
   letter-spacing: 0.12em;
-  color: #3e3e55;
+  color: var(--text-dimmer);
   text-align: center;
   font-style: italic;
 }
