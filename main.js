@@ -233,6 +233,174 @@ const NARRATIVE_SCRIPTS = {
       },
     },
   },
+
+  // ── Marcus Webb ───────────────────────────────────────────────────────────
+  'marcus-webb': {
+    name:     'Marcus Webb',
+    district: 'ironworks',
+    nodes: {
+      0: {
+        text: "Marcus Webb, Ironworks. Eight of us here — machinists, couple maintenance guys. Solid doors, some improvised tools. Are you people running a coordinated response or are we handling this ourselves?",
+        choices: [
+          { label: 'We have it. Hold your position.',         next: 'webb-hold'  },
+          { label: 'What can you see from your end?',         next: 'webb-intel' },
+        ],
+        timer: 12, timerNext: 'webb-silent',
+      },
+      'webb-hold': {
+        text: "Copy. We'll hold. Just know — we're not going to sit here and rot if it comes through the door. You give the word, we can push.",
+        choices: null,
+        timer: 15, timerNext: 'webb-update',
+      },
+      'webb-intel': {
+        text: "Street's bad to the south. Something happened at the warehouse two blocks over — don't know what. We've got line of sight on the main road. Foot traffic stopped about an hour ago. No vehicles.",
+        choices: [
+          { label: 'That helps. Keep your doors locked.', next: 'webb-hold'   },
+          { label: 'If it worsens, push north toward Police HQ.', next: 'webb-push' },
+        ],
+        timer: 10, timerNext: 'webb-hold',
+      },
+      'webb-update': {
+        text: "Lost one man — went to check on his truck in the lot. We gave it thirty minutes. He's not coming back. Seven of us now. Everything else holding.",
+        choices: [
+          { label: 'Hold position. You did right by him.', next: 'webb-resolve' },
+          { label: 'Get your people moving. Head north now.', next: 'webb-push'   },
+        ],
+        timer: 10, timerNext: 'webb-resolve',
+      },
+      'webb-resolve': {
+        text: "Understood. We'll hold. Whatever happens tonight — you have my word nobody panicked.",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'webb-push': {
+        text: "Copy. We're moving. I'll call when we're clear. Or I won't. Either way we went down doing something.",
+        choices: null,
+        timer: 8, timerNext: 'webb-lost',
+      },
+      'webb-lost':   { text: null, resolve: 'lost' },
+      'webb-silent': {
+        text: "Fine. We'll handle it.",
+        choices: null,
+        resolve: 'waiting',
+      },
+    },
+  },
+
+  // ── Danny ─────────────────────────────────────────────────────────────────
+  'danny': {
+    name:     'Unknown — Child',
+    district: 'northgate',
+    nodes: {
+      0: {
+        text: "Hello? Is this the emergency number? My dad said to call this if something happened. There are people outside and they look sick. My mom and dad went to get my grandma and they haven't come back. I locked the door like my dad said.",
+        choices: [
+          { label: 'You did exactly right. Stay locked in.',        next: 'danny-stay'     },
+          { label: 'Is there a neighbor you can go to?',            next: 'danny-neighbor' },
+        ],
+        timer: 10, timerNext: 'danny-no-answer',
+      },
+      'danny-stay': {
+        text: "Okay. I have cereal and I know where the flashlight is. Can you find my dad? His name is David Reyes. He has a blue car.",
+        choices: null,
+        timer: 15, timerNext: 'danny-update',
+      },
+      'danny-neighbor': {
+        text: "There's Mrs. Kowalski down the hall but my dad said not to bother her. Should I knock? He said don't open the door for anyone.",
+        choices: [
+          { label: 'Your dad gave good advice. Stay put for now.', next: 'danny-stay'        },
+          { label: 'Mrs. Kowalski is the exception. Go knock.',     next: 'danny-kowalski'   },
+        ],
+        timer: 8, timerNext: 'danny-stay',
+      },
+      'danny-kowalski': {
+        text: "She let me in. She has soup on. She doesn't have a phone but I brought mine. She keeps saying everything is going to be alright and I think she actually believes it. Thank you.",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'danny-update': {
+        text: "Hello? It's been a really long time now. The lights across the street went out. I ate the cereal. I'm going to keep the radio on low. Did anyone find my dad?",
+        choices: [
+          { label: "We're looking. You're safe where you are.", next: 'danny-reassure' },
+          { label: 'Stay quiet. Keep the lights off.',           next: 'danny-dark'    },
+        ],
+        timer: 10, timerNext: 'danny-quiet',
+      },
+      'danny-reassure': {
+        text: "Okay. I'll wait. I'm going to leave the window open a little so I can hear if his car comes back.",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'danny-dark': {
+        text: "Okay. I turned off the lights. It's really dark. ...Okay.",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'danny-quiet': {
+        text: "...okay.",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'danny-no-answer': {
+        text: "Hello? Is anyone — okay. I'll just wait.",
+        choices: null,
+        timer: 20, timerNext: 'danny-no-answer-lost',
+      },
+      'danny-no-answer-lost': { text: null, resolve: 'lost' },
+    },
+  },
+
+  // ── Deputy Director Holt ──────────────────────────────────────────────────
+  'holt': {
+    name:     'Dep. Dir. Holt',
+    district: null,
+    nodes: {
+      0: {
+        text: "This is Deputy Director Holt, Office of Emergency Management. I understand you're running some kind of parallel operation tonight. I'd like to understand the authority under which you're operating and what exactly you're telling people.",
+        choices: [
+          { label: 'We are the only response on the ground right now.',     next: 'holt-pushback' },
+          { label: 'Director, you need to evacuate your building now.',     next: 'holt-warn'     },
+        ],
+        timer: 10, timerNext: 'holt-no-answer',
+      },
+      'holt-pushback': {
+        text: "The only response. Right. I have seventeen years in emergency management. I've seen mass panic events before. People in crisis misidentify — what exactly are we dealing with here?",
+        choices: [
+          { label: 'Confirmed infected individuals across multiple districts.', next: 'holt-warn'     },
+          { label: 'Something we have never seen before.',                       next: 'holt-skeptic' },
+        ],
+        timer: 10, timerNext: 'holt-dig-in',
+      },
+      'holt-warn': {
+        text: "You're telling me to move my staff based on — look, I have people trying to reach the mayor's office. I am not going to authorize a building evacuation because a dispatcher told me to.",
+        choices: [
+          { label: 'Director. The spread will reach City Hall. Please move.',  next: 'holt-convinced' },
+        ],
+        timer: 10, timerNext: 'holt-dig-in',
+      },
+      'holt-skeptic': {
+        text: "Something you've never seen before. That's — that's not a briefing. That's not actionable information. I need facts, not atmosphere.",
+        choices: null,
+        timer: 6, timerNext: 'holt-dig-in',
+      },
+      'holt-convinced': {
+        text: "...alright. I'm going to take this seriously. Shelter-in-place for the block — I can authorize that. You have my cooperation. What do you need from me?",
+        choices: null,
+        resolve: 'waiting',
+      },
+      'holt-dig-in': {
+        text: "I need to go through proper channels on this. I'll have someone call you back.",
+        choices: null,
+        timer: 15, timerNext: 'holt-lost',
+      },
+      'holt-no-answer': {
+        text: "I see. Well. We'll handle this through the appropriate office.",
+        choices: null,
+        timer: 15, timerNext: 'holt-lost',
+      },
+      'holt-lost': { text: null, resolve: 'lost' },
+    },
+  },
 }
 
 const _narrativeSpawned = new Set()
@@ -1205,6 +1373,18 @@ function tick() {
   if (!_narrativeSpawned.has('e-novak') && state.districts.memorial?.zombies > 0) {
     spawnNarrativeCaller('e-novak')
     _narrativeSpawned.add('e-novak')
+  }
+  if (!_narrativeSpawned.has('marcus-webb') && state.districts.ironworks?.zombies > 0) {
+    spawnNarrativeCaller('marcus-webb')
+    _narrativeSpawned.add('marcus-webb')
+  }
+  if (!_narrativeSpawned.has('danny') && state.districts.northgate?.zombies > 0) {
+    spawnNarrativeCaller('danny')
+    _narrativeSpawned.add('danny')
+  }
+  if (!_narrativeSpawned.has('holt') && state.tick >= 8) {
+    spawnNarrativeCaller('holt')
+    _narrativeSpawned.add('holt')
   }
 
   processNarrativeCallers()
