@@ -129,7 +129,7 @@ const NARRATIVE_SCRIPTS = {
           { label: 'Stay put. Help is coming.',          next: 'stay'   },
           { label: 'Get out now — use the back exit.',   next: 'run'    },
         ],
-        timer:     5,
+        timer:     14,
         timerNext: 'no-answer',
       },
       stay: {
@@ -150,7 +150,7 @@ const NARRATIVE_SCRIPTS = {
       'no-answer': {
         text: "...I understand. I'll figure something out on my own.",
         choices:  null,
-        timer:    6,
+        timer:    10,
         timerNext: 'gave-up-lost',
       },
       'gave-up-lost': {
@@ -921,13 +921,18 @@ function renderContactsPanel() {
     ? '<div class="no-contacts">No contacts yet.</div>'
     : sorted.map(c => {
         const deadClass   = !c.alive ? ' contact-dead' : ''
-        const unreadClass = c.unread ? ' has-unread'   : ''
+        const unreadClass = c.unread ? ' has-unread' : ''
+        const hasPendingChoice = c.type === 'narrative' && c.alive &&
+          NARRATIVE_SCRIPTS[c.scriptId]?.nodes[c.phase]?.choices?.length > 0
+        const pendingClass = hasPendingChoice ? ' has-pending' : ''
         const dot = !c.alive && c.unread
           ? '<span class="unread-dot unread-dot--lost"></span>'
+          : hasPendingChoice
+          ? '<span class="unread-dot unread-dot--pending"></span>'
           : c.unread
           ? '<span class="unread-dot"></span>'
           : ''
-        return `<div class="contact-card${unreadClass}${deadClass}" data-contact-id="${c.id}">
+        return `<div class="contact-card${unreadClass}${deadClass}${pendingClass}" data-contact-id="${c.id}">
           <span>${c.name}</span>
           ${dot}
         </div>`

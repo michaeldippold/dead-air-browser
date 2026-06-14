@@ -933,7 +933,13 @@ polygon.selected {
 
 .contact-card:hover       { color: var(--text); border-color: var(--text-dim); }
 .contact-card.has-unread  { color: var(--text); border-color: var(--accent); }
+.contact-card.has-pending { color: var(--accent); border-color: var(--radio-t0); animation: pending-pulse 1.4s ease-in-out infinite; }
 .contact-card.contact-dead { opacity: 0.45; }
+
+@keyframes pending-pulse {
+  0%, 100% { border-color: var(--radio-t0); }
+  50%       { border-color: transparent; }
+}
 
 .unread-dot {
   width: 7px;
@@ -943,7 +949,8 @@ polygon.selected {
   flex-shrink: 0;
 }
 
-.unread-dot--lost { background: var(--status-lost); }
+.unread-dot--lost    { background: var(--status-lost); }
+.unread-dot--pending { background: var(--radio-t0); animation: pending-pulse 1.4s ease-in-out infinite; }
 
 .no-contacts, .no-messages {
   font-size: 11px;
