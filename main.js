@@ -36,6 +36,10 @@ const makeContact = (name, districtId = null) => ({
   alive:    true,
   group:    districtId ? [{ name, kind: 'self' }] : [],
   unitId:   null,
+  type:     'ambient',
+  phase:    0,
+  timer:    null,
+  scriptId: null,
 })
 
 const CALLER_POOL = [
@@ -108,6 +112,108 @@ const CALL_TEMPLATES = [
     d => `We were thirty people this morning. I can hear maybe four of us breathing right now. ${d.label}.`,
   ],
 ]
+
+// ── NARRATIVE SCRIPTS ──
+// Each script: { name, district (optional), nodes: { [id]: node } }
+// Each node: { text, choices (optional), timer (optional ticks), timerNext, resolve (optional) }
+// resolve values: 'waiting' (alive, quiet), 'lost' (dead, appends [contact lost])
+
+const NARRATIVE_SCRIPTS = {
+  'e-novak': {
+    name:     'E. Novak',
+    district: 'memorial',
+    nodes: {
+      0: {
+        text: "This is Elaine Novak. I'm a pharmacist — I'm locked inside the dispensary at Memorial Medical. Whatever is happening out there started on my block maybe two hours ago. I have medication here. Is anyone coordinating a response?",
+        choices: [
+          { label: 'Stay put. Help is coming.',          next: 'stay'   },
+          { label: 'Get out now — use the back exit.',   next: 'run'    },
+        ],
+        timer:     5,
+        timerNext: 'no-answer',
+      },
+      stay: {
+        text: "Copy. I'll stay. I have antibiotics, IV bags, painkillers. If you can get someone to me when it's safe — I can send them out with supplies. I'll keep this line open.",
+        choices:  null,
+        resolve: 'waiting',
+      },
+      run: {
+        text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Northgate. My sister. Tell her I tried.",
+        choices:  null,
+        timer:    4,
+        timerNext: 'run-lost',
+      },
+      'run-lost': {
+        text:    null,
+        resolve: 'lost',
+      },
+      'no-answer': {
+        text: "...I understand. I'll figure something out on my own.",
+        choices:  null,
+        timer:    6,
+        timerNext: 'gave-up-lost',
+      },
+      'gave-up-lost': {
+        text:    null,
+        resolve: 'lost',
+      },
+    },
+  },
+}
+
+const _narrativeSpawned = new Set()
+
+function spawnNarrativeCaller(scriptId) {
+  const script = NARRATIVE_SCRIPTS[scriptId]
+  if (!script) return
+  const contact = makeContact(script.name, script.district ?? null)
+  contact.type     = 'narrative'
+  contact.scriptId = scriptId
+  state.contacts.push(contact)
+  advanceNarrativeCaller(contact, 0)
+}
+
+function advanceNarrativeCaller(contact, nodeId) {
+  const script = NARRATIVE_SCRIPTS[contact.scriptId]
+  if (!script) return
+  const node = script.nodes[nodeId]
+  if (!node) return
+
+  contact.phase = nodeId
+  contact.timer = node.timer ?? null
+
+  if (node.text) {
+    contact.messages.push({ text: node.text, time: elapsedTime() })
+    contact.unread = true
+  }
+
+  if (node.resolve === 'lost') {
+    contact.alive  = false
+    contact.status = 'dead'
+    contact.messages.push({ text: '[contact lost]', time: elapsedTime() })
+    contact.unread = true
+  } else if (node.resolve === 'waiting') {
+    contact.status = 'waiting'
+    contact.timer  = null
+  }
+
+  if (state.selectedContact === contact.id) {
+    renderContactMessages(contact)
+    renderContactMeta(contact)
+  }
+}
+
+function processNarrativeCallers() {
+  for (const contact of state.contacts) {
+    if (contact.type !== 'narrative' || contact.timer === null) continue
+    contact.timer--
+    if (contact.timer <= 0) {
+      const script = NARRATIVE_SCRIPTS[contact.scriptId]
+      const node   = script?.nodes[contact.phase]
+      if (node?.timerNext != null) advanceNarrativeCaller(contact, node.timerNext)
+    }
+  }
+}
 
 // ── COMBAT & UTILITIES ──
 
@@ -725,6 +831,22 @@ function renderContactMessages(contact) {
           ${!isLost ? `<div class="chat-time">sent at ${m.time}</div>` : ''}
         </div>`
       }).join('')
+
+  const choicesEl = document.getElementById('cdv-choices')
+  if (!choicesEl) return
+  if (contact.type === 'narrative' && contact.alive) {
+    const node = NARRATIVE_SCRIPTS[contact.scriptId]?.nodes[contact.phase]
+    if (node?.choices?.length) {
+      choicesEl.innerHTML = `<div class="cdv-choices-label">RESPOND:</div>` +
+        node.choices.map((c, i) =>
+          `<button class="choice-btn" data-contact-id="${contact.id}" data-choice-idx="${i}">${c.label}</button>`
+        ).join('')
+      choicesEl.style.display = ''
+      return
+    }
+  }
+  choicesEl.innerHTML = ''
+  choicesEl.style.display = 'none'
 }
 
 // ── CONTACTS ──
@@ -739,8 +861,8 @@ function checkCallEvent() {
   let contact
   const useExisting = state.contacts.length > 0 && (Math.random() < 0.5 || _callerIdx >= CALLER_POOL.length)
   if (useExisting) {
-    // Only reuse alive contacts
-    const candidates = state.contacts.filter(c => c.alive)
+    // Only reuse alive ambient contacts — narrative callers run on their own schedule
+    const candidates = state.contacts.filter(c => c.alive && c.type === 'ambient')
     if (!candidates.length) return
     contact = candidates[Math.floor(Math.random() * candidates.length)]
   } else {
@@ -828,6 +950,18 @@ document.getElementById('contacts-list').addEventListener('click', e => {
   const card = e.target.closest('.contact-card')
   if (!card) return
   showContactDetail(card.dataset.contactId)
+})
+
+document.getElementById('contact-detail-view').addEventListener('click', e => {
+  const btn = e.target.closest('.choice-btn')
+  if (!btn) return
+  const contact = state.contacts.find(c => c.id === btn.dataset.contactId)
+  if (!contact) return
+  const node = NARRATIVE_SCRIPTS[contact.scriptId]?.nodes[contact.phase]
+  const choice = node?.choices?.[parseInt(btn.dataset.choiceIdx, 10)]
+  if (!choice) return
+  advanceNarrativeCaller(contact, choice.next)
+  renderContactsPanel()
 })
 
 btnUdvSend.addEventListener('click', () => {
@@ -988,6 +1122,13 @@ function tick() {
     }
   }
 
+  // Narrative caller triggers — one-time spawns keyed by condition
+  if (!_narrativeSpawned.has('e-novak') && state.districts.memorial?.zombies > 0) {
+    spawnNarrativeCaller('e-novak')
+    _narrativeSpawned.add('e-novak')
+  }
+
+  processNarrativeCallers()
   checkCallEvent()
   checkCallerSurvival()
   render()

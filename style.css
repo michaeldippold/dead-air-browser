@@ -993,6 +993,44 @@ polygon.selected {
   letter-spacing: 0.5px;
 }
 
+/* ── Narrative caller choices ── */
+#cdv-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cdv-choices-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.choice-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.choice-btn:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+  color: var(--accent);
+}
+
 /* ── Left panel: unit detail view ── */
 #btn-udv-back,
 #btn-cdv-back,
