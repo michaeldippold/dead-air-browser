@@ -645,6 +645,9 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .roster-unit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   letter-spacing: 0.8px;
   color: var(--text-dim);
@@ -1703,4 +1706,185 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 #btn-win-restart:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+/* ── By District layout ── */
+
+#units-panel[data-card-layout="district"] #units-list {
+  display: block;
+  padding: 0;
+}
+
+.district-group { margin-bottom: 4px; }
+
+.district-group-header {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dimmer);
+  opacity: 0.5;
+  padding: 6px 10px 3px;
+  border-bottom: 1px solid var(--border-sub);
+}
+
+.roster-card--row {
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--border-sub);
+  padding: 5px 10px 6px;
+  background: var(--surface);
+}
+
+.roster-card--row:hover {
+  border-color: var(--border-sub);
+  transform: none;
+  background: var(--chrome-raised);
+}
+
+.roster-row-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.roster-row-name {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--accent);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-row-unit {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-dimmer);
+  opacity: 0.55;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.roster-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 22px;
+}
+
+.roster-row-members {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+
+.roster-row-items {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+/* ── Unit dots on SVG map ── */
+
+.unit-map-dot {
+  cursor: pointer;
+  stroke: rgba(0,0,0,0.55);
+  stroke-width: 1;
+  transition: r 0.1s;
+}
+
+.unit-map-dot:hover {
+  stroke: rgba(255,255,255,0.8);
+  stroke-width: 1.5;
+}
+
+.unit-map-dot--police   { fill: var(--unit-police); }
+.unit-map-dot--fire     { fill: var(--unit-fire); }
+.unit-map-dot--civilian { fill: var(--unit-civilian); }
+
+/* ── Drag-and-drop ── */
+
+polygon.drop-target {
+  animation: drop-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes drop-pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.45; }
+}
+
+/* ── Unit activity picker (unit detail view) ── */
+
+#udv-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--text-dimmer);
+  opacity: 0.55;
+}
+
+.activity-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.activity-btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dimmer);
+  border-color: var(--border-sub);
+  background: var(--bg);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.activity-btn:hover { opacity: 1; }
+
+.activity-btn--active[data-activity="engage"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(168,234,168,0.04);
+  opacity: 1;
+}
+
+.activity-btn--active[data-activity="hide"] {
+  color: var(--radio-t0);
+  border-color: var(--radio-t0);
+  background: rgba(224,184,64,0.04);
+  opacity: 1;
+}
+
+.activity-btn--active[data-activity="scavenge"] {
+  color: var(--chip-bno-color);
+  border-color: var(--chip-bno-border);
+  background: rgba(72,136,216,0.04);
+  opacity: 1;
+}
+
+/* ── Activity badge on roster cards ── */
+
+.roster-activity {
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  font-style: italic;
+  color: var(--radio-t0);
+}
+
+.roster-activity--scavenge {
+  color: var(--chip-bno-color);
 }

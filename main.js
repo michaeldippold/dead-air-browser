@@ -1,3 +1,8 @@
+import eNovak    from './scripts/e-novak.js'
+import marcusWebb from './scripts/marcus-webb.js'
+import danny      from './scripts/danny.js'
+import holt       from './scripts/holt.js'
+
 // ── CONFIG & CONSTANTS ──
 
 const TICK_MS       = 3500
@@ -45,12 +50,17 @@ function nextPersonName(role) {
 let _uid = 0
 const uid = () => `u${++_uid}`
 
-function makePerson(name, role, items = []) {
-  return { id: uid(), name, role, health: 100, items, unitId: null }
+function makePerson(name, role, items = [], opts = {}) {
+  return {
+    id: uid(), name, role, health: 100, items, unitId: null,
+    sim:        opts.sim        ?? true,   // false = protected from sim combat/death
+    districtId: opts.districtId ?? null,   // standalone location when not in a unit
+    scriptId:   opts.scriptId   ?? null,   // links Person to their Script
+  }
 }
 
 function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
-  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null }
+  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage' }
 }
 
 const makeContact = (name, districtId = null) => ({
@@ -62,6 +72,7 @@ const makeContact = (name, districtId = null) => ({
   phase:       0,
   timer:       null,
   scriptId:    null,
+  personId:    null,   // set for scripted callers — links to the Person in state.people
   pendingNext: null,
   replyDelay:  0,
 })
@@ -138,310 +149,22 @@ const CALL_TEMPLATES = [
 ]
 
 // ── NARRATIVE SCRIPTS ──
-// Each script: { name, district (optional), nodes: { [id]: node } }
-// Each node: { text, choices (optional), timer (optional ticks), timerNext, resolve (optional) }
-// resolve values: 'waiting' (alive, quiet), 'lost' (dead, appends [contact lost])
+// Loaded from scripts/ — one file per character, plain JS objects.
+// Each script: { id, name, callerRole, callerItems, district, trigger, once, nodes }
+// Each node:   { text, choices, timer, timerNext, resolve }
+// resolve: 'waiting' (alive, quiet) | 'lost' (dead — removes Person from sim)
 
-const NARRATIVE_SCRIPTS = {
-  'e-novak': {
-    name:     'E. Novak',
-    district: 'memorial',
-    nodes: {
-
-      // ── Opening call ──────────────────────────────────────────────
-      0: {
-        text: "This is Elaine Novak. I'm a pharmacist — I'm locked inside the dispensary at Memorial Medical. Whatever is happening out there started on my block maybe two hours ago. I have medication here. Is anyone coordinating a response?",
-        choices: [
-          { label: 'Stay put. We have the situation.',    next: 'stay-ack'  },
-          { label: 'Get out now — use a back exit.',       next: 'run'       },
-        ],
-        timer: 14, timerNext: 'no-answer',
-      },
-
-      // ── Stay path ─────────────────────────────────────────────────
-
-      'stay-ack': {
-        text: "Copy. I'll stay. I can see the parking lot from the back window. Maybe four or five of them down there. They aren't moving right. I'm going to stop looking now.",
-        choices: null,
-        timer: 10, timerNext: 'stay-update-1',
-      },
-
-      'stay-update-1': {
-        text: "Update: more of them outside now. The building across the street went dark an hour ago. Someone tried the exterior door — they stopped eventually. I found a radio in the break room. One channel had someone reading names. A lot of names. I turned it off. Any news?",
-        choices: [
-          { label: 'Stay away from windows. You are doing the right thing.', next: 'stay-comfort'   },
-          { label: 'Is the loading bay exit still clear?',                    next: 'run-from-stay' },
-        ],
-        timer: 12, timerNext: 'stay-update-1-silent',
-      },
-
-      'stay-update-1-silent': {
-        text: "...still here. I don't need updates. I just wanted someone to know.",
-        choices: null,
-        timer: 15, timerNext: 'stay-update-2',
-      },
-
-      'stay-comfort': {
-        text: "Okay. I moved the pharmacy cart against the back door. It's not much. Found crackers in the vending machine. The hardest part is not knowing how long.",
-        choices: null,
-        timer: 15, timerNext: 'stay-update-2',
-      },
-
-      'stay-update-2': {
-        text: "It's dark now. There's a candle in a second-floor window across the parking lot. A family — man, woman, small child I think. We've been watching each other for an hour. I held up a piece of paper that said STAY. She nodded. Best conversation I've had all day.",
-        choices: [
-          { label: "You're not alone in this.",             next: 'stay-night-warm'     },
-          { label: 'Good. Keep your lights off your side.', next: 'stay-night-cautious' },
-        ],
-        timer: 12, timerNext: 'stay-update-2-silent',
-      },
-
-      'stay-update-2-silent': {
-        text: "I know you're busy. I'll stop calling unless something changes.",
-        choices: null,
-        timer: 20, timerNext: 'stay-dawn',
-      },
-
-      'stay-night-warm': {
-        text: "...no. I guess I'm not. Thank you for that.",
-        choices: null,
-        timer: 20, timerNext: 'stay-dawn',
-      },
-
-      'stay-night-cautious': {
-        text: "Right. Of course. I turned off the exit sign above my door. Feels wrong but I understand.",
-        choices: null,
-        timer: 20, timerNext: 'stay-dawn',
-      },
-
-      'stay-dawn': {
-        text: "It went quiet around 3am and stayed that way. I'm going to try to move at first light — parking structure two blocks north, go floor by floor. If you don't hear from me again... Room B2, refrigerated cabinet. The antibiotics. For whoever gets here after.",
-        choices: null,
-        resolve: 'waiting',
-      },
-
-      // ── Run paths ─────────────────────────────────────────────────
-
-      'run': {
-        text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Northgate. My sister. Tell her I tried.",
-        choices: null,
-        timer: 6, timerNext: 'run-lost',
-      },
-
-      'run-from-stay': {
-        text: "...you're right. I've stayed long enough. Loading bay's still clear as far as I can see. I'm going.",
-        choices: null,
-        timer: 6, timerNext: 'run-lost',
-      },
-
-      'run-lost': {
-        text: null, resolve: 'lost',
-      },
-
-      // ── Ignored path ──────────────────────────────────────────────
-
-      'no-answer': {
-        text: null,
-        timer: 18, timerNext: 'no-answer-final',
-      },
-
-      'no-answer-final': {
-        text: "...they found the loading bay door. I can hear them on the other side. Room B2 — refrigerated cabinet. The antibiotics. For whoever gets there after.",
-        choices: null,
-        timer: 6, timerNext: 'no-answer-lost',
-      },
-
-      'no-answer-lost': {
-        text: null, resolve: 'lost',
-      },
-    },
-  },
-
-  // ── Marcus Webb ───────────────────────────────────────────────────────────
-  'marcus-webb': {
-    name:     'Marcus Webb',
-    district: 'ironworks',
-    nodes: {
-      0: {
-        text: "Marcus Webb, Ironworks. Eight of us here — machinists, couple maintenance guys. Solid doors, some improvised tools. Are you people running a coordinated response or are we handling this ourselves?",
-        choices: [
-          { label: 'We have it. Hold your position.',         next: 'webb-hold'  },
-          { label: 'What can you see from your end?',         next: 'webb-intel' },
-        ],
-        timer: 12, timerNext: 'webb-silent',
-      },
-      'webb-hold': {
-        text: "Copy. We'll hold. Just know — we're not going to sit here and rot if it comes through the door. You give the word, we can push.",
-        choices: null,
-        timer: 15, timerNext: 'webb-update',
-      },
-      'webb-intel': {
-        text: "Street's bad to the south. Something happened at the warehouse two blocks over — don't know what. We've got line of sight on the main road. Foot traffic stopped about an hour ago. No vehicles.",
-        choices: [
-          { label: 'That helps. Keep your doors locked.', next: 'webb-hold'   },
-          { label: 'If it worsens, push north toward Police HQ.', next: 'webb-push' },
-        ],
-        timer: 10, timerNext: 'webb-hold',
-      },
-      'webb-update': {
-        text: "Lost one man — went to check on his truck in the lot. We gave it thirty minutes. He's not coming back. Seven of us now. Everything else holding.",
-        choices: [
-          { label: 'Hold position. You did right by him.', next: 'webb-resolve' },
-          { label: 'Get your people moving. Head north now.', next: 'webb-push'   },
-        ],
-        timer: 10, timerNext: 'webb-resolve',
-      },
-      'webb-resolve': {
-        text: "Understood. We'll hold. Whatever happens tonight — you have my word nobody panicked.",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'webb-push': {
-        text: "Copy. We're moving. I'll call when we're clear. Or I won't. Either way we went down doing something.",
-        choices: null,
-        timer: 8, timerNext: 'webb-lost',
-      },
-      'webb-lost':   { text: null, resolve: 'lost' },
-      'webb-silent': {
-        text: "We'll handle it.",
-        choices: null,
-        resolve: 'waiting',
-      },
-    },
-  },
-
-  // ── Danny ─────────────────────────────────────────────────────────────────
-  'danny': {
-    name:     'Unknown — Child',
-    district: 'northgate',
-    nodes: {
-      0: {
-        text: "Hello? Is this the emergency number? My dad said to call this if something happened. There are people outside and they look sick. My mom and dad went to get my grandma and they haven't come back. I locked the door like my dad said.",
-        choices: [
-          { label: 'You did exactly right. Stay locked in.',        next: 'danny-stay'     },
-          { label: 'Is there a neighbor you can go to?',            next: 'danny-neighbor' },
-        ],
-        timer: 10, timerNext: 'danny-no-answer',
-      },
-      'danny-stay': {
-        text: "Okay. I have cereal and I know where the flashlight is. Can you find my dad? His name is David Reyes. He has a blue car.",
-        choices: null,
-        timer: 15, timerNext: 'danny-update',
-      },
-      'danny-neighbor': {
-        text: "There's Mrs. Kowalski down the hall but my dad said not to bother her. Should I knock? He said don't open the door for anyone.",
-        choices: [
-          { label: 'Your dad gave good advice. Stay put for now.', next: 'danny-stay'        },
-          { label: 'Mrs. Kowalski is the exception. Go knock.',     next: 'danny-kowalski'   },
-        ],
-        timer: 8, timerNext: 'danny-stay',
-      },
-      'danny-kowalski': {
-        text: "She let me in. She has soup on. She doesn't have a phone but I brought mine. She keeps saying everything is going to be alright and I think she actually believes it. Thank you.",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'danny-update': {
-        text: "Hello? It's been a really long time now. The lights across the street went out. I ate the cereal. I'm going to keep the radio on low. Did anyone find my dad?",
-        choices: [
-          { label: "We're looking. You're safe where you are.", next: 'danny-reassure' },
-          { label: 'Stay quiet. Keep the lights off.',           next: 'danny-dark'    },
-        ],
-        timer: 10, timerNext: 'danny-quiet',
-      },
-      'danny-reassure': {
-        text: "Okay. I'll wait. I'm going to leave the window open a little so I can hear if his car comes back.",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'danny-dark': {
-        text: "Okay. I turned off the lights. It's really dark. ...Okay.",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'danny-quiet': {
-        text: "...okay.",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'danny-no-answer': {
-        text: "Hello? Is anyone — okay. I'll just wait.",
-        choices: null,
-        timer: 20, timerNext: 'danny-no-answer-final',
-      },
-      'danny-no-answer-final': {
-        text: "...someone's at the front door. They're knocking but it doesn't sound like my dad. I put the chair against it like in the movies. I'm going to stay quiet now.",
-        choices: null,
-        timer: 6, timerNext: 'danny-no-answer-lost',
-      },
-      'danny-no-answer-lost': { text: null, resolve: 'lost' },
-    },
-  },
-
-  // ── Deputy Director Holt ──────────────────────────────────────────────────
-  'holt': {
-    name:     'Dep. Dir. Holt',
-    district: null,
-    nodes: {
-      0: {
-        text: "This is Deputy Director Holt, Office of Emergency Management. I understand you're running some kind of parallel operation tonight. I'd like to understand the authority under which you're operating and what exactly you're telling people.",
-        choices: [
-          { label: 'We are the only response on the ground right now.',     next: 'holt-pushback' },
-          { label: 'Director, you need to evacuate your building now.',     next: 'holt-warn'     },
-        ],
-        timer: 10, timerNext: 'holt-no-answer',
-      },
-      'holt-pushback': {
-        text: "The only response. Right. I have seventeen years in emergency management. I've seen mass panic events before. People in crisis misidentify — what exactly are we dealing with here?",
-        choices: [
-          { label: 'Confirmed infected individuals across multiple districts.', next: 'holt-warn'     },
-          { label: 'Something we have never seen before.',                       next: 'holt-skeptic' },
-        ],
-        timer: 10, timerNext: 'holt-dig-in',
-      },
-      'holt-warn': {
-        text: "You're telling me to move my staff based on — look, I have people trying to reach the mayor's office. I am not going to authorize a building evacuation because a dispatcher told me to.",
-        choices: [
-          { label: 'Director. The spread will reach City Hall. Please move.',  next: 'holt-convinced' },
-        ],
-        timer: 10, timerNext: 'holt-dig-in',
-      },
-      'holt-skeptic': {
-        text: "Something you've never seen before. That's — that's not a briefing. That's not actionable information. I need facts, not atmosphere.",
-        choices: null,
-        timer: 6, timerNext: 'holt-dig-in',
-      },
-      'holt-convinced': {
-        text: "...alright. I'm going to take this seriously. Shelter-in-place for the block — I can authorize that. You have my cooperation. What do you need from me?",
-        choices: null,
-        resolve: 'waiting',
-      },
-      'holt-dig-in': {
-        text: "I need to go through proper channels on this. I'll have someone call you back.",
-        choices: null,
-        timer: 15, timerNext: 'holt-lost',
-      },
-      'holt-no-answer': {
-        text: "I see. Well. We'll handle this through the appropriate office.",
-        choices: null,
-        timer: 15, timerNext: 'holt-no-answer-final',
-      },
-      'holt-no-answer-final': {
-        text: "I've been unable to reach anyone in the chain of command. The building has gone very quiet. I want it on record — for whatever record still exists — that I followed procedure.",
-        choices: null,
-        timer: 8, timerNext: 'holt-lost',
-      },
-      'holt-lost': { text: null, resolve: 'lost' },
-    },
-  },
-}
+const NARRATIVE_SCRIPTS = Object.fromEntries(
+  [eNovak, marcusWebb, danny, holt].map(s => [s.id, s])
+)
 
 // ── DIRECTOR ──
 // Watches game state each tick and fires authored beats when conditions are met.
 // Register beats here; the simulation loop stays clean of scripted content.
 
 const director = (() => {
-  const _beats = []
+  const _beats    = []
+  const _handlers = {}   // event name → [handler(state, payload)]
 
   return {
     register(beat) {
@@ -467,44 +190,82 @@ const director = (() => {
         }
       }
     },
+
+    // Event hooks — fired by the sim, consumed by narrative beats.
+    // Events: 'person-death'  { person, districtId }
+    //         'unit-disbanded' { unitId, districtId }
+    //         'unit-enters'   { unitId, destId, srcId }
+    on(event, handler) {
+      ;(_handlers[event] ??= []).push(handler)
+    },
+
+    emit(event, payload) {
+      for (const h of (_handlers[event] ?? [])) h(state, payload)
+    },
   }
 })()
 
+// ── WHEN — trigger condition helpers ─────────────────────────────────────────
+// Each helper returns a (state) => boolean function for use in Director beats.
+// Scripts declare their trigger as a plain object; triggerToCondition() converts
+// it to the matching when.* call so the Director can auto-register.
+
+const when = {
+  zombiesIn:  district      => s  => (s.districts[district]?.zombies ?? 0) > 0,
+  gameTime:   (hour, min=0) => s  => s.tick >= ticksFor(hour, min),
+  humansGone: district      => s  => (s.districts[district]?.humans  ?? 1) === 0,
+  unitIn:     district      => s  => Object.values(s.units).some(u => u.districtId === district),
+  random:     chance        => () => Math.random() < chance,
+  allOf:      (...fns)      => s  => fns.every(f => f(s)),
+  anyOf:      (...fns)      => s  => fns.some(f  => f(s)),
+}
+
+function triggerToCondition(trigger) {
+  switch (trigger?.type) {
+    case 'zombie-presence': return when.zombiesIn(trigger.district)
+    case 'game-time':       return when.gameTime(trigger.hour, trigger.min ?? 0)
+    case 'humans-gone':     return when.humansGone(trigger.district)
+    case 'unit-presence':   return when.unitIn(trigger.district)
+    case 'random':          return when.random(trigger.chance)
+    default:
+      console.warn(`Director: unknown trigger type "${trigger?.type}"`)
+      return () => false
+  }
+}
+
 // ── DIRECTOR BEATS ──
-// condition(state) → boolean. trigger(state) → void.
-// ticksFor(hour, min) converts game-world time to tick index for time-based conditions.
+// Scripts self-describe their trigger; the Director auto-registers from that field.
+// To add a new character: create scripts/<id>.js, import it above, add to the array.
 
-director.register({
-  id:        'e-novak',
-  condition: s => s.districts.memorial.zombies > 0,
-  trigger:   () => spawnNarrativeCaller('e-novak'),
+Object.values(NARRATIVE_SCRIPTS).forEach(script => {
+  director.register({
+    id:        script.id,
+    once:      script.once ?? true,
+    condition: triggerToCondition(script.trigger),
+    trigger:   () => spawnScript(script.id),
+  })
 })
 
-director.register({
-  id:        'marcus-webb',
-  condition: s => s.districts.ironworks.zombies > 0,
-  trigger:   () => spawnNarrativeCaller('marcus-webb'),
-})
-
-director.register({
-  id:        'danny',
-  condition: s => s.districts.northgate.zombies > 0,
-  trigger:   () => spawnNarrativeCaller('danny'),
-})
-
-director.register({
-  id:        'holt',
-  condition: s => s.tick >= ticksFor(11),  // 11:00 AM — calls regardless of district state
-  trigger:   () => spawnNarrativeCaller('holt'),
-})
-
-function spawnNarrativeCaller(scriptId) {
+function spawnScript(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
+
+  // Spawn a protected Person in the sim — sim:false means they won't be attacked or randomly killed
+  const person = makePerson(
+    script.name,
+    script.callerRole  ?? 'civilian',
+    script.callerItems ?? [],
+    { sim: false, districtId: script.district ?? null, scriptId }
+  )
+  state.people[person.id] = person
+
+  // Create the Contact phone thread linked to this Person
   const contact    = makeContact(script.name, script.district ?? null)
   contact.type     = 'narrative'
   contact.scriptId = scriptId
+  contact.personId = person.id
   state.contacts.push(contact)
+
   advanceNarrativeCaller(contact, 0)
 }
 
@@ -525,6 +286,11 @@ function advanceNarrativeCaller(contact, nodeId) {
   if (node.resolve === 'lost') {
     contact.alive  = false
     contact.status = 'dead'
+    // Remove the scripted Person from the sim — they're story-dead now
+    if (contact.personId) {
+      delete state.people[contact.personId]
+      contact.personId = null
+    }
     contact.messages.push({ text: '[contact lost]', time: gameTime() })
     contact.unread = true
   } else if (node.resolve === 'waiting') {
@@ -596,6 +362,7 @@ function handlePersonDeath(person, districtId) {
     if (unit.leaderPersonId === person.id) unit.leaderPersonId = unit.personIds[0] ?? null
     if (unit.personIds.length === 0) disbandUnit(unit.id, districtId)
   }
+  director.emit('person-death', { person, districtId })
   delete state.people[person.id]
   broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] UNIT DOWN — ${crackle()}no further contact.`)
 }
@@ -603,6 +370,7 @@ function handlePersonDeath(person, districtId) {
 function disbandUnit(unitId, districtId) {
   const d = state.districts[districtId]
   if (d) d.unitIds = d.unitIds.filter(id => id !== unitId)
+  director.emit('unit-disbanded', { unitId, districtId })
   delete state.units[unitId]
 }
 
@@ -620,14 +388,23 @@ function getHitChance(person) {
   return base
 }
 
+// Hiding units are much harder to target — 30% of their normal threat weight
+function effectiveThreatMod(person) {
+  const unit = state.units[person.unitId]
+  const base = THREAT_MOD[person.role]
+  return unit?.activity === 'hide' ? base * 0.3 : base
+}
+
 function pickCounterTarget(persons) {
-  const total = persons.reduce((sum, p) => sum + THREAT_MOD[p.role], 0)
+  const eligible = persons.filter(p => p.sim !== false)
+  if (eligible.length === 0) return null
+  const total = eligible.reduce((sum, p) => sum + effectiveThreatMod(p), 0)
   let r = Math.random() * total
-  for (const p of persons) {
-    r -= THREAT_MOD[p.role]
+  for (const p of eligible) {
+    r -= effectiveThreatMod(p)
     if (r <= 0) return p
   }
-  return persons[persons.length - 1]
+  return eligible[eligible.length - 1]
 }
 
 function districtHasRadio(districtId) {
@@ -792,6 +569,7 @@ const contactsPanel = document.getElementById('contacts-panel')
 const unitsList   = document.getElementById('units-list')
 const udvType     = document.getElementById('udv-type')
 const udvLocation = document.getElementById('udv-location')
+const udvActivity = document.getElementById('udv-activity')
 const udvItems    = document.getElementById('udv-items')
 const udvMembers  = document.getElementById('udv-members')
 const udvTarget   = document.getElementById('udv-target')
@@ -1059,6 +837,17 @@ document.querySelectorAll('#districts polygon').forEach(poly => {
   poly.addEventListener('click', () => selectDistrict(poly.id))
 })
 
+document.getElementById('unit-dots').addEventListener('click', e => {
+  const dot = e.target.closest('.unit-map-dot')
+  if (!dot) return
+  e.stopPropagation()
+  const unitId = dot.dataset.unitId
+  if (!unitId || !state.units[unitId]) return
+  if (winState['dispatch']?.minimized) toggleMinimize('dispatch')
+  bringToFront('dispatch')
+  showUnitDetail(unitId)
+})
+
 function selectDistrict(id) {
   const pinGroup = document.getElementById('district-pin')
 
@@ -1167,6 +956,14 @@ function renderUnitDetail(unit) {
 
   udvType.textContent     = unit.label
   udvLocation.textContent = d?.label ?? '—'
+
+  udvActivity.innerHTML = `
+    <div class="activity-label">ACTIVITY</div>
+    <div class="activity-btns">
+      ${['engage', 'hide', 'scavenge'].map(a =>
+        `<button class="activity-btn${unit.activity === a ? ' activity-btn--active' : ''}" data-activity="${a}">${a.toUpperCase()}</button>`
+      ).join('')}
+    </div>`
 
   const allItems = [...new Set(persons.flatMap(p => p.items))]
   udvItems.innerHTML = allItems.length === 0
@@ -1333,6 +1130,7 @@ function checkCallEvent() {
 
 function checkCallerSurvival() {
   for (const contact of state.contacts) {
+    if (contact.personId) continue  // scripted callers only die when the Director says so
     if (!contact.location || !contact.alive) continue
     const d = state.districts[contact.location]
     if (!d || d.zombies === 0) continue
@@ -1388,6 +1186,15 @@ btnUdvBack.addEventListener('click', hideUnitDetail)
 btnCdvBack.addEventListener('click', hideContactDetail)
 btnIdvBack.addEventListener('click', hideItemDescription)
 
+document.getElementById('unit-detail-view').addEventListener('click', e => {
+  const btn = e.target.closest('.activity-btn')
+  if (!btn) return
+  const unit = state.units[state.selectedUnit?.unitId]
+  if (!unit) return
+  unit.activity = btn.dataset.activity
+  renderUnitDetail(unit)
+})
+
 udvItems.addEventListener('click', e => {
   const chip = e.target.closest('.item-chip')
   if (!chip) return
@@ -1421,25 +1228,61 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   renderContactsPanel()
 })
 
-btnUdvSend.addEventListener('click', () => {
-  if (!state.selectedUnit) return
-  const { unitId, districtId } = state.selectedUnit
-  const destId = udvTarget.value
-  if (!destId) return
-
+function dispatchUnit(unitId, destId) {
   const unit = state.units[unitId]
-  const src  = state.districts[districtId]
+  const src  = state.districts[unit?.districtId]
   const dest = state.districts[destId]
-  if (!unit || !src || !dest) return
+  if (!unit || !src || !dest || unit.districtId === destId) return
 
+  const srcId = unit.districtId
   src.unitIds  = src.unitIds.filter(id => id !== unitId)
   dest.unitIds.push(unitId)
   unit.districtId = destId
-  state.selectedUnit.districtId = destId
+  if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = destId
 
+  director.emit('unit-enters', { unitId, destId, srcId })
   broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
-  hideUnitDetail()
   renderUnitsPanel()
+}
+
+btnUdvSend.addEventListener('click', () => {
+  if (!state.selectedUnit) return
+  const destId = udvTarget.value
+  if (!destId) return
+  dispatchUnit(state.selectedUnit.unitId, destId)
+  hideUnitDetail()
+})
+
+// ── DRAG-AND-DROP DISPATCH ──
+
+unitsList.addEventListener('dragstart', e => {
+  const card = e.target.closest('.roster-card')
+  if (!card) return
+  e.dataTransfer.setData('text/plain', card.dataset.unitId)
+  e.dataTransfer.effectAllowed = 'move'
+})
+
+document.querySelectorAll('#districts polygon').forEach(poly => {
+  poly.addEventListener('dragover', e => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  })
+  poly.addEventListener('dragenter', e => {
+    e.preventDefault()
+    poly.classList.add('drop-target')
+  })
+  poly.addEventListener('dragleave', () => {
+    poly.classList.remove('drop-target')
+  })
+  poly.addEventListener('drop', e => {
+    e.preventDefault()
+    poly.classList.remove('drop-target')
+    const unitId = e.dataTransfer.getData('text/plain')
+    if (unitId) {
+      dispatchUnit(unitId, poly.id)
+      if (state.selectedUnit?.unitId === unitId) hideUnitDetail()
+    }
+  })
 })
 
 // ── SIMULATION ──
@@ -1521,22 +1364,42 @@ function tick() {
     }
   }
 
-  // Combat: people fight zombies in occupied infected districts
+  // Combat / activity resolution
   for (const [districtId, d] of Object.entries(state.districts)) {
-    if (d.zombies === 0 || d.unitIds.length === 0) continue
+    const districtUnits = unitsInDistrict(districtId)
+    if (districtUnits.length === 0) continue
+
+    // Scavenge phase — runs even in clear districts
+    for (const unit of districtUnits) {
+      if (unit.activity !== 'scavenge' || d.loot.length === 0) continue
+      for (const person of personsInUnit(unit.id)) {
+        if (d.loot.length === 0) break
+        if (Math.random() < 0.40) {
+          const found = d.loot.pop()
+          person.items.push(found)
+          broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] ${person.name} — recovered ${ITEMS[found]?.name ?? found}.`)
+        }
+      }
+    }
+
+    if (d.zombies === 0) continue
 
     const persons = personsInDistrict(districtId)
     if (persons.length === 0) continue
 
-    // Attack phase — each person gets one roll
-    for (const person of persons) {
-      if (d.zombies <= 0) break
-      if (Math.random() < getHitChance(person)) {
-        d.zombies = Math.max(0, d.zombies - 1)
+    // Attack phase — engage units only; hide/scavenge and sim:false persons do not fight
+    for (const unit of districtUnits) {
+      if (unit.activity !== 'engage') continue
+      for (const person of personsInUnit(unit.id)) {
+        if (person.sim === false) continue
+        if (d.zombies <= 0) break
+        if (Math.random() < getHitChance(person)) {
+          d.zombies = Math.max(0, d.zombies - 1)
+        }
       }
     }
 
-    // Counterattack — weighted targeting by role
+    // Counterattack — all units exposed; hiding units have reduced threat weight
     const dangerRatio   = d.zombies / (d.humans + d.zombies)
     const counterChance = dangerRatio * 0.40
     const numStrikes    = persons.length
@@ -1546,6 +1409,7 @@ function tick() {
       if (alive.length === 0) break
       if (Math.random() < counterChance) {
         const target = pickCounterTarget(alive)
+        if (!target) break  // only scripted (sim:false) persons remain — no valid target
         target.health -= 10
         if (target.health <= 0) handlePersonDeath(target, districtId)
       }
@@ -1590,6 +1454,7 @@ function render() {
   timeDisplay.textContent = `DAY ${gameDay()} · ${gameTime()}`
   updateRightPanel()
   renderUnitsPanel()
+  renderUnitDots()
   renderContactsPanel()
   renderGodPanel()
   renderRadio()
@@ -1623,6 +1488,9 @@ function renderUnitsPanel() {
     return
   }
 
+  const layout = document.getElementById('units-panel').dataset.cardLayout || 'expanded'
+  if (layout === 'district') { renderUnitsByDistrict(units); return }
+
   unitsList.innerHTML = units.map(unit => {
     const leader  = state.people[unit.leaderPersonId]
     if (!leader) return ''
@@ -1642,16 +1510,101 @@ function renderUnitsPanel() {
           ).join('')
         }</div>`
 
-    return `<div class="roster-card" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
+    const activityBadge = `<span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>`
+
+    return `<div class="roster-card" draggable="true" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
       <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
       <div class="roster-card-body">
         <div class="roster-leader-name"><span class="leader-ws-star ws-${leaderWs}">★</span><span class="member-dot member-dot--${leader.role}"></span><span class="leader-name-text">${leader.name.replace(/^(\w)(\w+)\s/, '$1. ')}</span></div>
-        <div class="roster-unit-label">${unit.label}</div>
+        <div class="roster-unit-label">${unit.label}${activityBadge}</div>
         ${membersRow}
         ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
       </div>
     </div>`
   }).join('')
+}
+
+function renderUnitsByDistrict(units) {
+  const byDistrict = {}
+  for (const unit of units) {
+    if (!byDistrict[unit.districtId]) byDistrict[unit.districtId] = []
+    byDistrict[unit.districtId].push(unit)
+  }
+
+  const sortedDistricts = Object.keys(byDistrict).sort((a, b) =>
+    (state.districts[a]?.label ?? a).localeCompare(state.districts[b]?.label ?? b)
+  )
+
+  unitsList.innerHTML = sortedDistricts.map(districtId => {
+    const d = state.districts[districtId]
+    const rows = byDistrict[districtId].map(unit => {
+      const leader  = state.people[unit.leaderPersonId]
+      if (!leader) return ''
+      const persons    = personsInUnit(unit.id)
+      const allItems   = [...new Set(persons.flatMap(p => p.items))]
+      const itemsHtml  = allItems.map(k =>
+        `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
+      ).join('')
+      const leaderWs   = woundState(leader)
+      const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
+      const membersHtml = nonLeaders.length === 0
+        ? `<span class="roster-alone">LONE OPERATOR</span>`
+        : nonLeaders.map(p =>
+            `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
+          ).join('')
+
+      return `<div class="roster-card roster-card--row" draggable="true" data-unit-id="${unit.id}" data-district-id="${districtId}">
+        <div class="roster-row-top">
+          <span class="leader-ws-star ws-${leaderWs}">★</span>
+          <span class="member-dot member-dot--${leader.role}"></span>
+          <span class="roster-row-name">${leader.name.replace(/^(\w)(\w+)\s/, '$1. ')}</span>
+          <span class="roster-row-unit">${unit.label}</span>
+          <span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>
+        </div>
+        <div class="roster-row-bottom">
+          <div class="roster-row-members">${membersHtml}</div>
+          ${itemsHtml ? `<div class="roster-row-items">${itemsHtml}</div>` : ''}
+        </div>
+      </div>`
+    }).join('')
+
+    return `<div class="district-group">
+      <div class="district-group-header">${d?.label ?? districtId}</div>
+      ${rows}
+    </div>`
+  }).join('')
+}
+
+function renderUnitDots() {
+  const dotsGroup = document.getElementById('unit-dots')
+  if (!dotsGroup) return
+  dotsGroup.innerHTML = ''
+
+  for (const [districtId, d] of Object.entries(state.districts)) {
+    const units = unitsInDistrict(districtId)
+    if (units.length === 0) continue
+
+    const poly = document.getElementById(districtId)
+    if (!poly) continue
+
+    const bbox   = poly.getBBox()
+    const dotR   = 8
+    const dotGap = 20
+    const margin = 14
+
+    units.forEach((unit, i) => {
+      const leader = state.people[unit.leaderPersonId]
+      if (!leader) return
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+      circle.setAttribute('cx', bbox.x + margin + dotR + i * dotGap)
+      circle.setAttribute('cy', bbox.y + bbox.height - margin)
+      circle.setAttribute('r', dotR)
+      circle.dataset.unitId = unit.id
+      circle.classList.add('unit-map-dot', `unit-map-dot--${leader.role}`)
+      dotsGroup.appendChild(circle)
+    })
+  }
 }
 
 function renderGodPanel() {
@@ -1825,16 +1778,6 @@ document.getElementById('btn-start').addEventListener('click', startGame)
 // ── Map palette switcher ──
 
 const MAP_PALETTES = {
-  original: {
-    '--map-panel-bg':  'transparent',
-    '--map-label':     'rgba(255,255,255,0.82)',
-    '--map-label-sub': 'rgba(255,255,255,0.50)',
-    '--col-res': '#a83c3c', '--col-res-h': '#8c3030',
-    '--col-gov': '#2e6aaa', '--col-gov-h': '#245490',
-    '--col-med': '#2c9050', '--col-med-h': '#227842',
-    '--col-ret': '#6232a4', '--col-ret-h': '#502888',
-    '--col-ind': '#98386e', '--col-ind-h': '#7e2a5c',
-  },
   dusty: {
     '--map-panel-bg':  'transparent',
     '--map-label':     'rgba(40,30,25,0.85)',
@@ -1869,7 +1812,10 @@ document.getElementById('map-palette-select').addEventListener('change', e => {
 })
 
 const mapPaletteSelect = document.getElementById('map-palette-select')
-mapPaletteSelect.value = 'dusty'
-setMapPalette('dusty')
+mapPaletteSelect.value = 'paper'
+setMapPalette('paper')
 
 render()
+
+// Dev: expose internals to window for console/preview debugging
+Object.assign(window, { state, tick, director, gameTime, gameDay, NARRATIVE_SCRIPTS, when, triggerToCondition, dispatchUnit, handlePersonDeath, disbandUnit })

@@ -69,6 +69,7 @@
           <div id="dispatch-toolbar">
             <button class="layout-btn layout-btn--active" data-layout="expanded">EXPANDED</button>
             <button class="layout-btn" data-layout="condensed">CONDENSED</button>
+            <button class="layout-btn" data-layout="district">BY DISTRICT</button>
           </div>
           <div id="units-view">
             <div id="units-list"></div>
@@ -84,6 +85,7 @@
               <div id="udv-type"></div>
               <div id="udv-location"></div>
             </div>
+            <div id="udv-activity"></div>
             <div id="udv-members"></div>
             <div id="udv-items"></div>
             <div id="udv-dispatch">
@@ -122,7 +124,6 @@
         <!-- Map SVG -->
         <div id="map-svg-wrap">
         <select id="map-palette-select">
-          <option value="original">Original</option>
           <option value="dusty">Post-it</option>
           <option value="paper">Paper Map</option>
         </select>
@@ -193,6 +194,7 @@
               <text x="950"  y="830" class="lbl-cat">Industrial</text>
             </g>
 
+            <g id="unit-dots" pointer-events="all"></g>
             <g id="district-pin" pointer-events="none"></g>
 
           </svg>
@@ -358,6 +360,6 @@
   </div>
 </div>
 
-<script src="main.js"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
