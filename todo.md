@@ -4,7 +4,7 @@
 
 ---
 
-## Design North Star (capture before it drifts)
+## Design North Star
 
 The long game is this: **the player never gets clean numbers.** The simulation runs in the background with full fidelity, but everything the player sees is mediated — through a radio feed, a voice on the line, a unit's last transmission, a map color that's going the wrong way. You have an engine on one side, a player on the other, and a machine in the middle that turns state into narrative.
 
@@ -12,192 +12,123 @@ The current god mode is a dev tool, not a game mode. Eventually it disappears en
 
 **The win screen is a myth — and that's intentional.** Winning requires both skill and luck. The backend randomization makes it genuinely hard. If players finished a full run and assumed a win state didn't exist, that is the correct experience. It's about the decisions under pressure, the radio going quiet, the moment a district goes dark. Not the end state. Design every feature with this in mind: don't optimize for winning, optimize for meaningful play until you lose. The win screen exists, but it should feel like a rumor.
 
-**Simulation speed is load-bearing.** The pace needs to give players enough time to understand the interface before they lose. Too fast and it becomes an RTS — reflex-based, click-heavy, not the target. The goal is: you lose, but you feel like you *almost* had it. You were reading the radio, you were dispatching, you were trying to understand the map — and the city still fell. That's the feeling. Tick intervals should be tuned so that understanding and losing happen at roughly the same time, not sequentially.
+**Simulation speed is load-bearing.** The pace needs to give players enough time to understand the interface before they lose. Too fast and it becomes an RTS — reflex-based, click-heavy, not the target. The goal is: you lose, but you feel like you *almost* had it. You were reading the radio, you were dispatching, you were trying to understand the map — and the city still fell. That's the feeling.
 
 ---
 
-## Up Next (current arc)
+## What's Shipped
 
-### 1. Radio / Broadcast Feed  ✅ SHIPPED
-### 2. UX Pass — Start Screen + Taskbar  ✅ SHIPPED
-Custom game form pre-fills from default preset. Spread rate stepper on start screen (5–80%, default 35%). Start card sized with VW units. Taskbar and interface text doubled in size.
+The core loop is operational. Key systems in place:
 
-### 1. Radio / Broadcast Feed  ✅ SHIPPED (v0.1)
-The dispatch consequences system, styled as an inbound-only radio/emergency broadcast channel instead of a clean log. This is the first "narrative machine" expression.
-
-**What it is:**
-- A feed of incoming transmissions — styled like police scanner chatter or EBS text
-- Messages are generated from game events: units engaging zombies, districts falling, units dying, districts being cleared, spread events
-- Translate state into words: not "14 zombies killed" → something like `[RIVERSIDE] Alpha Squad reports contact — situation developing`
-- Static/noise markers in the text (`<wzzt>`, `<szzt>`) for vibe
-- Scrolling log or transient ticker — TBD. Transient (no scroll) adds more friction / urgency. Log is more forgiving. Maybe configurable or just decide one.
-- Lives in the SITREP window (rename it?) or gets its own window
-
-**Flavor reference:** Project Zomboid's EBS channel — radio noise rendered as subtitle-style `<wzzt>` artifacts while a message scrolls. No voice. The noise IS the voice.
-
-**Implementation scope:**
-- `broadcastEvent(msg)` function that pushes to a feed array
-- Ticker component in the radio window that renders most recent N messages
-- Message templates for: unit engaged, unit wounded, unit died, district cleared, district overrun, spread event, loot found
-- CSS: monospace, scanline feel, maybe a blinking cursor, `color: #88ff88` or amber — terminal green/amber, not blue
-
-**Design note:** This is also where dispatch outcomes land. When you send a unit somewhere and something happens, the radio tells you. Not a UI callback, a transmission.
+- **Windowed UI** — CONTACTS, DISPATCH, MAP, COMMS, ITEMS, SITREP windows, taskbar, pin/minimize/maximize
+- **Simulation** — SIR-based local spread (bell curve, peaks at 50% ratio), inter-district spread (probabilistic), unit suppression, activity system (ENGAGE / HIDE / SCAVENGE), combat with wound states
+- **Person/Unit model** — Person is the core type; units are containers; loot drops on death with 40% transfer to district pool; scavenging activity
+- **Director system** — `register()` for polling beats, `on()`/`emit()` for sim hooks (`person-death`, `unit-disbanded`, `unit-enters`); auto-registers from script `trigger` fields
+- **`when.*` vocabulary** — `zombiesIn`, `gameTime`, `humansGone`, `unitIn`, `random`, `allOf`, `anyOf`; `triggerToCondition()` maps script trigger descriptors to condition functions
+- **Script system** — narrative scripts as ES modules in `scripts/`; scripted callers are `sim:false` Persons protected from combat; 4 characters live: E. Novak, Marcus Webb, Danny, Dep. Dir. Holt
+- **COMMS feed** — time + location + body layout, static separators between transmissions, no age-based dimming
+- **Game clock** — 9:00 AM start, 5 min/tick (12 ticks/hour), full night ~15 real minutes at 3.5s/tick
+- **Map** — SVG districts, Paper Map palette, unit dots by leader role, click to open unit detail
+- **Roster** — EXPANDED / CONDENSED / BY DISTRICT views, activity badges, drag-and-drop dispatch
 
 ---
 
-### 3. Version bump → v0.2  ✅ SHIPPED
-Windowed UI, loot rarity, rations, binoculars, items reference, COMMS radio feed, GOD MODE → sitrep coupling, spread rate config, bigger start screen, bigger taskbar.
+## Active / Next
 
----
+### More Narrative Scripts
 
-## Next Arc: The Caller System
+Four characters shipped. Future content:
 
-> Don't start this until radio feed is in. The radio feed will teach us what the narrative machine needs to do.
+**Serious (write next):**
+- Sandra Hill — already in the ambient caller pool, promote to a full narrative arc
+- A story beat that reacts to a unit entering a district where a scripted caller is hiding (rescue scenario) — `director.on('unit-enters', ...)` hook is already in place for this
 
-### 3. Contact System Light Refactor
-Minimum viable prep for narrative callers. Don't touch the existing contacts (they still work fine as-is), just make the structure forward-compatible.
+**Levity (write when tone needs balancing):**
+- **The Oblivious Guy** — calls about something completely unrelated (parking dispute, noise complaint). Does not believe in zombies. Resolves peacefully regardless of game state. No stakes.
+- **The Prank Caller** — periodic, never useful, hangs up before you respond. No arc, just noise.
+- **The Song Request Guy** — calls repeatedly until you answer once. Yells a song request for a song that doesn't exist. Never calls again. Needs a `one-shot-acknowledged` resolve type.
 
-Add to each contact:
-- `phase` — which step of their story they're on (0 = start)
-- `timer` — ticks until auto-advance (null = no timer)
-- `alive` — boolean (some contacts can die off-screen)
-- `type` — `'ambient'` (current style) | `'narrative'` (conversation tree)
+### Onboarding / Tutorial
 
-Keep existing contacts as `type: 'ambient'`. New narrative callers use the new fields.
+> Do this once the core loop feels compelling and the interface is stable.
 
-### 4. Narrative Callers
-⚠️ **NEEDS REVIEW AFTER PERSON REFACTOR** — written before Person became the core type. The concept below is still correct but the implementation details are stale. Specifically: "no body on the map, no health, no items" should now read "scripted: true flag on Person, excluded from simulation." Items can now belong to scripted persons. Re-read the Person refactor before touching this.
+Replace early randomness with scripted direction. The first caller a new player gets is a tutorial caller — walks you through the interface before the real chaos starts.
 
-Phantom contacts — scripted Person objects that exist only in the call system and are directed by us as storytellers. They get a `scripted: true` flag so the simulation ignores them, but the Director can manipulate them.
+**Panel spotlight mechanic:** as the caller describes each panel, briefly dim all others so the described one feels lit. A CSS class on `#desktop` + per-panel overrides: `#desktop.spotlight [data-panel] { opacity: 0.25 }` with an explicit override to pull the current panel forward.
 
-**Structure:**
-- Pre-written conversation trees: nodes with text, choices (or no choices — monologue), timer per node
-- If a timer expires with no player response, auto-advance to a consequence branch
-- The player's "response" options are limited and pre-written (no free text)
-- Caller can die, go silent, or resolve — the contact entry reflects this
-
-**Examples of what these unlock:**
-- A civilian trapped in a district who gives you intel but only if you answer fast enough
-- A confused city official who doesn't believe you and you have to convince them (stakes: they control a district's evacuation)
-- A kid on a landline who doesn't know what's happening
-- Levity: a deli owner very upset about something unrelated
-
-### 5. More Narrative Scripts
-
-**Serious callers (write next):**
-- A kid on a landline who doesn't know what's happening
-- A confused city official who doesn't believe you and won't evacuate until convinced (stakes: unlocks district evacuation)
-- Sandra Hill — she's already in the ambient pool, promote her to a narrative arc
-
-**Comedy/levity callers (write when tone needs balancing):**
-- **The Oblivious Guy** — calls about something completely unrelated (a parking dispute, a noise complaint, a question about hours). Does not believe in zombies. Suffers zero consequences regardless of how long the game runs. Resolves peacefully every time.
-- **The Prank Caller** — shows up periodically, never has anything useful to say, hangs up before you can respond or just breathes into the phone. No narrative arc, just occasional chaos.
-- **The Song Request Guy** — keeps calling back specifically until you answer once. When you do, he yells a song request for a song you've never heard of. Never calls again after that one response. Implement with a `one-shot-acknowledged` resolve type.
-
-### 6. Events System (proper)
-⚠️ **NEEDS REVIEW AFTER PERSON REFACTOR** — written before Person/Unit existed. The shape of what an event can target has changed. "Spawn a narrative caller" now means "create a scripted Person and push them to contacts." Re-read the Director entry in the Later/Backlog section before designing this — Director and Events System are closely related and should probably be designed together.
-
-Game-driven triggers that can:
-- Spawn a scripted Person as a narrative caller
-- Advance an existing caller to a new phase ("she heard the explosion — she knows now")
-- Change a district state (barricade collapses, generator goes out)
-- Target specific people or units by role, location, or condition (this is new — the Person model makes this possible)
-- Interact with the radio feed (events generate transmissions)
-
-This is what ties the whole thing together. The events system is the storyteller's hand.
-
----
-
-## Onboarding / Tutorial (post-gameplay-loop)
-
-> Do this once the core loop feels compelling and the interface is stable. Not before.
-
-Once the game is fun on its own terms, the first-run experience should teach it — not through a help screen, but through the phone system itself.
-
-**The idea:** replace some of the early randomness with scripted direction. The first caller a new player gets is a tutorial caller — someone who walks you through the interface before the real chaos starts. After the tutorial resolves, the full game kicks off normally.
-
-**Panel spotlight mechanic:** as the caller describes each panel ("you should be seeing a map on your screen right now..."), briefly dim all other panels so the one being described feels lit up. A CSS class on `#desktop` + per-panel overrides can do this cleanly — something like `#desktop.spotlight [data-panel] { opacity: 0.25 }` with an explicit `[data-panel="map"] { opacity: 1 }` to pull it forward. Short transition in, short hold, then fade back out.
-
-**What the tutorial should cover (roughly):**
+**What it should cover:**
 1. The map — districts, what the colors mean
 2. Contacts — how to open a call, how to reply
-3. The dispatch roster — what units are, how to send them somewhere
-4. COMMS — what the radio feed is telling you and why to watch it
-5. Then: "Good luck. You're on your own from here."
+3. The dispatch roster — what units are, how to send them
+4. COMMS — what the radio feed is and why to watch it
+5. "Good luck. You're on your own from here."
 
-**Tone:** in-universe. Not a game tutorial screen. Someone on the other end of the line. Could be a supervisor, could be a recorded training line that gets interrupted by the real situation starting. The handoff from tutorial to chaos should feel like a gear shift, not a menu transition.
-
-**Keep it short.** Players who already know what they're doing should be able to skip it (a "skip training" option on the start screen). Players who don't should feel oriented, not lectured.
+**Tone:** in-universe. Someone on the other end of the line — a supervisor, a recorded training line that gets interrupted by the real situation. The handoff from tutorial to chaos should feel like a gear shift, not a menu. Keep it short; offer a skip on the start screen.
 
 ---
 
-## Later / Backlog
+## Backlog
 
-### District Consequences (gameplay weight)
-- `SECURED` status: zombies cleared, slowed reinfection, maybe unlocks something
-- `OVERRUN` status: loot inaccessible, civilians 0, spreads faster
-- These states should appear on the map (color shift or label) and in the radio feed
-
-### Combat Mechanics Overhaul (future)
-Does unit damage scale with number of people in the unit? Currently each person gets one attack roll per tick regardless of unit size — worth revisiting if we ever do a proper fight mechanics pass. Larger units may feel more powerful through survivability alone right now, but concentrated firepower scaling is an open question.
-
-### Win Condition (currently undefined)
-design.md says "survive N ticks or contain spread below threshold" — needs actual design. Options:
+### Win Condition
+Currently undefined. Options:
 - Survive until dawn (fixed tick count) — simple
 - Secure X% of the city — spatial
-- Keep a specific district (City Hall?) alive the whole game — narrative
+- Keep a specific district (City Hall?) alive the entire game — narrative
 - All three in escalating difficulty tiers
 
-### Windowed UI flavor additions
-We went to the trouble to really make this look and work like a computer with windows, let's add some fake icons to the destkop, or maybe they correspond to the windows too. And maybe some kind of desktop background - civil, federal, radio operator - once we are sure about the flavor of dispatcher we can do stuff like this to really sell the time and place. 
+### District Consequences
+- `SECURED` status: zombies cleared, slowed reinfection, maybe unlocks something
+- `OVERRUN` status already exists visually — needs gameplay weight (loot inaccessible, spreads faster, unit effectiveness reduced)
+- Both states should push to the COMMS feed with distinct language
 
-### Time overhaul
-Seriously consider swapping from a time since game start to time in the world time. So start at 9:00 AM for example, much like Zomboid. The start of a work day. Or set it at night as an overnight job for thematic framing. Either way, tracking real world time will allow me to stop saying "wait x ticks" for something to happen, and give you a number in hours.
+### Combat Mechanics
+Does unit damage scale with unit size? Currently each person gets one attack roll per tick regardless — worth revisiting. Larger units may feel more powerful through survivability alone, but concentrated firepower scaling is an open question.
 
-### Sound
-Someday. The radio crackle is an obvious first piece. Ambient hum. Unit acknowledgement clicks. NOT voice acting. The zomboid EBS vibe works precisely because you hear noise and read text — your brain fills in the voice.
+### Notification / Alert System
+A lightweight popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Design as a general hook so Director events, story beats, and district overrun can all push to it. User must hit the panel close button (alerts cannot me minimized or maximized) OR can close this and only this panel with an escape key hit; visually distinct enough to catch peripheral attention.
+
+### Windowed UI Flavor
+We went to the trouble of making this look like a real computer — lean into it. Fake desktop icons (maybe corresponding to the windows). A desktop background that sells the dispatcher's office: civil emergency, federal radio operator, late-night dispatch center. Once the flavor of the dispatcher role is locked, this makes the whole thing feel like a place.
+
+### Right-Click Context Menus
+Browser right-click can be fully suppressed per-element with `e.preventDefault()` on the `contextmenu` event. Opens up "right-click a district for quick actions" (assign nearest unit, check intel, set as Director target). Add after core dispatch UX is stable. Note: suppresses the browser Inspect shortcut during gameplay — fine in production, worth keeping in mind during dev.
+
+### Unit-Scoped Morale
+A morale meter on the Unit (not individual persons). Drops on bad outcomes (member lost, nearby district overrun), rises on success. Affects combat effectiveness or response time. Mostly flavor for now — gives the unit card a second axis beyond HP. Design after the core loop is tuned.
 
 ### Pure Data Removal (long game)
 Eventually:
 - No HP numbers on units — just status words (HEALTHY / WOUNDED / CRITICAL)
-- No zombie counts (god mode is basically dev mode, not exposed in the final game) — just density (CLEAR / LIGHT / HEAVY / OVERRUN)
-- The only source of truth is the radio and the callers
+- No zombie counts visible to player — just density words (CLEAR / LIGHT / HEAVY / OVERRUN)
+- God mode stays as dev tool only; not exposed in final game
+- The only source of truth is COMMS and the callers
 
-This is a late-stage pass, not something to design around now. But keep it in mind when adding new UI — ask "can this be expressed narratively instead?"
+Late-stage pass. Keep in mind when adding new UI — ask "can this be expressed narratively instead?"
 
----
+### Sound System
 
-## Future: Notification / Alert System
+Three tiers, build in order:
 
-A lightweight popup layer for events the player must not miss — distinct from the radio feed (which is ambient) and contacts (which require action). First use: unit disbanded (all people dead). Design as a general hook so other systems can push to it later (director events, story beats, district overrun, etc.). Should auto-dismiss after a few seconds but be visually distinct enough to catch peripheral attention.
+**1. Interface sounds** — no infrastructure needed. Drop `.mp3` or `.wav` in `sounds/`, call `new Audio('sounds/click.mp3').play()` in button handlers. Start here.
 
----
+**2. Ambient loops** — small `AudioContext`-based manager with gain nodes for crossfading. ~50 lines. API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop. Time-based triggers via `when.gameTime(0, 0)` Director beat.
 
-## Future: Director Object
+**3. Narrative/event-triggered sounds** — Director and script hooks are already in place:
+- `director.on('person-death', ...)` → play a sting
+- `director.on('unit-disbanded', ...)` → play a sound
+- Script nodes can include an optional `sound` field; `advanceNarrativeCaller` plays it on node entry
+- `broadcastEvent` can accept an optional sound parameter
+- Zombie density in a district can trigger ambient shifts via `when.zombiesIn()`
 
-A scripting layer that watches game state and injects events, caller triggers, and story beats in response to conditions. The goal is manufactured drama — not random events, but authored situations that exploit the current state of *your specific game* to create a real decision.
+**Gotcha:** browsers require a user gesture before audio plays. Fix: unlock `AudioContext` on the START MISSION click so everything fires freely after that.
 
-**The essence of what it should do:** fire breaks out at Memorial Hospital (Director injects this). Director checks which units contain a person with a firefighter role. Firefighters have a hose. A hose counters fire. Now the player has a real choice: dispatch the fire team to put out the fire, or keep them fighting zombies. That tension — role-specific capability meeting a targeted crisis — is the drama. The Director's job is to manufacture that moment, not just randomize events.
+**Format:** `.mp3` for ambient/narrative (wide compatibility, smaller files). `.wav` for short interface sounds (no compression artifacts on clicks and snaps).
 
-**Architecture sketch:** a collection of authored "beats," each with a condition function (reads game state) and a trigger function (injects an event, spawns a caller, mutates a district). The game loop runs the Director's condition checks each tick and fires beats when conditions are met — once, or on a cooldown, or repeatedly. Keeps authored content completely decoupled from the simulation. Pairs with the Events System and the onboarding tutorial. This is the "storyteller's hand" referenced elsewhere in this doc.
-
----
-
-## Future: Item Death Transfer + District Loot Pool
-
-On person death, each carried item has an X% chance to transfer to the district's loot pool rather than vanishing. District holds `items[]` alongside its other state. Any unit entering the district can pick items up (auto or manual — TBD).
-
-This is a behind-the-scenes shortcut that avoids keeping body entities in the model while producing real emergent gameplay: sending a lone runner or a desperate unit into a long-fallen district to scavenge becomes a meaningful risk/reward call. The more dangerous and overrun the district, the more likely dead people dropped something worth recovering. Implement alongside or shortly after the Person refactor — district loot pool is a natural add to the district object.
+**Not doing:** voice acting. The EBS crackle vibe works because players read text while hearing noise — their brain fills in the voice.
 
 ---
 
-## Future: Unit-Scoped Morale
+## Known Issues / Polish
 
-A morale meter attached to the Unit (not individual people). Drops on bad outcomes (member lost, district overrun nearby), rises on success. Affects combat effectiveness or response time. Mostly a display/flavor hook for now — gives the unit card a second axis of character beyond HP. Design later once the Person refactor settles.
-
----
-
-## Known Bugs / Polish
-- Window resize from N/W edges doesn't clamp (can push window off-screen while resizing — low priority)
-- SITREP window shows "GOD MODE REQUIRED" as primary content in normal play — this should eventually become the radio feed
-- **Contrast pass needed across the whole UI.** Many text elements are too dim against their backgrounds — readable in dev but not in real play conditions. Needs a systematic audit: panel labels, radio messages, district info text, start screen epitaph, taskbar states, item descriptions. Target: everything intentionally dim should still be legible; only decorative/idle elements should be near-invisible.
+- Window resize from N/W edges doesn't clamp (can push off-screen — low priority)
+- Contrast audit still needed in some panels — target: anything intentionally dim should still be legible; only decorative/idle elements near-invisible
