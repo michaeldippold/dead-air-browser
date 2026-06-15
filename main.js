@@ -645,8 +645,11 @@ const state = {
 }
 
 // Spawn starting units and people
+let _unitCounter = 0
+
 ;(function initStartingUnits() {
-  function spawn(label, role, items, districtId) {
+  function spawn(role, items, districtId) {
+    const label  = `Unit ${++_unitCounter}`
     const person = makePerson(nextPersonName(role), role, items)
     const unit   = makeUnit(label, districtId, [person.id])
     person.unitId = unit.id
@@ -654,15 +657,15 @@ const state = {
     state.units[unit.id]    = unit
     state.districts[districtId].unitIds.push(unit.id)
   }
-  spawn('PD ALPHA',   'police',   ['gun'],               'police-hq')
-  spawn('PD BRAVO',   'police',   ['gun'],               'police-hq')
-  spawn('PD CHARLIE', 'police',   ['gun'],               'police-hq')
-  spawn('FIRE-1',     'fire',     ['fire-axe'],          'fire-station')
-  spawn('FIRE-2',     'fire',     ['fire-axe'],          'fire-station')
-  spawn('FIRE-3',     'fire',     ['fire-axe'],          'fire-station')
-  spawn('CIVIC-1',    'civilian', ['first-aid', 'radio'], 'city-hall')
-  spawn('CIVIC-2',    'civilian', ['first-aid', 'radio'], 'city-hall')
-  spawn('CIVIC-3',    'civilian', ['first-aid'],          'city-hall')
+  spawn('police',   ['gun'],               'police-hq')
+  spawn('police',   ['gun'],               'police-hq')
+  spawn('police',   ['gun'],               'police-hq')
+  spawn('fire',     ['fire-axe'],          'fire-station')
+  spawn('fire',     ['fire-axe'],          'fire-station')
+  spawn('fire',     ['fire-axe'],          'fire-station')
+  spawn('civilian', ['first-aid', 'radio'], 'city-hall')
+  spawn('civilian', ['first-aid', 'radio'], 'city-hall')
+  spawn('civilian', ['first-aid'],          'city-hall')
 })()
 
 const adjacency = {
@@ -713,8 +716,8 @@ const contactsPanel = document.getElementById('contacts-panel')
 const unitsList   = document.getElementById('units-list')
 const udvType     = document.getElementById('udv-type')
 const udvLocation = document.getElementById('udv-location')
-const udvHealth   = document.getElementById('udv-health')
 const udvItems    = document.getElementById('udv-items')
+const udvMembers  = document.getElementById('udv-members')
 const udvTarget   = document.getElementById('udv-target')
 const btnUdvSend  = document.getElementById('btn-udv-send')
 const btnUdvBack  = document.getElementById('btn-udv-back')
@@ -728,19 +731,20 @@ const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
-const WIN_IDS = ['map', 'contacts', 'radio', 'sitrep', 'items']
-const LAYOUT_WIN_IDS = ['map', 'contacts', 'radio']
+const WIN_IDS = ['dispatch', 'map', 'contacts', 'radio', 'sitrep', 'items']
+const LAYOUT_WIN_IDS = ['dispatch', 'map', 'contacts', 'radio']
 const winState = {}
 let _topZ = 10
 
 function getDefaultLayout() {
   const desktop = document.getElementById('desktop')
   const dw = desktop.clientWidth, dh = desktop.clientHeight
-  const rw = 292, lw = 288
+  const rw = 292, lw = 270, dw_d = 376
   return {
-    map:      { x: lw + 2,     y: 0, w: dw - lw - rw - 4, h: dh },
-    contacts: { x: 0,          y: 0, w: lw,                h: dh },
-    radio:    { x: dw - rw,    y: 0, w: rw,                h: dh },
+    dispatch: { x: lw + 2,           y: 0, w: dw_d,                        h: dh },
+    map:      { x: lw + dw_d + 4,    y: 0, w: dw - lw - dw_d - rw - 6,    h: dh },
+    contacts: { x: 0,                 y: 0, w: lw,                           h: dh },
+    radio:    { x: dw - rw,           y: 0, w: rw,                           h: dh },
     sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
     items:    { x: Math.floor((dw - 420) / 2), y: Math.floor((dh - 480) / 2), w: 420, h: 480 },
   }
@@ -754,7 +758,7 @@ function resetLayout() {
     applyWinGeometry(id)
   }
   syncTaskbar()
-  bringToFront('map')
+  bringToFront('dispatch')
 }
 
 function initWindowManager() {
@@ -823,7 +827,7 @@ function initWindowManager() {
     document.getElementById(`win-${id}`).classList.add('win-minimized')
   }
 
-  bringToFront('map')
+  bringToFront('dispatch')
   syncTaskbar()
 }
 
@@ -980,6 +984,8 @@ document.querySelectorAll('#districts polygon').forEach(poly => {
 })
 
 function selectDistrict(id) {
+  const pinGroup = document.getElementById('district-pin')
+
   if (state.selected) {
     const prev = document.getElementById(state.selected)
     if (prev) {
@@ -993,6 +999,7 @@ function selectDistrict(id) {
     infoName.textContent = '—'
     infoCat.textContent  = 'Click a district'
     infoPop.innerHTML    = ''
+    if (pinGroup) pinGroup.innerHTML = ''
     return
   }
 
@@ -1001,6 +1008,25 @@ function selectDistrict(id) {
   if (poly) {
     poly.setAttribute('clip-path', `url(#clip-${id})`)
     poly.classList.add('selected')
+    if (pinGroup) {
+      const b = poly.getBBox()
+      const pinSize = 84
+      // Needle tip in the 500×500 viewBox lands at ≈(94, 406) after transforms.
+      // Center horizontally on the district; 8px (≈37 SVG units) from the top.
+      const svgX = b.x + b.width / 2 - (94 / 500) * pinSize
+      const svgY = b.y + 37 - (406 / 500) * pinSize
+
+      pinGroup.innerHTML = `<svg x="${svgX.toFixed(1)}" y="${svgY.toFixed(1)}" width="${pinSize}" height="${pinSize}" viewBox="0 0 500 500" overflow="visible">
+        <g transform="translate(500,0) scale(-1,1)">
+          <g transform="translate(250,250) rotate(-45) translate(-250,-250)">
+            <path d="M 235 270 L 250 470 L 265 270 Z" fill="#b0bec5" stroke="black" stroke-width="25" stroke-linejoin="round" paint-order="stroke fill"/>
+            <rect x="215" y="120" width="70" height="90" fill="#ff4d40"/>
+            <ellipse cx="250" cy="270" rx="95" ry="75" fill="#ff4d40" stroke="black" stroke-width="25" paint-order="stroke fill"/>
+            <ellipse cx="250" cy="120" rx="80" ry="50" fill="#ff4d40" stroke="black" stroke-width="25" paint-order="stroke fill"/>
+          </g>
+        </g>
+      </svg>`
+    }
   }
   updateRightPanel()
 }
@@ -1019,7 +1045,7 @@ function updateRightPanel() {
     if (!state.godMode) badge = hasRadio
       ? '<div class="radio-intel-badge">RADIO INTEL</div>'
       : '<div class="radio-intel-badge">BINOC INTEL</div>'
-    infoPop.innerHTML = `${badge}Humans:&nbsp; ${d.humans.toLocaleString()}<br>Infected: ${d.zombies.toLocaleString()}`
+    infoPop.innerHTML = `${badge}<span class="pop-stat">Humans: ${d.humans.toLocaleString()}</span><span class="pop-sep">·</span><span class="pop-stat">Infected: ${d.zombies.toLocaleString()}</span>`
   } else {
     infoPop.innerHTML = '<span class="no-intel">No intel</span>'
   }
@@ -1061,31 +1087,31 @@ function showUnitDetail(unitId) {
 function renderUnitDetail(unit) {
   const d       = state.districts[unit.districtId]
   const persons = personsInUnit(unit.id)
+  const leader  = state.people[unit.leaderPersonId]
 
   udvType.textContent     = unit.label
   udvLocation.textContent = d?.label ?? '—'
 
-  // Person roster in place of the old HP bar
-  udvHealth.innerHTML = persons.length === 0
-    ? '<div class="udv-no-items">No personnel</div>'
-    : persons.map(p => {
-        const ws   = woundState(p)
-        const star = p.id === unit.leaderPersonId ? '★ ' : ''
-        return `<div class="udv-person udv-person--${ws}">
-          <span class="udv-person-name">${star}${p.name}</span>
-          <span class="udv-ws-badge ws-${ws}">${ws.toUpperCase()}</span>
-        </div>`
-      }).join('')
-
-  // Aggregate items from all persons
   const allItems = [...new Set(persons.flatMap(p => p.items))]
   udvItems.innerHTML = allItems.length === 0
-    ? '<div class="udv-no-items">No items</div>'
+    ? ''
     : allItems.map(key => {
         const item = ITEMS[key]
         if (!item) return ''
         return `<div class="item-chip item-chip--${key}" data-item-key="${key}">${item.name}</div>`
       }).join('')
+
+  udvMembers.innerHTML = persons.map(p => {
+    const ws       = woundState(p)
+    const isLeader = p.id === unit.leaderPersonId
+    return `<div class="udv-member">
+      <span class="member-dot member-dot--${p.role}"></span>
+      ${isLeader ? `<span class="leader-ws-star ws-${ws}">★</span>` : '<span class="udv-member-spacer"></span>'}
+      <span class="udv-member-name">${p.name}</span>
+      <span class="udv-member-role">${p.role.toUpperCase()}</span>
+      <span class="udv-ws-badge ws-${ws}">${ws.toUpperCase()}</span>
+    </div>`
+  }).join('')
 
   udvTarget.innerHTML = '<option value="">— select destination —</option>' +
     Object.entries(state.districts)
@@ -1527,8 +1553,8 @@ function render() {
 }
 
 const PORTRAIT_SVG = `<svg viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <circle cx="30" cy="19" r="12" fill="rgba(255,255,255,0.18)"/>
-  <path d="M8,72 Q8,44 30,40 Q52,44 52,72Z" fill="rgba(255,255,255,0.13)"/>
+  <circle cx="30" cy="19" r="12" fill="rgba(8,8,10,0.45)"/>
+  <path d="M8,72 Q8,44 30,40 Q52,44 52,72Z" fill="rgba(8,8,10,0.40)"/>
 </svg>`
 
 function renderUnitsPanel() {
@@ -1545,20 +1571,25 @@ function renderUnitsPanel() {
     const persons = personsInUnit(unit.id)
     const allItems = [...new Set(persons.flatMap(p => p.items))]
     const itemsHtml = allItems.map(k =>
-      `<span class="roster-item-abbrev">${ITEM_ABBREV[k] ?? k}</span>`
+      `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
     ).join('')
 
-    const woundDots = persons.map(p => {
-      const ws = woundState(p)
-      return `<span class="wound-dot wound-dot--${ws}" title="${p.name}: ${ws}"></span>`
-    }).join('')
+    const leaderWs  = woundState(leader)
+    const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
+    const membersRow = nonLeaders.length === 0
+      ? `<div class="roster-alone">LONE OPERATOR</div>`
+      : `<div class="roster-members-dots">${
+          nonLeaders.map(p =>
+            `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
+          ).join('')
+        }</div>`
 
     return `<div class="roster-card" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
       <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
       <div class="roster-card-body">
-        <div class="roster-leader-name">★ ${leader.name}</div>
+        <div class="roster-leader-name"><span class="leader-ws-star ws-${leaderWs}">★</span><span class="member-dot member-dot--${leader.role}"></span><span class="leader-name-text">${leader.name.replace(/^(\w)(\w+)\s/, '$1. ')}</span></div>
         <div class="roster-unit-label">${unit.label}</div>
-        <div class="roster-wound-row">${woundDots}</div>
+        ${membersRow}
         ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
       </div>
     </div>`
@@ -1624,6 +1655,30 @@ function renderGodPanel() {
 
   table.innerHTML = rows
 }
+
+// Card layout toggle — legacy button removed, kept for potential reuse
+;(function () {
+  const btn = document.getElementById('btn-card-layout')
+  if (!btn) return
+  btn.addEventListener('click', () => {
+    const panel = document.getElementById('units-panel')
+    const isLandscape = panel.dataset.cardLayout === 'landscape'
+    panel.dataset.cardLayout = isLandscape ? '' : 'landscape'
+    btn.textContent = isLandscape ? 'COMPACT' : 'FULL'
+  })
+})()
+
+// Dispatch toolbar — EXPANDED / CONDENSED switcher
+document.querySelectorAll('.layout-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const panel  = document.getElementById('units-panel')
+    const layout = btn.dataset.layout
+    panel.dataset.cardLayout = layout
+    document.querySelectorAll('.layout-btn').forEach(b =>
+      b.classList.toggle('layout-btn--active', b.dataset.layout === layout)
+    )
+  })
+})
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
 document.getElementById('btn-reset-ui').addEventListener('click', resetLayout)

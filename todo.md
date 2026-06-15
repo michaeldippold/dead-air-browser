@@ -72,7 +72,9 @@ Add to each contact:
 Keep existing contacts as `type: 'ambient'`. New narrative callers use the new fields.
 
 ### 4. Narrative Callers
-Phantom contacts — no body on the map, no health, no items. They exist only in the call system and are directed by us as storytellers.
+⚠️ **NEEDS REVIEW AFTER PERSON REFACTOR** — written before Person became the core type. The concept below is still correct but the implementation details are stale. Specifically: "no body on the map, no health, no items" should now read "scripted: true flag on Person, excluded from simulation." Items can now belong to scripted persons. Re-read the Person refactor before touching this.
+
+Phantom contacts — scripted Person objects that exist only in the call system and are directed by us as storytellers. They get a `scripted: true` flag so the simulation ignores them, but the Director can manipulate them.
 
 **Structure:**
 - Pre-written conversation trees: nodes with text, choices (or no choices — monologue), timer per node
@@ -99,10 +101,13 @@ Phantom contacts — no body on the map, no health, no items. They exist only in
 - **The Song Request Guy** — keeps calling back specifically until you answer once. When you do, he yells a song request for a song you've never heard of. Never calls again after that one response. Implement with a `one-shot-acknowledged` resolve type.
 
 ### 6. Events System (proper)
+⚠️ **NEEDS REVIEW AFTER PERSON REFACTOR** — written before Person/Unit existed. The shape of what an event can target has changed. "Spawn a narrative caller" now means "create a scripted Person and push them to contacts." Re-read the Director entry in the Later/Backlog section before designing this — Director and Events System are closely related and should probably be designed together.
+
 Game-driven triggers that can:
-- Spawn a narrative caller ("Sandra Hill calls back")
+- Spawn a scripted Person as a narrative caller
 - Advance an existing caller to a new phase ("she heard the explosion — she knows now")
 - Change a district state (barricade collapses, generator goes out)
+- Target specific people or units by role, location, or condition (this is new — the Person model makes this possible)
 - Interact with the radio feed (events generate transmissions)
 
 This is what ties the whole thing together. The events system is the storyteller's hand.
@@ -138,6 +143,9 @@ Once the game is fun on its own terms, the first-run experience should teach it 
 - `SECURED` status: zombies cleared, slowed reinfection, maybe unlocks something
 - `OVERRUN` status: loot inaccessible, civilians 0, spreads faster
 - These states should appear on the map (color shift or label) and in the radio feed
+
+### Combat Mechanics Overhaul (future)
+Does unit damage scale with number of people in the unit? Currently each person gets one attack roll per tick regardless of unit size — worth revisiting if we ever do a proper fight mechanics pass. Larger units may feel more powerful through survivability alone right now, but concentrated firepower scaling is an open question.
 
 ### Win Condition (currently undefined)
 design.md says "survive N ticks or contain spread below threshold" — needs actual design. Options:

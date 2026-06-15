@@ -58,39 +58,76 @@
 
   <div id="desktop">
 
-    <!-- Window: Map (center column — district info + map + dispatch roster) -->
+    <!-- Window: Dispatch Roster -->
+    <div class="win" id="win-dispatch">
+      <div class="win-titlebar">
+        <span class="win-title">DISPATCH</span>
+        <div class="win-controls"></div>
+      </div>
+      <div class="win-body" id="dispatch-container">
+        <div id="units-panel" data-card-layout="expanded">
+          <div id="dispatch-toolbar">
+            <button class="layout-btn layout-btn--active" data-layout="expanded">EXPANDED</button>
+            <button class="layout-btn" data-layout="condensed">CONDENSED</button>
+          </div>
+          <div id="units-view">
+            <div id="units-list"></div>
+          </div>
+          <div id="item-description-view">
+            <button id="btn-idv-back">← BACK</button>
+            <div id="idv-name"></div>
+            <div id="idv-description"></div>
+          </div>
+          <div id="unit-detail-view">
+            <button id="btn-udv-back">← BACK</button>
+            <div id="udv-header">
+              <div id="udv-type"></div>
+              <div id="udv-location"></div>
+            </div>
+            <div id="udv-members"></div>
+            <div id="udv-items"></div>
+            <div id="udv-dispatch">
+              <select id="udv-target"></select>
+              <button id="btn-udv-send">DISPATCH</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window: Map -->
     <div class="win" id="win-map">
       <div class="win-titlebar">
-        <span class="win-title">MAP VIEW</span>
+        <span class="win-title">MAP</span>
         <div class="win-controls"></div>
       </div>
       <div class="win-body" id="map-container">
 
-        <!-- District info bar -->
+        <!-- District info bar (top) -->
         <div id="district-info-bar">
-          <div id="info-panel">
-            <div id="info-name">—</div>
-            <div id="info-cat">CLICK A DISTRICT</div>
-            <div id="info-pop"></div>
-          </div>
-          <div id="legend">
-            <div class="legend-row" data-cat="residential"><span class="swatch"></span>Residential</div>
-            <div class="legend-row" data-cat="government"><span class="swatch"></span>Government</div>
-            <div class="legend-row" data-cat="medical"><span class="swatch"></span>Medical</div>
-            <div class="legend-row" data-cat="retail"><span class="swatch"></span>Retail</div>
-            <div class="legend-row" data-cat="industrial"><span class="swatch"></span>Industrial</div>
-          </div>
+          <div id="info-name">—</div>
+          <div id="info-cat">CLICK A DISTRICT</div>
+          <div id="info-pop"></div>
+        </div>
+
+        <!-- Legend bar (bottom) -->
+        <div id="map-legend-bar">
+          <div class="legend-row" data-cat="residential"><span class="swatch"></span>Residential</div>
+          <div class="legend-row" data-cat="government"><span class="swatch"></span>Government</div>
+          <div class="legend-row" data-cat="medical"><span class="swatch"></span>Medical</div>
+          <div class="legend-row" data-cat="retail"><span class="swatch"></span>Retail</div>
+          <div class="legend-row" data-cat="industrial"><span class="swatch"></span>Industrial</div>
         </div>
 
         <!-- Map SVG -->
         <div id="map-svg-wrap">
-          <select id="map-palette-select">
-            <option value="original">Original</option>
-            <option value="dusty">Post-it</option>
-            <option value="paper">Paper Map</option>
-          </select>
-          <svg id="city-map" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid meet"
-               xmlns="http://www.w3.org/2000/svg">
+        <select id="map-palette-select">
+          <option value="original">Original</option>
+          <option value="dusty">Post-it</option>
+          <option value="paper">Paper Map</option>
+        </select>
+        <svg id="city-map" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid meet"
+             xmlns="http://www.w3.org/2000/svg" overflow="visible">
 
             <rect x="0" y="0" width="1200" height="900" fill="none" stroke="var(--border)" stroke-width="1.5"/>
 
@@ -156,29 +193,10 @@
               <text x="950"  y="830" class="lbl-cat">Industrial</text>
             </g>
 
-          </svg>
-        </div>
+            <g id="district-pin" pointer-events="none"></g>
 
-        <!-- Dispatch Roster -->
-        <div id="units-panel">
-          <div id="units-view">
-            <div id="units-list"></div>
-          </div>
-          <div id="item-description-view">
-            <button id="btn-idv-back">← BACK</button>
-            <div id="idv-name"></div>
-            <div id="idv-description"></div>
-          </div>
-          <div id="unit-detail-view">
-            <button id="btn-udv-back">← BACK</button>
-            <div id="udv-type"></div>
-            <div id="udv-location"></div>
-            <div id="udv-health"></div>
-            <div id="udv-items"></div>
-            <select id="udv-target"></select>
-            <button id="btn-udv-send">DISPATCH</button>
-          </div>
-        </div>
+          </svg>
+        </div><!-- #map-svg-wrap -->
 
       </div>
     </div>
@@ -317,8 +335,9 @@
   </div><!-- #desktop -->
 
   <div id="taskbar">
-    <button class="task-btn" data-win="map">MAP</button>
     <button class="task-btn" data-win="contacts">CONTACTS</button>
+    <button class="task-btn" data-win="dispatch">DISPATCH</button>
+    <button class="task-btn" data-win="map">MAP</button>
     <button class="task-btn" data-win="radio">COMMS</button>
     <div style="flex:1"></div>
     <button class="task-btn task-btn--utility" data-win="items">ITEMS</button>

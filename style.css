@@ -95,7 +95,7 @@
   /* ── Unit type colors ── */
   --unit-police:   #2a6090;
   --unit-fire:     #b83030;
-  --unit-civilian: #906820;
+  --unit-civilian: #EEE8D9;
 
   /* ── Item chip colors (semantic — survive theme changes) ── */
   --chip-gun-border:      #7a6828;  --chip-gun-bg:      #1c1808;  --chip-gun-color:      #c09848;
@@ -112,7 +112,8 @@
 
   /* ── Misc semantic ── */
   --status-lost:    #c84040;
-  --selection-stroke: #e03c3c;
+  --leader-star:    #e8c030;
+
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -381,7 +382,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .win-edge--se { bottom: -3px; right: -3px;  width: 14px;  height: 14px; cursor: se-resize; }
 .win-edge--sw { bottom: -3px; left: -3px;   width: 14px;  height: 14px; cursor: sw-resize; }
 
-/* ── Map window — flex column: info bar / map / roster ── */
+/* ── Map window — flex column: info bar / then body row ── */
 #map-container {
   display: flex;
   flex-direction: column;
@@ -389,28 +390,25 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   background: var(--map-panel-bg);
 }
 
-/* District info bar */
+#dispatch-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* District info bar (top) */
 #district-info-bar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 0 16px;
-  height: 64px;
-  border-bottom: 1px solid var(--border);
+  gap: 14px;
+  padding: 0 20px;
+  height: 52px;
   background: var(--surface);
 }
 
-#info-panel {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-}
-
 #info-name {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: bold;
   letter-spacing: 2px;
   color: var(--accent);
@@ -419,33 +417,42 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 #info-cat {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 1.5px;
   color: var(--text-dimmer);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 #info-pop {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
   color: var(--text-dim);
   letter-spacing: 0.5px;
   margin-left: auto;
+  white-space: nowrap;
 }
 
-#legend {
-  display: flex;
-  gap: 14px;
-  align-items: center;
+.pop-sep { color: var(--text-dimmer); }
+
+/* Legend bar (bottom) */
+#map-legend-bar {
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  padding-left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .legend-row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10px;
+  gap: 8px;
+  font-size: 12px;
   color: var(--text-dimmer);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -457,7 +464,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex: 1;
   min-height: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 10px;
 }
 
@@ -488,56 +495,138 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   display: block;
 }
 
-/* Roster hover highlight on map */
-#districts polygon.roster-hover {
-  filter: brightness(1.35);
-  stroke: var(--accent) !important;
-  stroke-width: 4 !important;
-}
+/* Roster hover highlight on map — same darker fill as :hover and .selected, no stroke */
 
-/* ── Dispatch Roster strip ── */
+/* ── Dispatch Roster — fills its own window ── */
 #units-panel {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   background: var(--bg);
   overflow: hidden;
-  transition: height 0.15s ease;
-  height: 178px;
+  display: flex;
+  flex-direction: column;
 }
-
-#units-panel[data-view="unit-detail"],
-#units-panel[data-view="item-description"] { height: 230px; }
 
 /* View switching */
 #units-panel > div                                                   { display: none; }
-#units-panel > #units-view                                           { display: block; }
+#units-panel > #dispatch-toolbar                                     { display: flex; }
+#units-panel > #units-view                                           { display: flex; flex: 1; }
 #units-panel[data-view="unit-detail"] > #units-view                  { display: none; }
 #units-panel[data-view="unit-detail"] > #unit-detail-view            { display: flex; }
 #units-panel[data-view="item-description"] > #units-view             { display: none; }
 #units-panel[data-view="item-description"] > #item-description-view  { display: flex; }
 
-#units-view {
-  height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+/* Dispatch toolbar — layout mode switcher */
+#dispatch-toolbar {
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.layout-btn {
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  color: var(--text-dimmer);
+  border-color: var(--border-sub);
+  background: var(--bg);
+}
+
+.layout-btn.layout-btn--active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Condensed card mode ── */
+#units-panel[data-card-layout="condensed"] .roster-card {
+  flex-direction: row;
+}
+
+#units-panel[data-card-layout="condensed"] .roster-portrait {
+  width: 9px;
+  height: unset;
+  min-height: unset;
+  align-self: stretch;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#units-panel[data-card-layout="condensed"] .roster-portrait svg {
+  display: none;
+}
+
+#units-panel[data-card-layout="condensed"] .roster-card-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  gap: 3px;
+  justify-content: center;
+}
+
+/* Landscape (compact) card mode */
+#units-panel[data-card-layout="landscape"] .roster-card {
+  flex-direction: row;
+  width: 100%;
+}
+
+#units-panel[data-card-layout="landscape"] .roster-portrait {
+  width: 66px;
+  height: unset;
+  min-height: unset;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+#units-panel[data-card-layout="landscape"] .roster-card-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  gap: 3px;
+  justify-content: center;
+}
+
+/* Layout toggle button — sits at top of panel column, non-scrolling */
+#btn-card-layout {
+  align-self: flex-end;
+  flex-shrink: 0;
+  margin: 6px 8px 2px;
+  padding: 2px 7px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dimmer);
+  border-color: var(--border-sub);
+  background: var(--bg);
+}
+
+
+#units-view {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 0;
+  flex-direction: column;
 }
 
 #units-list {
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-  height: 100%;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  align-items: start;
 }
 
 /* ── Roster cards ── */
 .roster-card {
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  width: 138px;
+  width: 100%;
   border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--bg);
   cursor: pointer;
   transition: border-color 0.12s, transform 0.1s;
@@ -550,16 +639,16 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .roster-portrait {
-  height: 76px;
-  min-height: 76px;
+  height: 90px;
+  min-height: 90px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.roster-portrait[data-role="police"]   { background: linear-gradient(160deg, #1a3558, #0e2040); }
-.roster-portrait[data-role="fire"]     { background: linear-gradient(160deg, #5a1a18, #3a0e0e); }
-.roster-portrait[data-role="civilian"] { background: linear-gradient(160deg, #1e3820, #122014); }
+.roster-portrait[data-role="police"]   { background: linear-gradient(160deg, #2a4a70, #182e56); }
+.roster-portrait[data-role="fire"]     { background: linear-gradient(160deg, #722824, #501818); }
+.roster-portrait[data-role="civilian"] { background: linear-gradient(160deg, #EEE8D9, #D4CEBC); }
 
 .roster-portrait svg { width: 52px; height: 62px; }
 
@@ -567,42 +656,63 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 7px 8px 8px;
+  padding: 7px 9px 9px;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 .roster-leader-name {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: bold;
   color: var(--accent);
-  letter-spacing: 0.4px;
-  white-space: nowrap;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.leader-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .roster-unit-label {
-  font-size: 9px;
-  letter-spacing: 1.2px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
   color: var(--text-dim);
   text-transform: uppercase;
 }
 
-.roster-wound-row {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  min-height: 10px;
-}
+.roster-wound-row { display: none; } /* superseded by .roster-members-dots and .roster-alone */
 
-.wound-dot {
-  width: 8px;
-  height: 8px;
+/* Leader star — always command gold, no background, pulses on critical */
+.leader-ws-star { font-size: 17px; }
+.leader-ws-star.ws-healthy,
+.leader-ws-star.ws-wounded,
+.leader-ws-star.ws-critical { color: var(--leader-star); background: none; }
+.leader-ws-star.ws-critical  { animation: pulse-crit 1s infinite; }
+
+/* Member dots — colored by role */
+.member-dot {
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.wound-dot--healthy  { background: var(--accent); }
-.wound-dot--wounded  { background: var(--radio-t0); }
-.wound-dot--critical { background: var(--status-lost); animation: pulse-crit 1s infinite; }
+.member-dot--police   { background: var(--unit-police); }
+.member-dot--fire     { background: var(--unit-fire); }
+.member-dot--civilian { background: var(--unit-civilian); }
+
+.roster-members-dots { display: flex; gap: 4px; align-items: center; min-height: 10px; }
+
+.roster-alone {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #904040;
+  font-style: italic;
+}
 
 @keyframes pulse-crit {
   0%, 100% { opacity: 1; }
@@ -617,12 +727,13 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .roster-item-abbrev {
-  font-size: 8px;
-  letter-spacing: 0.5px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
   color: var(--text-dimmer);
   background: var(--chrome-raised);
   border: 1px solid var(--border-sub);
-  padding: 1px 3px;
+  padding: 1px 4px;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 .no-units {
@@ -636,54 +747,86 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   align-items: center;
 }
 
-/* ── Unit detail view — landscape layout in roster ── */
+/* ── Unit detail view ── */
 #unit-detail-view {
   display: none;
-  flex-direction: row;
-  align-items: center;
-  gap: 20px;
-  padding: 12px 16px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
   height: 100%;
-  overflow-x: auto;
+  overflow: hidden;
 }
 
-#unit-detail-view #udv-type {
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 1.5px;
-  color: var(--accent);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-#unit-detail-view #udv-location {
-  font-size: 11px;
-  color: var(--text-dim);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-#unit-detail-view #udv-health {
+#udv-header {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
+  margin-bottom: 2px;
 }
 
-.udv-person {
+#udv-type {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 1.2px;
+  color: var(--accent);
+}
+
+#udv-location {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+#udv-members {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+}
+
+#udv-items {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.udv-member {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  padding: 3px 6px;
-  border-left: 2px solid transparent;
-  white-space: nowrap;
+  font-size: 13px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-sub);
 }
-.udv-person--healthy  { border-left-color: var(--accent); }
-.udv-person--wounded  { border-left-color: var(--radio-t0); }
-.udv-person--critical { border-left-color: var(--status-lost); }
 
-.udv-person-name { color: var(--text); letter-spacing: 0.3px; }
+.udv-member-spacer { width: 14px; flex-shrink: 0; }
+.udv-member-name { color: var(--text); flex: 1; letter-spacing: 0.2px; }
+.udv-member-role { color: var(--text-dimmer); font-size: 10px; letter-spacing: 0.8px; }
+
+#unit-detail-view .member-dot { width: 16px; height: 16px; }
+#unit-detail-view .leader-ws-star { font-size: 20px; }
+
+#udv-dispatch {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#udv-dispatch #udv-target {
+  flex: 1;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+
+#udv-dispatch #btn-udv-send { flex-shrink: 0; }
 
 .udv-ws-badge {
   font-size: 8px;
@@ -694,33 +837,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .ws-healthy  { color: var(--accent);      background: rgba(80,200,80,0.1); }
 .ws-wounded  { color: var(--radio-t0);    background: rgba(200,160,50,0.1); }
 .ws-critical { color: var(--status-lost); background: rgba(200,60,60,0.1); }
-
-#unit-detail-view #udv-items {
-  display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
-}
-
-#unit-detail-view #udv-target {
-  flex-shrink: 0;
-  background: var(--btn-bg);
-  border: 1px solid var(--btn-border);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  padding: 6px 8px;
-  cursor: pointer;
-  min-width: 160px;
-}
-
-#unit-detail-view #btn-udv-send {
-  flex-shrink: 0;
-}
-
-#unit-detail-view #btn-udv-back {
-  flex-shrink: 0;
-}
 
 /* ── Item description view — landscape ── */
 #item-description-view {
@@ -772,20 +888,20 @@ polygon[data-category="retail"]      { fill: var(--col-ret); }
 polygon[data-category="industrial"]  { fill: var(--col-ind); }
 
 polygon[data-category="residential"]:hover,
+polygon[data-category="residential"].roster-hover,
 polygon[data-category="residential"].selected { fill: var(--col-res-h); }
 polygon[data-category="government"]:hover,
+polygon[data-category="government"].roster-hover,
 polygon[data-category="government"].selected  { fill: var(--col-gov-h); }
 polygon[data-category="medical"]:hover,
+polygon[data-category="medical"].roster-hover,
 polygon[data-category="medical"].selected     { fill: var(--col-med-h); }
 polygon[data-category="retail"]:hover,
+polygon[data-category="retail"].roster-hover,
 polygon[data-category="retail"].selected      { fill: var(--col-ret-h); }
 polygon[data-category="industrial"]:hover,
+polygon[data-category="industrial"].roster-hover,
 polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
-
-polygon.selected {
-  stroke: var(--selection-stroke) !important;
-  stroke-width: 8 !important;
-}
 
 /* ── SVG Text ── */
 .lbl-name {
@@ -938,9 +1054,10 @@ polygon.selected {
 
 
 .swatch {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
   flex-shrink: 0;
 }
 
@@ -1394,12 +1511,12 @@ polygon.selected {
 #udv-target:focus { outline: none; border-color: var(--accent); }
 
 #btn-udv-send {
-  width: 100%;
-  padding: 10px;
+  padding: 6px 16px;
   font-size: 12px;
   letter-spacing: 2px;
   color: var(--accent);
   border-color: var(--accent);
+  flex-shrink: 0;
 }
 
 #btn-udv-send:hover {

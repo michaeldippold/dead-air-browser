@@ -4,6 +4,72 @@ All notable changes to Dispatch will be documented here.
 
 ---
 
+## [0.5.0] — 2026-06-15
+
+### Overview
+
+Major UI overhaul. The interface is now a windowed OS-style environment — four independent windows (CONTACTS, DISPATCH, MAP, COMMS) pinned to a desktop, each with a titlebar, pin toggle, minimize, resize, and close. Every window can be repositioned and resized by dragging. The map and dispatch roster are now separate panels. The information density and readability of nearly every view was improved.
+
+---
+
+### Windowed UI
+
+- Four taskbar buttons (CONTACTS, DISPATCH, MAP, COMMS) toggle their respective windows; layout resets via "Reset UI"
+- Each window has a titlebar with pin, minimize, resize, and close controls
+- Default layout: Contacts left · Dispatch center-left · Map center-right · Comms right — full height, edge to edge
+- Windows can be freely moved and resized; pin locks position so the window can't be accidentally dragged
+
+---
+
+### DISPATCH window
+
+- Split from the old combined MAP VIEW panel into its own dedicated window
+- **EXPANDED / CONDENSED** card layout switcher in a fixed header toolbar:
+  - EXPANDED — portrait image, full card with name, role, items, member dots
+  - CONDENSED — no portrait; a narrow colored role-strip on the left edge of the card instead
+- Responsive card grid: `auto-fill / minmax(150px, 1fr)` — 2 columns at default width, pops to 3 at wider sizes
+- Equal padding on all four sides of the grid
+
+---
+
+### MAP window
+
+- Separate from DISPATCH; retains the city SVG, district selection, and intel display
+- **Two-bar header**:
+  - Top bar (taller): district name, category, and intel (humans · infected) all inline on one row
+  - Bottom bar (shorter): category legend with colored swatches
+- Legend swatches enlarged to 16 × 16px with 6px border-radius
+- **Selected district pushpin**: a flat SVG thumbtack (red head, silver needle) placed at the horizontal center of the selected district, 8px from the top. Renders above the map boundary via `overflow: visible` — intentional
+- Selection no longer uses an inner stroke border (previously caused rendering artifacts); hover and selected states use the existing darker fill variants only
+
+---
+
+### Unit detail view
+
+- Removed the two-column (leader / other members) layout
+- All members now in a single full-width list, leader indicated with ★
+- No more "No other members" empty state — the leader is always a member
+- Member row text, dot, and star scaled up for readability
+
+---
+
+### Person model (v0.4.x carry-forward, documented here)
+
+- `Person` is the core simulation type: `{ id, name, role, health, items, unitId }`
+- `Unit` is a container: `{ id, label, districtId, personIds, leaderPersonId }`
+- Wound states: HEALTHY (≥70 HP) · WOUNDED (30–69) · CRITICAL (<30) — shown on cards and in detail view
+- Leader star pulses red on CRITICAL
+
+---
+
+### COMMS window
+
+- Inbound-only radio/emergency broadcast feed styled as scanner chatter
+- Messages generated from game events: units engaging, districts falling, spread events, clears
+- Static noise markers (`<wzzt>`, `<szzt>`) embedded in transmissions
+
+---
+
 ## [0.1.0] — 2026-06-13
 
 ### Overview
