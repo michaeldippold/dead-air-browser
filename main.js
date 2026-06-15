@@ -3,7 +3,7 @@
 const TICK_MS       = 3500
 const SPREAD_RATE   = 0.12
 let spreadChance = 0.35
-const UNIT_TYPES    = ['police', 'fire', 'civilian']
+const ROLES = ['police', 'fire', 'civilian']
 
 const PRESETS = {
   'default': { label: 'Default', seed: { 'millbrook': 15 } },
@@ -26,9 +26,28 @@ const ITEMS = {
 
 const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'FAK', 'radio': 'RAD', 'rations': 'FOOD', 'binoculars': 'BNO' }
 
+const PERSON_NAMES = {
+  police:   ['Jack Sullivan', 'Maria Chen', 'Dave Kowalski', 'Frank Diaz', 'Linda Brooks', 'Ray Kim'],
+  fire:     ['Tom Garza', 'Sarah Walsh', 'Joe Martinez', 'Ann Patel', 'Bill Cooper', 'Diane Osei'],
+  civilian: ['Carol Hayes', 'Ben Archer', 'Pat Donnelly', 'Yuki Ito', 'Sam West', 'Rosa Bauer'],
+}
+const _pnIdx = { police: 0, fire: 0, civilian: 0 }
+function nextPersonName(role) {
+  const pool = PERSON_NAMES[role]
+  return pool[_pnIdx[role]++ % pool.length]
+}
+
 let _uid = 0
-const uid         = ()            => `u${++_uid}`
-const makeUnit    = (type, items) => ({ id: uid(), type, health: 100, items })
+const uid = () => `u${++_uid}`
+
+function makePerson(name, role, items = []) {
+  return { id: uid(), name, role, health: 100, items, unitId: null }
+}
+
+function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
+  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null }
+}
+
 const makeContact = (name, districtId = null) => ({
   id: uid(), name, messages: [], unread: false,
   location: districtId,
@@ -481,50 +500,86 @@ function processNarrativeCallers() {
   }
 }
 
+// ── PERSON / UNIT HELPERS ──
+
+function unitsInDistrict(districtId) {
+  return (state.districts[districtId]?.unitIds ?? []).map(id => state.units[id]).filter(Boolean)
+}
+
+function personsInUnit(unitId) {
+  return (state.units[unitId]?.personIds ?? []).map(id => state.people[id]).filter(Boolean)
+}
+
+function personsInDistrict(districtId) {
+  return unitsInDistrict(districtId).flatMap(u => personsInUnit(u.id))
+}
+
+function woundState(person) {
+  if (person.health >= 70) return 'healthy'
+  if (person.health >= 40) return 'wounded'
+  if (person.health >= 1)  return 'critical'
+  return 'dead'
+}
+
+function handlePersonDeath(person, districtId) {
+  const d = state.districts[districtId]
+  // 40% chance each item drops to district loot
+  for (const item of person.items) {
+    if (Math.random() < 0.40) d.loot.push(item)
+  }
+  const unit = state.units[person.unitId]
+  if (unit) {
+    unit.personIds = unit.personIds.filter(id => id !== person.id)
+    if (unit.leaderPersonId === person.id) unit.leaderPersonId = unit.personIds[0] ?? null
+    if (unit.personIds.length === 0) disbandUnit(unit.id, districtId)
+  }
+  delete state.people[person.id]
+  broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] UNIT DOWN — ${crackle()}no further contact.`)
+}
+
+function disbandUnit(unitId, districtId) {
+  const d = state.districts[districtId]
+  if (d) d.unitIds = d.unitIds.filter(id => id !== unitId)
+  delete state.units[unitId]
+}
+
 // ── COMBAT & UTILITIES ──
-
-function makeHpBar(health) {
-  const filled = Math.round(health / 10)
-  const color  = health > 70 ? '#3aaa3a' : health > 40 ? '#c8a030' : '#c84040'
-  return `<div class="hp-bar">${
-    Array.from({ length: 10 }, (_, i) =>
-      `<div class="hp-seg" style="${i < filled ? `background:${color}` : ''}"></div>`
-    ).join('')
-  }</div>`
-}
-
-function getHitChance(unit) {
-  if (unit.items.includes('gun'))      return 0.70
-  if (unit.items.includes('fire-axe')) return 0.65
-  return 0.50
-}
 
 const THREAT_MOD = { police: 3, fire: 2, civilian: 1 }
 
-function pickCounterTarget(units) {
-  const total = units.reduce((sum, u) => sum + THREAT_MOD[u.type], 0)
+function getHitChance(person) {
+  const base = person.items.includes('gun')      ? 0.70
+             : person.items.includes('fire-axe') ? 0.65
+             : 0.50
+  const ws = woundState(person)
+  if (ws === 'wounded')  return base * 0.80
+  if (ws === 'critical') return base * 0.40
+  return base
+}
+
+function pickCounterTarget(persons) {
+  const total = persons.reduce((sum, p) => sum + THREAT_MOD[p.role], 0)
   let r = Math.random() * total
-  for (const u of units) {
-    r -= THREAT_MOD[u.type]
-    if (r <= 0) return u
+  for (const p of persons) {
+    r -= THREAT_MOD[p.role]
+    if (r <= 0) return p
   }
-  return units[units.length - 1]
+  return persons[persons.length - 1]
 }
 
 function districtHasRadio(districtId) {
-  const d = state.districts[districtId]
-  return d?.units.some(u => u.type === 'civilian' && u.items.includes('radio'))
+  return personsInDistrict(districtId).some(p => p.role === 'civilian' && p.items.includes('radio'))
 }
 
 function districtHasBinoView(districtId) {
   return (adjacency[districtId] || []).some(adjId =>
-    state.districts[adjId]?.units.some(u => u.items.includes('binoculars'))
+    personsInDistrict(adjId).some(p => p.items.includes('binoculars'))
   )
 }
 
 // Local growth rate reduced by units present (each unit -12%, cap 80%)
 function getEffectiveSpreadRate(d) {
-  const suppression = Math.min(0.80, d.units.length * 0.12)
+  const suppression = Math.min(0.80, (d.unitIds?.length ?? 0) * 0.12)
   return SPREAD_RATE * (1 - suppression)
 }
 
@@ -569,35 +624,46 @@ const state = {
   selectedUnit:    null,
   selectedContact: null,
   contacts:        [ makeContact('City Hall') ],
+  people:          {},
+  units:           {},
   districts: {
-    'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, units: [], loot: rollLoot('northgate',    'residential', 2) },
-    'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, units: [], loot: rollLoot('millbrook',    'residential', 2) },
-    'eastridge':    { label: 'Eastridge',       category: 'residential', humans: 1200, zombies: 0, units: [], loot: rollLoot('eastridge',    'residential', 2) },
-    'westgate':     { label: 'Westgate',        category: 'residential', humans: 900,  zombies: 0, units: [], loot: rollLoot('westgate',     'residential', 1) },
-    'police-hq':    { label: 'Police HQ',       category: 'government',  humans: 80,   zombies: 0, units: [
-      makeUnit('police', ['gun']),
-      makeUnit('police', ['gun']),
-      makeUnit('police', ['gun']),
-    ], loot: rollLoot('police-hq',    'government', 3) },
-    'fire-station': { label: 'Fire Station',    category: 'government',  humans: 60,   zombies: 0, units: [
-      makeUnit('fire', ['fire-axe']),
-      makeUnit('fire', ['fire-axe']),
-      makeUnit('fire', ['fire-axe']),
-    ], loot: rollLoot('fire-station', 'government', 3) },
-    'city-hall':    { label: 'City Hall',       category: 'government',  humans: 200,  zombies: 0, units: [
-      makeUnit('civilian', ['first-aid', 'radio']),
-      makeUnit('civilian', ['first-aid', 'radio']),
-      makeUnit('civilian', ['first-aid']),
-    ], loot: rollLoot('city-hall',    'government', 2) },
-    'memorial':     { label: 'Memorial',        category: 'medical',     humans: 600,  zombies: 0, units: [], loot: rollLoot('memorial',     'medical',     4) },
-    'ironworks':    { label: 'Ironworks',       category: 'industrial',  humans: 380,  zombies: 0, units: [], loot: rollLoot('ironworks',    'industrial',  2) },
-    'riverside':    { label: 'Riverside',       category: 'residential', humans: 1100, zombies: 0, units: [], loot: rollLoot('riverside',    'residential', 2) },
-    'market':       { label: 'Market District', category: 'retail',      humans: 700,  zombies: 0, units: [], loot: rollLoot('market',       'retail',      3) },
-    'commerce':     { label: 'Commerce Park',   category: 'retail',      humans: 650,  zombies: 0, units: [], loot: rollLoot('commerce',     'retail',      2) },
-    'southend':     { label: 'Southend',        category: 'residential', humans: 950,  zombies: 0, units: [], loot: rollLoot('southend',     'residential', 2) },
-    'industrial':   { label: 'Industrial Row',  category: 'industrial',  humans: 400,  zombies: 0, units: [], loot: rollLoot('industrial',   'industrial',  2) },
+    'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
+    'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
+    'eastridge':    { label: 'Eastridge',       category: 'residential', humans: 1200, zombies: 0, unitIds: [], loot: rollLoot('eastridge',    'residential', 2) },
+    'westgate':     { label: 'Westgate',        category: 'residential', humans: 900,  zombies: 0, unitIds: [], loot: rollLoot('westgate',     'residential', 1) },
+    'police-hq':    { label: 'Police HQ',       category: 'government',  humans: 80,   zombies: 0, unitIds: [], loot: rollLoot('police-hq',    'government',  3) },
+    'fire-station': { label: 'Fire Station',    category: 'government',  humans: 60,   zombies: 0, unitIds: [], loot: rollLoot('fire-station', 'government',  3) },
+    'city-hall':    { label: 'City Hall',       category: 'government',  humans: 200,  zombies: 0, unitIds: [], loot: rollLoot('city-hall',    'government',  2) },
+    'memorial':     { label: 'Memorial',        category: 'medical',     humans: 600,  zombies: 0, unitIds: [], loot: rollLoot('memorial',     'medical',     4) },
+    'ironworks':    { label: 'Ironworks',       category: 'industrial',  humans: 380,  zombies: 0, unitIds: [], loot: rollLoot('ironworks',    'industrial',  2) },
+    'riverside':    { label: 'Riverside',       category: 'residential', humans: 1100, zombies: 0, unitIds: [], loot: rollLoot('riverside',    'residential', 2) },
+    'market':       { label: 'Market District', category: 'retail',      humans: 700,  zombies: 0, unitIds: [], loot: rollLoot('market',       'retail',      3) },
+    'commerce':     { label: 'Commerce Park',   category: 'retail',      humans: 650,  zombies: 0, unitIds: [], loot: rollLoot('commerce',     'retail',      2) },
+    'southend':     { label: 'Southend',        category: 'residential', humans: 950,  zombies: 0, unitIds: [], loot: rollLoot('southend',     'residential', 2) },
+    'industrial':   { label: 'Industrial Row',  category: 'industrial',  humans: 400,  zombies: 0, unitIds: [], loot: rollLoot('industrial',   'industrial',  2) },
   }
 }
+
+// Spawn starting units and people
+;(function initStartingUnits() {
+  function spawn(label, role, items, districtId) {
+    const person = makePerson(nextPersonName(role), role, items)
+    const unit   = makeUnit(label, districtId, [person.id])
+    person.unitId = unit.id
+    state.people[person.id] = person
+    state.units[unit.id]    = unit
+    state.districts[districtId].unitIds.push(unit.id)
+  }
+  spawn('PD ALPHA',   'police',   ['gun'],               'police-hq')
+  spawn('PD BRAVO',   'police',   ['gun'],               'police-hq')
+  spawn('PD CHARLIE', 'police',   ['gun'],               'police-hq')
+  spawn('FIRE-1',     'fire',     ['fire-axe'],          'fire-station')
+  spawn('FIRE-2',     'fire',     ['fire-axe'],          'fire-station')
+  spawn('FIRE-3',     'fire',     ['fire-axe'],          'fire-station')
+  spawn('CIVIC-1',    'civilian', ['first-aid', 'radio'], 'city-hall')
+  spawn('CIVIC-2',    'civilian', ['first-aid', 'radio'], 'city-hall')
+  spawn('CIVIC-3',    'civilian', ['first-aid'],          'city-hall')
+})()
 
 const adjacency = {
   'northgate':    ['millbrook', 'westgate', 'police-hq'],
@@ -967,9 +1033,9 @@ function setUnitsView(view)    { unitsPanel.dataset.view    = view || '' }
 function setContactsView(view) { contactsPanel.dataset.view = view || '' }
 
 unitsList.addEventListener('click', e => {
-  const chip = e.target.closest('.roster-unit-chip')
-  if (!chip) return
-  showUnitDetail(chip.dataset.unitId)
+  const card = e.target.closest('.roster-card')
+  if (!card) return
+  showUnitDetail(card.dataset.unitId)
 })
 
 unitsList.addEventListener('mouseover', e => {
@@ -985,30 +1051,37 @@ unitsList.addEventListener('mouseleave', () => {
 })
 
 function showUnitDetail(unitId) {
-  let unit = null
-  let districtId = null
-
-  for (const [id, d] of Object.entries(state.districts)) {
-    const found = d.units.find(u => u.id === unitId)
-    if (found) { unit = found; districtId = id; break }
-  }
-
+  const unit = state.units[unitId]
   if (!unit) return
-
-  state.selectedUnit = { unitId, districtId }
-  renderUnitDetail(unit, districtId)
+  state.selectedUnit = { unitId, districtId: unit.districtId }
+  renderUnitDetail(unit)
   setUnitsView('unit-detail')
 }
 
-function renderUnitDetail(unit, districtId) {
-  const d = state.districts[districtId]
-  udvType.textContent     = unit.type.toUpperCase() + ' SQUAD'
-  udvLocation.textContent = d.label
-  udvHealth.innerHTML = makeHpBar(unit.health)
+function renderUnitDetail(unit) {
+  const d       = state.districts[unit.districtId]
+  const persons = personsInUnit(unit.id)
 
-  udvItems.innerHTML = unit.items.length === 0
+  udvType.textContent     = unit.label
+  udvLocation.textContent = d?.label ?? '—'
+
+  // Person roster in place of the old HP bar
+  udvHealth.innerHTML = persons.length === 0
+    ? '<div class="udv-no-items">No personnel</div>'
+    : persons.map(p => {
+        const ws   = woundState(p)
+        const star = p.id === unit.leaderPersonId ? '★ ' : ''
+        return `<div class="udv-person udv-person--${ws}">
+          <span class="udv-person-name">${star}${p.name}</span>
+          <span class="udv-ws-badge ws-${ws}">${ws.toUpperCase()}</span>
+        </div>`
+      }).join('')
+
+  // Aggregate items from all persons
+  const allItems = [...new Set(persons.flatMap(p => p.items))]
+  udvItems.innerHTML = allItems.length === 0
     ? '<div class="udv-no-items">No items</div>'
-    : unit.items.map(key => {
+    : allItems.map(key => {
         const item = ITEMS[key]
         if (!item) return ''
         return `<div class="item-chip item-chip--${key}" data-item-key="${key}">${item.name}</div>`
@@ -1016,7 +1089,7 @@ function renderUnitDetail(unit, districtId) {
 
   udvTarget.innerHTML = '<option value="">— select destination —</option>' +
     Object.entries(state.districts)
-      .filter(([nid]) => nid !== districtId)
+      .filter(([nid]) => nid !== unit.districtId)
       .sort(([, a], [, b]) => a.label.localeCompare(b.label))
       .map(([nid, nd]) => `<option value="${nid}">${nd.label}</option>`)
       .join('')
@@ -1252,15 +1325,17 @@ btnUdvSend.addEventListener('click', () => {
   const destId = udvTarget.value
   if (!destId) return
 
+  const unit = state.units[unitId]
   const src  = state.districts[districtId]
   const dest = state.districts[destId]
-  const idx  = src.units.findIndex(u => u.id === unitId)
-  if (idx === -1) return
+  if (!unit || !src || !dest) return
 
-  const [unit] = src.units.splice(idx, 1)
-  dest.units.push(unit)
+  src.unitIds  = src.unitIds.filter(id => id !== unitId)
+  dest.unitIds.push(unitId)
+  unit.districtId = destId
+  state.selectedUnit.districtId = destId
+
   broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
-
   hideUnitDetail()
   renderUnitsPanel()
 })
@@ -1272,7 +1347,7 @@ const WIN_FLAVOR  = 'At some point in the early hours, the last confirmed contac
 
 function checkLose() {
   if (state.won || state.lost) return
-  const totalUnits = Object.values(state.districts).reduce((sum, d) => sum + d.units.length, 0)
+  const totalUnits = Object.keys(state.units).length
   if (totalUnits > 0) return
 
   state.lost = true
@@ -1335,7 +1410,7 @@ function tick() {
     if (sources.length) {
       const src  = sources[Math.floor(Math.random() * sources.length)]
       const srcD = state.districts[src]
-      const blockChance = Math.min(0.70, srcD.units.length * 0.15)
+      const blockChance = Math.min(0.70, srcD.unitIds.length * 0.15)
       if (Math.random() >= blockChance) {
         const neighbors = adjacency[src].filter(id => state.districts[id].humans > 0)
         if (neighbors.length) {
@@ -1347,60 +1422,56 @@ function tick() {
     }
   }
 
-  // Combat: units fight zombies in occupied infected districts
-  for (const d of Object.values(state.districts)) {
-    if (d.zombies === 0 || d.units.length === 0) continue
+  // Combat: people fight zombies in occupied infected districts
+  for (const [districtId, d] of Object.entries(state.districts)) {
+    if (d.zombies === 0 || d.unitIds.length === 0) continue
 
-    // Attack phase — each unit gets one roll
-    for (const unit of d.units) {
+    const persons = personsInDistrict(districtId)
+    if (persons.length === 0) continue
+
+    // Attack phase — each person gets one roll
+    for (const person of persons) {
       if (d.zombies <= 0) break
-      if (Math.random() < getHitChance(unit)) {
+      if (Math.random() < getHitChance(person)) {
         d.zombies = Math.max(0, d.zombies - 1)
       }
     }
 
-    // Counterattack — weighted targeting by threat modifier
+    // Counterattack — weighted targeting by role
     const dangerRatio   = d.zombies / (d.humans + d.zombies)
     const counterChance = dangerRatio * 0.40
-    const numStrikes    = d.units.length
+    const numStrikes    = persons.length
 
     for (let i = 0; i < numStrikes; i++) {
-      if (d.units.length === 0) break
+      const alive = personsInDistrict(districtId)
+      if (alive.length === 0) break
       if (Math.random() < counterChance) {
-        const target = pickCounterTarget(d.units)
+        const target = pickCounterTarget(alive)
         target.health -= 10
-        if (target.health <= 0) {
-          const idx = d.units.indexOf(target)
-          if (idx !== -1) {
-            d.units.splice(idx, 1)
-            broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] UNIT DOWN — ${crackle()}no further contact.`)
-          }
-        }
+        if (target.health <= 0) handlePersonDeath(target, districtId)
       }
     }
 
-    // Medic phase — civies with first-aid heal the most critical units
-    const medics  = d.units.filter(u => u.type === 'civilian' && u.items.includes('first-aid'))
-    const wounded = d.units.filter(u => u.health <= 50).sort((a, b) => a.health - b.health)
+    // Medic phase — civilians with first-aid heal the most critical person
+    const postCombat = personsInDistrict(districtId)
+    const medics     = postCombat.filter(p => p.role === 'civilian' && p.items.includes('first-aid'))
+    const needHeal   = postCombat.filter(p => p.health < 70 && p.health > 0).sort((a, b) => a.health - b.health)
     for (const medic of medics) {
-      if (wounded.length === 0) break
-      const patient = wounded.shift()
-      patient.health = Math.min(100, patient.health + 20)
+      if (needHeal.length === 0) break
+      const patient = needHeal.shift()
+      patient.health = Math.min(100, patient.health + 30)
       medic.items.splice(medic.items.indexOf('first-aid'), 1)
     }
 
-    // District cleared in combat this tick
     if (d.zombies === 0) {
       broadcastEvent(`[${d.label.toUpperCase()}] — area clear. All contacts neutralized.`)
     }
   }
 
-  // Rations — passive HP recovery for all carrying units, not consumed
-  for (const d of Object.values(state.districts)) {
-    for (const unit of d.units) {
-      if (unit.items.includes('rations') && unit.health < 100) {
-        unit.health = Math.min(100, unit.health + 5)
-      }
+  // Rations — passive HP recovery for all carrying people, not consumed
+  for (const person of Object.values(state.people)) {
+    if (person.items.includes('rations') && person.health < 100) {
+      person.health = Math.min(100, person.health + 5)
     }
   }
 
@@ -1440,10 +1511,10 @@ function render() {
   renderRadio()
 
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
-    const { unitId, districtId } = state.selectedUnit
-    const unit = state.districts[districtId]?.units.find(u => u.id === unitId)
+    const { unitId } = state.selectedUnit
+    const unit = state.units[unitId]
     if (!unit) { hideUnitDetail() }
-    else        { renderUnitDetail(unit, districtId) }
+    else        { renderUnitDetail(unit) }
   }
 
   if (contactsPanel.dataset.view === 'contact-detail' && state.selectedContact) {
@@ -1455,43 +1526,41 @@ function render() {
   }
 }
 
-function renderUnitsPanel() {
-  const active = Object.entries(state.districts)
-    .filter(([, d]) => d.units.length > 0)
+const PORTRAIT_SVG = `<svg viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="30" cy="19" r="12" fill="rgba(255,255,255,0.18)"/>
+  <path d="M8,72 Q8,44 30,40 Q52,44 52,72Z" fill="rgba(255,255,255,0.13)"/>
+</svg>`
 
-  if (active.length === 0) {
+function renderUnitsPanel() {
+  const units = Object.values(state.units)
+
+  if (units.length === 0) {
     unitsList.innerHTML = '<div class="no-units">No active units</div>'
     return
   }
 
-  unitsList.innerHTML = active.map(([id, d]) => {
-    const avgHp = d.units.reduce((s, u) => s + u.health, 0) / d.units.length
-    const statusClass = avgHp <= 49 ? 'roster-status--critical'
-                      : avgHp <= 79 ? 'roster-status--hurt'
-                      : 'roster-status--ok'
-    const statusText  = avgHp <= 49 ? 'CRITICAL' : avgHp <= 79 ? 'WOUNDED' : 'READY'
-
-    const chips = d.units.map(u => {
-      const hpClass = u.health <= 49 ? ' unit-critical' : u.health <= 79 ? ' unit-hurt' : ''
-      const hpBar = `<div class="roster-hp-bar"><div class="roster-hp-fill" style="width:${u.health}%"></div></div>`
-      return `<div class="roster-unit-chip${hpClass}" data-unit-id="${u.id}" data-type="${u.type}" title="${u.type} · HP ${u.health}">
-        <div class="roster-unit-dot" data-type="${u.type}"></div>
-        ${hpBar}
-      </div>`
-    }).join('')
-
-    const allItems = [...new Set(d.units.flatMap(u => u.items))]
+  unitsList.innerHTML = units.map(unit => {
+    const leader  = state.people[unit.leaderPersonId]
+    if (!leader) return ''
+    const persons = personsInUnit(unit.id)
+    const allItems = [...new Set(persons.flatMap(p => p.items))]
     const itemsHtml = allItems.map(k =>
       `<span class="roster-item-abbrev">${ITEM_ABBREV[k] ?? k}</span>`
     ).join('')
 
-    return `<div class="roster-card" data-district-id="${id}">
-      <div class="roster-card-top">
-        <span class="roster-card-name">${d.label.toUpperCase()}</span>
-        <span class="roster-status ${statusClass}">${statusText}</span>
+    const woundDots = persons.map(p => {
+      const ws = woundState(p)
+      return `<span class="wound-dot wound-dot--${ws}" title="${p.name}: ${ws}"></span>`
+    }).join('')
+
+    return `<div class="roster-card" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
+      <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
+      <div class="roster-card-body">
+        <div class="roster-leader-name">★ ${leader.name}</div>
+        <div class="roster-unit-label">${unit.label}</div>
+        <div class="roster-wound-row">${woundDots}</div>
+        ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
       </div>
-      <div class="unit-cards">${chips}</div>
-      ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
     </div>`
   }).join('')
 }
@@ -1518,7 +1587,7 @@ function renderGodPanel() {
 
       const spdValue   = (getEffectiveSpreadRate(d) * 100).toFixed(1) + '%'
       const spdLabel   = d.zombies > 0 ? spdValue : '—'
-      const suppressed = d.zombies > 0 && d.units.length > 0
+      const suppressed = d.zombies > 0 && d.unitIds.length > 0
 
       const lootHtml = d.loot
         .map(k => `<div class="gsr-chip item-chip--${k}">

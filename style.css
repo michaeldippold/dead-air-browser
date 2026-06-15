@@ -499,14 +499,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #units-panel {
   flex-shrink: 0;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
   overflow: hidden;
   transition: height 0.15s ease;
-  height: 120px;
+  height: 178px;
 }
 
 #units-panel[data-view="unit-detail"],
-#units-panel[data-view="item-description"] { height: 200px; }
+#units-panel[data-view="item-description"] { height: 230px; }
 
 /* View switching */
 #units-panel > div                                                   { display: none; }
@@ -528,7 +528,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-direction: row;
   gap: 10px;
   height: 100%;
-  align-items: stretch;
+  align-items: flex-start;
 }
 
 /* ── Roster cards ── */
@@ -536,97 +536,84 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
+  width: 138px;
   border: 1px solid var(--border);
   background: var(--bg);
-  min-width: 130px;
-  cursor: default;
-  transition: border-color 0.12s;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.1s;
+  overflow: hidden;
 }
 
 .roster-card:hover {
   border-color: var(--accent);
-  background: var(--chrome-raised);
+  transform: translateY(-2px);
 }
 
-.roster-card-top {
+.roster-portrait {
+  height: 76px;
+  min-height: 76px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.roster-card-name {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--text);
-  font-weight: bold;
-  white-space: nowrap;
-}
-
-.roster-status {
-  font-size: 9px;
-  letter-spacing: 1px;
-  padding: 1px 4px;
-  border-radius: 2px;
-}
-
-.roster-status--ok       { color: var(--accent);      border: 1px solid var(--accent); }
-.roster-status--hurt     { color: var(--radio-t0);    border: 1px solid var(--radio-t0); }
-.roster-status--critical { color: var(--status-lost); border: 1px solid var(--status-lost); }
-
-.unit-cards {
-  display: flex;
-  gap: 5px;
-  flex-wrap: nowrap;
-  align-items: center;
-}
-
-.roster-unit-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  cursor: pointer;
-}
-
-.roster-unit-chip:hover .roster-unit-dot { filter: brightness(1.5); transform: scale(1.15); }
-
-.roster-unit-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 2px;
-  transition: filter 0.1s, transform 0.1s;
-}
-
-.roster-unit-dot[data-type="police"]   { background: var(--unit-police); }
-.roster-unit-dot[data-type="fire"]     { background: var(--unit-fire); }
-.roster-unit-dot[data-type="civilian"] { background: var(--unit-civilian); }
-
-.roster-hp-bar {
-  width: 18px;
-  height: 3px;
-  background: var(--border);
-  border-radius: 1px;
+  justify-content: center;
   overflow: hidden;
 }
+.roster-portrait[data-role="police"]   { background: linear-gradient(160deg, #1a3558, #0e2040); }
+.roster-portrait[data-role="fire"]     { background: linear-gradient(160deg, #5a1a18, #3a0e0e); }
+.roster-portrait[data-role="civilian"] { background: linear-gradient(160deg, #1e3820, #122014); }
 
-.roster-hp-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 1px;
-  transition: width 0.3s;
+.roster-portrait svg { width: 52px; height: 62px; }
+
+.roster-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px 8px;
 }
 
-.roster-unit-chip.unit-hurt .roster-hp-fill     { background: var(--radio-t0); }
-.roster-unit-chip.unit-critical .roster-hp-fill  { background: var(--status-lost); }
-.roster-unit-chip.unit-critical .roster-unit-dot { opacity: 0.5; outline: 1px solid var(--status-lost); }
+.roster-leader-name {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-unit-label {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.roster-wound-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 10px;
+}
+
+.wound-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.wound-dot--healthy  { background: var(--accent); }
+.wound-dot--wounded  { background: var(--radio-t0); }
+.wound-dot--critical { background: var(--status-lost); animation: pulse-crit 1s infinite; }
+
+@keyframes pulse-crit {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
 
 .roster-card-items {
   display: flex;
   gap: 3px;
   flex-wrap: wrap;
+  margin-top: 2px;
 }
 
 .roster-item-abbrev {
@@ -678,7 +665,35 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 #unit-detail-view #udv-health {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
+.udv-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+}
+.udv-person--healthy  { border-left-color: var(--accent); }
+.udv-person--wounded  { border-left-color: var(--radio-t0); }
+.udv-person--critical { border-left-color: var(--status-lost); }
+
+.udv-person-name { color: var(--text); letter-spacing: 0.3px; }
+
+.udv-ws-badge {
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.ws-healthy  { color: var(--accent);      background: rgba(80,200,80,0.1); }
+.ws-wounded  { color: var(--radio-t0);    background: rgba(200,160,50,0.1); }
+.ws-critical { color: var(--status-lost); background: rgba(200,60,60,0.1); }
 
 #unit-detail-view #udv-items {
   display: flex;

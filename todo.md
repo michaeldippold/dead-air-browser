@@ -109,6 +109,29 @@ This is what ties the whole thing together. The events system is the storyteller
 
 ---
 
+## Onboarding / Tutorial (post-gameplay-loop)
+
+> Do this once the core loop feels compelling and the interface is stable. Not before.
+
+Once the game is fun on its own terms, the first-run experience should teach it — not through a help screen, but through the phone system itself.
+
+**The idea:** replace some of the early randomness with scripted direction. The first caller a new player gets is a tutorial caller — someone who walks you through the interface before the real chaos starts. After the tutorial resolves, the full game kicks off normally.
+
+**Panel spotlight mechanic:** as the caller describes each panel ("you should be seeing a map on your screen right now..."), briefly dim all other panels so the one being described feels lit up. A CSS class on `#desktop` + per-panel overrides can do this cleanly — something like `#desktop.spotlight [data-panel] { opacity: 0.25 }` with an explicit `[data-panel="map"] { opacity: 1 }` to pull it forward. Short transition in, short hold, then fade back out.
+
+**What the tutorial should cover (roughly):**
+1. The map — districts, what the colors mean
+2. Contacts — how to open a call, how to reply
+3. The dispatch roster — what units are, how to send them somewhere
+4. COMMS — what the radio feed is telling you and why to watch it
+5. Then: "Good luck. You're on your own from here."
+
+**Tone:** in-universe. Not a game tutorial screen. Someone on the other end of the line. Could be a supervisor, could be a recorded training line that gets interrupted by the real situation starting. The handoff from tutorial to chaos should feel like a gear shift, not a menu transition.
+
+**Keep it short.** Players who already know what they're doing should be able to skip it (a "skip training" option on the start screen). Players who don't should feel oriented, not lectured.
+
+---
+
 ## Later / Backlog
 
 ### District Consequences (gameplay weight)
@@ -134,6 +157,36 @@ Eventually:
 - The only source of truth is the radio and the callers
 
 This is a late-stage pass, not something to design around now. But keep it in mind when adding new UI — ask "can this be expressed narratively instead?"
+
+---
+
+## Future: Notification / Alert System
+
+A lightweight popup layer for events the player must not miss — distinct from the radio feed (which is ambient) and contacts (which require action). First use: unit disbanded (all people dead). Design as a general hook so other systems can push to it later (director events, story beats, district overrun, etc.). Should auto-dismiss after a few seconds but be visually distinct enough to catch peripheral attention.
+
+---
+
+## Future: Director Object
+
+A scripting layer that watches game state and injects events, caller triggers, and story beats in response to conditions. The goal is manufactured drama — not random events, but authored situations that exploit the current state of *your specific game* to create a real decision.
+
+**The essence of what it should do:** fire breaks out at Memorial Hospital (Director injects this). Director checks which units contain a person with a firefighter role. Firefighters have a hose. A hose counters fire. Now the player has a real choice: dispatch the fire team to put out the fire, or keep them fighting zombies. That tension — role-specific capability meeting a targeted crisis — is the drama. The Director's job is to manufacture that moment, not just randomize events.
+
+**Architecture sketch:** a collection of authored "beats," each with a condition function (reads game state) and a trigger function (injects an event, spawns a caller, mutates a district). The game loop runs the Director's condition checks each tick and fires beats when conditions are met — once, or on a cooldown, or repeatedly. Keeps authored content completely decoupled from the simulation. Pairs with the Events System and the onboarding tutorial. This is the "storyteller's hand" referenced elsewhere in this doc.
+
+---
+
+## Future: Item Death Transfer + District Loot Pool
+
+On person death, each carried item has an X% chance to transfer to the district's loot pool rather than vanishing. District holds `items[]` alongside its other state. Any unit entering the district can pick items up (auto or manual — TBD).
+
+This is a behind-the-scenes shortcut that avoids keeping body entities in the model while producing real emergent gameplay: sending a lone runner or a desperate unit into a long-fallen district to scavenge becomes a meaningful risk/reward call. The more dangerous and overrun the district, the more likely dead people dropped something worth recovering. Implement alongside or shortly after the Person refactor — district loot pool is a natural add to the district object.
+
+---
+
+## Future: Unit-Scoped Morale
+
+A morale meter attached to the Unit (not individual people). Drops on bad outcomes (member lost, district overrun nearby), rises on success. Affects combat effectiveness or response time. Mostly a display/flavor hook for now — gives the unit card a second axis of character beyond HP. Design later once the Person refactor settles.
 
 ---
 
