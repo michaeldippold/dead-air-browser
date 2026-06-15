@@ -4,12 +4,6 @@
 
 ---
 
-## Era / World Canon (do not break this frame)
-
-The green terminal aesthetic implicitly sets the game in the late 1980s / very early 1990s. This is load-bearing — it's why information is scarce, why the radio is text, why contacts call on landlines with no ID, why there's no live CCTV. **All future flavor text and narrative additions must stay inside this frame.** Don't write dialogue that implies smartphones, streaming, or instant global comms. The crappy terminal IS state of the art. The radio feed IS the best available intelligence. That's the whole point.
-
----
-
 ## Design North Star (capture before it drifts)
 
 The long game is this: **the player never gets clean numbers.** The simulation runs in the background with full fidelity, but everything the player sees is mediated — through a radio feed, a voice on the line, a unit's last transmission, a map color that's going the wrong way. You have an engine on one side, a player on the other, and a machine in the middle that turns state into narrative.
@@ -154,14 +148,19 @@ design.md says "survive N ticks or contain spread below threshold" — needs act
 - Keep a specific district (City Hall?) alive the whole game — narrative
 - All three in escalating difficulty tiers
 
+### Windowed UI flavor additions
+We went to the trouble to really make this look and work like a computer with windows, let's add some fake icons to the destkop, or maybe they correspond to the windows too. And maybe some kind of desktop background - civil, federal, radio operator - once we are sure about the flavor of dispatcher we can do stuff like this to really sell the time and place. 
+
+### Time overhaul
+Seriously consider swapping from a time since game start to time in the world time. So start at 9:00 AM for example, much like Zomboid. The start of a work day. Or set it at night as an overnight job for thematic framing. Either way, tracking real world time will allow me to stop saying "wait x ticks" for something to happen, and give you a number in hours.
+
 ### Sound
 Someday. The radio crackle is an obvious first piece. Ambient hum. Unit acknowledgement clicks. NOT voice acting. The zomboid EBS vibe works precisely because you hear noise and read text — your brain fills in the voice.
 
 ### Pure Data Removal (long game)
 Eventually:
 - No HP numbers on units — just status words (HEALTHY / WOUNDED / CRITICAL)
-- No zombie counts even in god mode — just density (CLEAR / LIGHT / HEAVY / OVERRUN)
-- Map colors tell you trend, not value
+- No zombie counts (god mode is basically dev mode, not exposed in the final game) — just density (CLEAR / LIGHT / HEAVY / OVERRUN)
 - The only source of truth is the radio and the callers
 
 This is a late-stage pass, not something to design around now. But keep it in mind when adding new UI — ask "can this be expressed narratively instead?"
