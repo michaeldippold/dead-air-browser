@@ -183,7 +183,8 @@ html, body {
   font-size: 12px;
   color: var(--text);
   letter-spacing: 2px;
-  min-width: 36px;
+  min-width: 150px;
+  white-space: nowrap;
 }
 
 button {
@@ -567,41 +568,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   justify-content: center;
 }
 
-/* Landscape (compact) card mode */
-#units-panel[data-card-layout="landscape"] .roster-card {
-  flex-direction: row;
-  width: 100%;
-}
-
-#units-panel[data-card-layout="landscape"] .roster-portrait {
-  width: 66px;
-  height: unset;
-  min-height: unset;
-  align-self: stretch;
-  flex-shrink: 0;
-}
-
-#units-panel[data-card-layout="landscape"] .roster-card-body {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  padding: 7px 10px;
-  gap: 3px;
-  justify-content: center;
-}
-
-/* Layout toggle button — sits at top of panel column, non-scrolling */
-#btn-card-layout {
-  align-self: flex-end;
-  flex-shrink: 0;
-  margin: 6px 8px 2px;
-  padding: 2px 7px;
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--text-dimmer);
-  border-color: var(--border-sub);
-  background: var(--bg);
-}
 
 
 #units-view {
@@ -685,7 +651,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   text-transform: uppercase;
 }
 
-.roster-wound-row { display: none; } /* superseded by .roster-members-dots and .roster-alone */
 
 /* Leader star — always command gold, no background, pulses on critical */
 .leader-ws-star { font-size: 17px; }
@@ -765,19 +730,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   margin-bottom: 2px;
 }
 
-#udv-type {
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 1.2px;
-  color: var(--accent);
-}
-
-#udv-location {
-  font-size: 10px;
-  color: var(--text-dim);
-  letter-spacing: 0.5px;
-}
-
 #udv-members {
   flex: 1;
   display: flex;
@@ -837,32 +789,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .ws-healthy  { color: var(--accent);      background: rgba(80,200,80,0.1); }
 .ws-wounded  { color: var(--radio-t0);    background: rgba(200,160,50,0.1); }
 .ws-critical { color: var(--status-lost); background: rgba(200,60,60,0.1); }
-
-/* ── Item description view — landscape ── */
-#item-description-view {
-  display: none;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 12px 16px;
-  height: 100%;
-  overflow: auto;
-}
-
-#item-description-view #idv-name {
-  flex-shrink: 0;
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--accent);
-  letter-spacing: 1.5px;
-  white-space: nowrap;
-}
-
-#item-description-view #idv-description {
-  font-size: 11px;
-  color: var(--text-dim);
-  line-height: 1.6;
-}
 
 /* ── Contacts panel view switching ── */
 #contacts-view { display: flex; flex-direction: column; padding: 16px; }
@@ -1422,17 +1348,6 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   margin-top: -6px;
 }
 
-.hp-bar {
-  display: flex;
-  gap: 3px;
-}
-
-.hp-seg {
-  width: 22px;
-  height: 16px;
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-}
 
 #udv-items {
   display: flex;
@@ -1478,8 +1393,11 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 #item-description-view {
   display: none;
   flex-direction: column;
+  align-items: flex-start;
   gap: 14px;
   padding: 16px;
+  height: 100%;
+  overflow: auto;
 }
 
 #idv-name {

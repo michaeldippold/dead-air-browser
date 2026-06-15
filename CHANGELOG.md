@@ -4,6 +4,47 @@ All notable changes to Dispatch will be documented here.
 
 ---
 
+## [0.6.0] — 2026-06-15
+
+### Overview
+
+Code quality pass, game clock refactor, and Director system. Dead code removed throughout. The game world now runs on a 24-hour clock starting at Day 1, 09:00. A Director layer decouples authored narrative beats from the simulation loop.
+
+---
+
+### Game Clock
+
+- Game world time replaces real-elapsed time everywhere. Clock starts at **Day 1, 09:00** and advances 15 game-minutes per tick
+- Topbar time display updated: `DAY 1 · 09:00`, advances each tick, rolls over to Day 2 correctly
+- All contact message timestamps, radio feed timestamps, and win/lose overlay now show game time (e.g. `[11:00]`) instead of real elapsed seconds
+- `ticksFor(hour, min)` helper converts game-world time to tick index for Director conditions
+
+---
+
+### Director System
+
+- New `director` object: a collection of authored beats, each with a `condition(state)` and `trigger(state)` function
+- `director.tick()` runs each game tick, firing beats whose conditions are met. Beats marked `once: true` fire exactly once; repeating beats support a `cooldown` (in ticks)
+- All four narrative caller spawns (E. Novak, Marcus Webb, Danny, Dep. Dir. Holt) migrated from inline tick logic to registered Director beats
+- `_narrativeSpawned` Set removed — Director handles deduplication internally via `_fired` flag
+- Adding new scripted events now means adding a `director.register(...)` call; the simulation loop stays clean
+
+---
+
+### Code Cleanup
+
+- Removed dead `btn-card-layout` IIFE (button was removed in a prior refactor)
+- Removed vestigial `contact.group` and `contact.unitId` fields from `makeContact` (relics from old caller architecture)
+- `pendingNext` and `replyDelay` moved into `makeContact` so all contacts carry the fields — prevents silent bugs when Director creates narrative callers
+- `spawnNarrativeCaller` simplified accordingly
+- Radio feed TTL filter moved from `renderRadio` (side-effect in a render function) into `broadcastEvent` where it belongs
+- `state?.startTime` optional chain removed; `state.started` boolean flag replaces `startTime` as the game-running guard
+- CSS: removed landscape card layout rules, dead `#btn-card-layout` styles, dead `.roster-wound-row`, dead `.hp-bar`/`.hp-seg` rules
+- CSS: fixed specificity collision where landscape-era `#item-description-view #idv-name` was overriding the current `#idv-name` styles — IDV name now renders at the correct size
+- CSS: removed duplicate `#udv-type` and `#udv-location` declarations (first definitions were stale, second always won)
+
+---
+
 ## [0.5.0] — 2026-06-15
 
 ### Overview

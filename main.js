@@ -5,6 +5,11 @@ const SPREAD_RATE   = 0.12
 let spreadChance = 0.35
 const ROLES = ['police', 'fire', 'civilian']
 
+// ── GAME CLOCK ──
+const GAME_START_HOUR = 9   // game world begins at 09:00 Day 1
+const GAME_START_DAY  = 1
+const MINS_PER_TICK   = 15  // each tick advances game clock by 15 minutes
+
 const PRESETS = {
   'default': { label: 'Default', seed: { 'millbrook': 15 } },
 }
@@ -50,15 +55,15 @@ function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
 
 const makeContact = (name, districtId = null) => ({
   id: uid(), name, messages: [], unread: false,
-  location: districtId,
-  status:   districtId ? 'hiding' : null,
-  alive:    true,
-  group:    districtId ? [{ name, kind: 'self' }] : [],
-  unitId:   null,
-  type:     'ambient',
-  phase:    0,
-  timer:    null,
-  scriptId: null,
+  location:    districtId,
+  status:      districtId ? 'hiding' : null,
+  alive:       true,
+  type:        'ambient',
+  phase:       0,
+  timer:       null,
+  scriptId:    null,
+  pendingNext: null,
+  replyDelay:  0,
 })
 
 const CALLER_POOL = [
@@ -431,16 +436,74 @@ const NARRATIVE_SCRIPTS = {
   },
 }
 
-const _narrativeSpawned = new Set()
+// ── DIRECTOR ──
+// Watches game state each tick and fires authored beats when conditions are met.
+// Register beats here; the simulation loop stays clean of scripted content.
+
+const director = (() => {
+  const _beats = []
+
+  return {
+    register(beat) {
+      _beats.push({
+        id:         beat.id       ?? 'unnamed',
+        once:       beat.once     ?? true,
+        cooldown:   beat.cooldown ?? 0,
+        condition:  beat.condition,
+        trigger:    beat.trigger,
+        _fired:     false,
+        _lastFired: -Infinity,
+      })
+    },
+
+    tick() {
+      for (const beat of _beats) {
+        if (beat.once && beat._fired) continue
+        if (beat.cooldown > 0 && state.tick - beat._lastFired < beat.cooldown) continue
+        if (beat.condition(state)) {
+          beat.trigger(state)
+          beat._fired     = true
+          beat._lastFired = state.tick
+        }
+      }
+    },
+  }
+})()
+
+// ── DIRECTOR BEATS ──
+// condition(state) → boolean. trigger(state) → void.
+// ticksFor(hour, min) converts game-world time to tick index for time-based conditions.
+
+director.register({
+  id:        'e-novak',
+  condition: s => s.districts.memorial.zombies > 0,
+  trigger:   () => spawnNarrativeCaller('e-novak'),
+})
+
+director.register({
+  id:        'marcus-webb',
+  condition: s => s.districts.ironworks.zombies > 0,
+  trigger:   () => spawnNarrativeCaller('marcus-webb'),
+})
+
+director.register({
+  id:        'danny',
+  condition: s => s.districts.northgate.zombies > 0,
+  trigger:   () => spawnNarrativeCaller('danny'),
+})
+
+director.register({
+  id:        'holt',
+  condition: s => s.tick >= ticksFor(11),  // 11:00 AM — calls regardless of district state
+  trigger:   () => spawnNarrativeCaller('holt'),
+})
 
 function spawnNarrativeCaller(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
-  const contact = makeContact(script.name, script.district ?? null)
-  contact.type        = 'narrative'
-  contact.scriptId    = scriptId
-  contact.pendingNext = null
-  contact.replyDelay  = 0
+  const contact    = makeContact(script.name, script.district ?? null)
+  contact.type     = 'narrative'
+  contact.scriptId = scriptId
   state.contacts.push(contact)
   advanceNarrativeCaller(contact, 0)
 }
@@ -455,14 +518,14 @@ function advanceNarrativeCaller(contact, nodeId) {
   contact.timer = node.timer ?? null
 
   if (node.text) {
-    contact.messages.push({ text: node.text, time: elapsedTime(), sender: 'npc' })
+    contact.messages.push({ text: node.text, time: gameTime(), sender: 'npc' })
     contact.unread = true
   }
 
   if (node.resolve === 'lost') {
     contact.alive  = false
     contact.status = 'dead'
-    contact.messages.push({ text: '[contact lost]', time: elapsedTime() })
+    contact.messages.push({ text: '[contact lost]', time: gameTime() })
     contact.unread = true
   } else if (node.resolve === 'waiting') {
     contact.status = 'waiting'
@@ -583,9 +646,22 @@ function getEffectiveSpreadRate(d) {
   return SPREAD_RATE * (1 - suppression)
 }
 
-function elapsedTime() {
-  const s = state.startTime ? Math.floor((Date.now() - state.startTime) / 1000) : 0
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+function gameTime() {
+  const totalMins = GAME_START_HOUR * 60 + state.tick * MINS_PER_TICK
+  const h = Math.floor((totalMins % 1440) / 60)
+  const m = totalMins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function gameDay() {
+  const totalMins = GAME_START_HOUR * 60 + state.tick * MINS_PER_TICK
+  return Math.floor(totalMins / 1440) + GAME_START_DAY
+}
+
+// Convert a game-world hour (and optional minute) to the tick count at which that time occurs.
+// Used by Director beats: condition: () => state.tick >= ticksFor(11) means "at or after 11:00".
+function ticksFor(hour, minute = 0) {
+  return Math.max(0, Math.ceil(((hour - GAME_START_HOUR) * 60 + minute) / MINS_PER_TICK))
 }
 
 // ── LOOT ──
@@ -616,7 +692,7 @@ function rollLoot(districtId, category, count) {
 
 const state = {
   tick: 0,
-  startTime:       null,
+  started:         false,
   won:             false,
   lost:            false,
   godMode:         false,
@@ -915,8 +991,9 @@ function crackle() {
 }
 
 function broadcastEvent(text) {
-  if (!state?.startTime) return
-  radioFeed.unshift({ text, tick: state.tick, time: elapsedTime() })
+  if (!state.started) return
+  radioFeed.unshift({ text, tick: state.tick, time: gameTime() })
+  radioFeed = radioFeed.filter(m => state.tick - m.tick < RADIO_TTL)
   if (radioFeed.length > RADIO_MAX) radioFeed.length = RADIO_MAX
   renderRadio()
 }
@@ -925,7 +1002,6 @@ function renderRadio() {
   const feed = document.getElementById('radio-feed')
   if (!feed) return
   const now = state.tick
-  radioFeed = radioFeed.filter(m => now - m.tick < RADIO_TTL)
   feed.innerHTML = radioFeed.map(m => {
     const age = now - m.tick
     const cls = age < 2 ? 't0' : age < 5 ? 't1' : 't2'
@@ -1247,7 +1323,7 @@ function checkCallEvent() {
   // Named callers in safe zones go quiet
   if (contact.location && reportDist.zombies === 0) return
 
-  const timeStr = elapsedTime()
+  const timeStr = gameTime()
   const pool = CALL_TEMPLATES[getCallTier(reportDist.zombies)]
   const text = pool[Math.floor(Math.random() * pool.length)](reportDist)
 
@@ -1268,7 +1344,7 @@ function checkCallerSurvival() {
     if (Math.random() < deathChance) {
       contact.alive = false
       contact.status = 'dead'
-      contact.messages.push({ text: '[contact lost]', time: elapsedTime() })
+      contact.messages.push({ text: '[contact lost]', time: gameTime() })
       contact.unread = true
     }
   }
@@ -1334,7 +1410,7 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   if (!choice) return
 
   // Log player's reply as an outgoing message
-  contact.messages.push({ text: choice.label, time: elapsedTime(), sender: 'player' })
+  contact.messages.push({ text: choice.label, time: gameTime(), sender: 'player' })
 
   // Stop the choice timer, queue NPC reply with a short random delay
   contact.timer       = null
@@ -1381,7 +1457,7 @@ function checkLose() {
 
   document.getElementById('win-title').textContent        = 'ALL UNITS LOST'
   document.getElementById('win-ticks').textContent        = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent         = elapsedTime()
+  document.getElementById('win-time').textContent         = `DAY ${gameDay()} · ${gameTime()}`
   document.getElementById('btn-win-restart').textContent  = 'TRY AGAIN'
   document.getElementById('win-flavor').textContent       = LOSE_FLAVOR
   document.getElementById('win-overlay').classList.add('visible')
@@ -1396,17 +1472,14 @@ function checkWin() {
   if (tickInterval) clearInterval(tickInterval)
 
   document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
   document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
   document.getElementById('win-flavor').textContent      = WIN_FLAVOR
   document.getElementById('win-overlay').classList.add('visible')
 }
 
 function tick() {
-  if (!state.startTime) state.startTime = Date.now()
   state.tick++
-  tickDisplay.textContent = `TICK ${String(state.tick).padStart(3, '0')}`
-  timeDisplay.textContent = elapsedTime()
 
   // Snapshot humans before spread — needed to detect newly-overrun districts
   const prevHumans = {}
@@ -1501,24 +1574,7 @@ function tick() {
     }
   }
 
-  // Narrative caller triggers — one-time spawns keyed by condition
-  if (!_narrativeSpawned.has('e-novak') && state.districts.memorial?.zombies > 0) {
-    spawnNarrativeCaller('e-novak')
-    _narrativeSpawned.add('e-novak')
-  }
-  if (!_narrativeSpawned.has('marcus-webb') && state.districts.ironworks?.zombies > 0) {
-    spawnNarrativeCaller('marcus-webb')
-    _narrativeSpawned.add('marcus-webb')
-  }
-  if (!_narrativeSpawned.has('danny') && state.districts.northgate?.zombies > 0) {
-    spawnNarrativeCaller('danny')
-    _narrativeSpawned.add('danny')
-  }
-  if (!_narrativeSpawned.has('holt') && state.tick >= 8) {
-    spawnNarrativeCaller('holt')
-    _narrativeSpawned.add('holt')
-  }
-
+  director.tick()
   processNarrativeCallers()
   checkCallEvent()
   checkCallerSurvival()
@@ -1530,6 +1586,8 @@ function tick() {
 // ── RENDERING ──
 
 function render() {
+  tickDisplay.textContent = state.started ? `TICK ${String(state.tick).padStart(3, '0')}` : '—'
+  timeDisplay.textContent = `DAY ${gameDay()} · ${gameTime()}`
   updateRightPanel()
   renderUnitsPanel()
   renderContactsPanel()
@@ -1656,18 +1714,6 @@ function renderGodPanel() {
   table.innerHTML = rows
 }
 
-// Card layout toggle — legacy button removed, kept for potential reuse
-;(function () {
-  const btn = document.getElementById('btn-card-layout')
-  if (!btn) return
-  btn.addEventListener('click', () => {
-    const panel = document.getElementById('units-panel')
-    const isLandscape = panel.dataset.cardLayout === 'landscape'
-    panel.dataset.cardLayout = isLandscape ? '' : 'landscape'
-    btn.textContent = isLandscape ? 'COMPACT' : 'FULL'
-  })
-})()
-
 // Dispatch toolbar — EXPANDED / CONDENSED switcher
 document.querySelectorAll('.layout-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1688,7 +1734,7 @@ document.getElementById('btn-test-win').addEventListener('click', () => {
   state.won = true
   if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
   document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
   document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
   document.getElementById('win-title').textContent       = 'OUTBREAK CONTAINED'
   document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${WIN_FLAVOR}`
@@ -1701,7 +1747,7 @@ document.getElementById('btn-test-lose').addEventListener('click', () => {
   if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
   document.getElementById('win-title').textContent       = 'ALL UNITS LOST'
   document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = elapsedTime()
+  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
   document.getElementById('btn-win-restart').textContent = 'TRY AGAIN'
   document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${LOSE_FLAVOR}`
   document.getElementById('win-overlay').classList.add('visible')
@@ -1760,6 +1806,7 @@ document.getElementById('spread-inc').addEventListener('click', () => {
 })
 
 function startGame() {
+  state.started = true
   const value = presetSelect.value
   if (value === 'custom') {
     Object.entries(customCounts).forEach(([id, n]) => {
