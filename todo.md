@@ -30,101 +30,62 @@ The core loop is operational. Key systems in place:
 - **Game clock** — 9:00 AM start, 5 min/tick (12 ticks/hour), full night ~15 real minutes at 3.5s/tick
 - **Map** — SVG districts, Paper Map palette, unit dots by leader role, click to open unit detail
 - **Roster** — EXPANDED / CONDENSED / BY DISTRICT views, activity badges, drag-and-drop dispatch
+- **Theme system** — 6 palettes (Terminal Green, Morning Coffee, Midnight Purple, Cyberpunk, Windows 95, Blood Moon), live switcher, localStorage persistence
 
 ---
 
-## Active / Next
+## v0.9.0 — Story & Stakes
 
-### More Narrative Scripts
+> The gap that matters most: there is no win condition. Players have no destination.
+> Fix that, add stakes to events the player currently misses, and fill out the story.
 
-Four characters shipped. Future content:
-
-**Serious (write next):**
-- Sandra Hill — already in the ambient caller pool, promote to a full narrative arc
-- A story beat that reacts to a unit entering a district where a scripted caller is hiding (rescue scenario) — `director.on('unit-enters', ...)` hook is already in place for this
-
-**Levity (write when tone needs balancing):**
-- **The Oblivious Guy** — calls about something completely unrelated (parking dispute, noise complaint). Does not believe in zombies. Resolves peacefully regardless of game state. No stakes.
-- **The Prank Caller** — periodic, never useful, hangs up before you respond. No arc, just noise.
-- **The Song Request Guy** — calls repeatedly until you answer once. Yells a song request for a song that doesn't exist. Never calls again. Needs a `one-shot-acknowledged` resolve type.
-
-### Onboarding / Tutorial
-
-> Do this once the core loop feels compelling and the interface is stable.
-
-Replace early randomness with scripted direction. The first caller a new player gets is a tutorial caller — walks you through the interface before the real chaos starts.
-
-**Panel spotlight mechanic:** as the caller describes each panel, briefly dim all others so the described one feels lit. A CSS class on `#desktop` + per-panel overrides: `#desktop.spotlight [data-panel] { opacity: 0.25 }` with an explicit override to pull the current panel forward.
-
-**What it should cover:**
-1. The map — districts, what the colors mean
-2. Contacts — how to open a call, how to reply
-3. The dispatch roster — what units are, how to send them
-4. COMMS — what the radio feed is and why to watch it
-5. "Good luck. You're on your own from here."
-
-**Tone:** in-universe. Someone on the other end of the line — a supervisor, a recorded training line that gets interrupted by the real situation. The handoff from tutorial to chaos should feel like a gear shift, not a menu. Keep it short; offer a skip on the start screen.
+- [ ] **Win condition — survive to dawn.** Pick a tick count that represents first light. Wire a win-state check into the Director. The win screen should feel like a rumor that turned out to be true.
+- [ ] **Notification / Alert system.** A popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Closeable via button or Escape. General enough that Director events, story beats, and district overrun can all push to it later.
+- [ ] **Sandra Hill narrative arc.** Already in the ambient caller pool — promote to a full scripted arc.
+- [ ] **Rescue scenario.** A story beat that fires when a unit enters a district where a scripted caller is hiding. The `director.on('unit-enters', ...)` hook is already wired and has never been used.
+- [ ] **The Oblivious Guy** (levity caller). Calls about something completely unrelated. Does not believe in zombies. Resolves peacefully regardless of game state. No stakes — just tone balance.
+- [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
+- [ ] **Code cleanup.** Remove dead CSS (`.task-btn--utility` is now unused). Audit stale TODO comments in source. Review `WINDOW_THEMES['morning-coffee']` in JS — it was built for per-window use and may be vestigial now that the global theme system exists.
 
 ---
 
-## Backlog
+## v1.0.0 — Presentable
 
-### Win Condition
-Currently undefined. Options:
-- Survive until dawn (fixed tick count) — simple
-- Secure X% of the city — spatial
-- Keep a specific district (City Hall?) alive the entire game — narrative
-- All three in escalating difficulty tiers
+> 1.0 means a stranger who didn't build this can pick it up and understand it.
+> That requires onboarding, sound that makes the world feel real, and consequences that make the map matter.
 
-### District Consequences
-- `SECURED` status: zombies cleared, slowed reinfection, maybe unlocks something
-- `OVERRUN` status already exists visually — needs gameplay weight (loot inaccessible, spreads faster, unit effectiveness reduced)
-- Both states should push to the COMMS feed with distinct language
+- [ ] **Onboarding / Tutorial.** The first caller a new player gets is a scripted tutorial — walks through the interface before the real chaos starts. Panel spotlight mechanic: CSS class on `#desktop` dims all panels except the one being described. Tone: in-universe, interrupted by the real situation. Short; offer a skip on the start screen. Covers: map, contacts, dispatch roster, COMMS.
+- [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
+- [ ] **Sound Tier 3 — event-triggered.** Wire Director hooks to stings: `person-death`, `unit-disbanded`. Script nodes get an optional `sound` field played on node entry. `broadcastEvent` accepts an optional sound param.
+- [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now.
+- [ ] **Start the pure data removal pass.** Replace unit HP numbers with status words (HEALTHY / WOUNDED / CRITICAL). Single render change, meaningfully shifts the game toward its intended feel. Don't remove zombie counts yet — one step at a time.
+
+---
+
+## Backlog (v1.1+)
+
+These are good ideas that aren't load-bearing for the core experience yet.
+
+### More Levity Callers
+- **The Prank Caller** — periodic, never useful, hangs up before you respond.
+- **The Song Request Guy** — calls repeatedly until answered once. Yells a song request for a song that doesn't exist. Never calls again. Needs a `one-shot-acknowledged` resolve type.
 
 ### Combat Mechanics
-Does unit damage scale with unit size? Currently each person gets one attack roll per tick regardless — worth revisiting. Larger units may feel more powerful through survivability alone, but concentrated firepower scaling is an open question.
-
-### Notification / Alert System
-A lightweight popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Design as a general hook so Director events, story beats, and district overrun can all push to it. User must hit the panel close button (alerts cannot me minimized or maximized) OR can close this and only this panel with an escape key hit; visually distinct enough to catch peripheral attention.
+Does unit damage scale with unit size? Currently each person gets one attack roll per tick regardless. Larger units may feel more powerful through survivability alone, but concentrated firepower scaling is an open question.
 
 ### Windowed UI Flavor
-We went to the trouble of making this look like a real computer — lean into it. Fake desktop icons (maybe corresponding to the windows). A desktop background that sells the dispatcher's office: civil emergency, federal radio operator, late-night dispatch center. Once the flavor of the dispatcher role is locked, this makes the whole thing feel like a place.
+Fake desktop icons, a desktop background that sells the dispatcher's office. Once the flavor of the dispatcher role is locked, this makes the whole thing feel like a place rather than a UI exercise.
 
 ### Right-Click Context Menus
-Browser right-click can be fully suppressed per-element with `e.preventDefault()` on the `contextmenu` event. Opens up "right-click a district for quick actions" (assign nearest unit, check intel, set as Director target). Add after core dispatch UX is stable. Note: suppresses the browser Inspect shortcut during gameplay — fine in production, worth keeping in mind during dev.
+`e.preventDefault()` on `contextmenu` event opens up right-click actions on districts (assign nearest unit, check intel). Add after core dispatch UX is stable. Note: suppresses browser Inspect shortcut during gameplay — fine in production.
 
 ### Unit-Scoped Morale
-A morale meter on the Unit (not individual persons). Drops on bad outcomes (member lost, nearby district overrun), rises on success. Affects combat effectiveness or response time. Mostly flavor for now — gives the unit card a second axis beyond HP. Design after the core loop is tuned.
+A morale meter on the Unit (not individual persons). Drops on bad outcomes, rises on success. Affects combat effectiveness or response time. Design after the core loop is tuned.
 
-### Pure Data Removal (long game)
-Eventually:
-- No HP numbers on units — just status words (HEALTHY / WOUNDED / CRITICAL)
+### Full Pure Data Removal
 - No zombie counts visible to player — just density words (CLEAR / LIGHT / HEAVY / OVERRUN)
-- God mode stays as dev tool only; not exposed in final game
+- God mode removed from player-facing UI entirely
 - The only source of truth is COMMS and the callers
-
-Late-stage pass. Keep in mind when adding new UI — ask "can this be expressed narratively instead?"
-
-### Sound System
-
-Three tiers, build in order:
-
-**1. Interface sounds** — no infrastructure needed. Drop `.mp3` or `.wav` in `sounds/`, call `new Audio('sounds/click.mp3').play()` in button handlers. Start here.
-
-**2. Ambient loops** — small `AudioContext`-based manager with gain nodes for crossfading. ~50 lines. API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop. Time-based triggers via `when.gameTime(0, 0)` Director beat.
-
-**3. Narrative/event-triggered sounds** — Director and script hooks are already in place:
-- `director.on('person-death', ...)` → play a sting
-- `director.on('unit-disbanded', ...)` → play a sound
-- Script nodes can include an optional `sound` field; `advanceNarrativeCaller` plays it on node entry
-- `broadcastEvent` can accept an optional sound parameter
-- Zombie density in a district can trigger ambient shifts via `when.zombiesIn()`
-
-**Gotcha:** browsers require a user gesture before audio plays. Fix: unlock `AudioContext` on the START MISSION click so everything fires freely after that.
-
-**Format:** `.mp3` for ambient/narrative (wide compatibility, smaller files). `.wav` for short interface sounds (no compression artifacts on clicks and snaps).
-
-**Not doing:** voice acting. The EBS crackle vibe works because players read text while hearing noise — their brain fills in the voice.
 
 ---
 

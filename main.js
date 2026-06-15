@@ -2016,7 +2016,7 @@ function applyWindowThemes() {
 }
 
 applyWindowThemes()
-setGlobalTheme(localStorage.getItem('dispatch-theme') || 'windows-95')
+setGlobalTheme(localStorage.getItem('dispatch-theme') || 'terminal-green')
 document.getElementById('theme-select').addEventListener('change', e => setGlobalTheme(e.target.value))
 
 // ── Map palette switcher ──
