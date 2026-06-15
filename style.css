@@ -1,77 +1,80 @@
 /* ══════════════════════════════════════════════════════
-   THEME: Green Terminal
+   THEME: Midnight Purple
+   North stars: HIGH CONTRAST and PURPLE (#7F55B5 temp ref).
+   text-dim = text-dimmer — only decorative elements like
+   radio static separators may be visually subordinate.
    To switch themes: replace this :root block entirely.
    All hardcoded chrome values are defined here — nothing
    in the stylesheet below should use a raw hex for color.
    ══════════════════════════════════════════════════════ */
 :root {
   /* ── Surfaces (darkest → lightest) ── */
-  --desktop-bg:    #020402;
-  --taskbar-bg:    #040804;
-  --bg:            #060b06;
-  --surface:       #0a1208;
-  --chrome-raised: #0e180e;
+  --desktop-bg:    #09070f;
+  --taskbar-bg:    #0d0b18;
+  --bg:            #110e1c;
+  --surface:       #17132a;
+  --chrome-raised: #1e1935;
 
   /* ── Borders ── */
-  --border:        #1a2e1a;
-  --border-sub:    #0e180e;
-  --border-active: #2e4e30;
+  --border:        #3d2d6e;
+  --border-sub:    #251a4a;
+  --border-active: #7f55b5;
 
   /* ── Text ── */
-  --text:        #7ed87e;
-  --text-dim:    #7ed87e;
-  --text-dimmer: #7ed87e;
-  --accent:      #a8eaa8;
+  --text:        #f2eeff;
+  --text-dim:    #c4aaee;
+  --text-dimmer: #c4aaee;  /* = dim: high contrast, never squint on real content */
+  --accent:      #bb99ff;
 
   /* ── Interactive (buttons, taskbar) ── */
-  --btn-bg:            #080f08;
-  --btn-bg-hover:      #0e1a0e;
-  --btn-bg-active:     #0c180c;
-  --btn-border:        #2a4a2a;
-  --btn-border-hover:  #3a6a3a;
-  --btn-border-active: #2e4e30;
-  --btn-color:         #7ed87e;
-  --btn-color-active:  #a8eaa8;
+  --btn-bg:            #16102c;
+  --btn-bg-hover:      #231a42;
+  --btn-bg-active:     #2c2252;
+  --btn-border:        #5830a0;
+  --btn-border-hover:  #7f55b5;
+  --btn-border-active: #9a70d8;
+  --btn-color:         #ccb0ff;
+  --btn-color-active:  #ffffff;
 
   /* ── Window chrome ── */
-  --win-border:             #1a2e1a;
-  --titlebar-bg:            #090f09;
-  --titlebar-bg-active:     #0d1a0d;
-  --titlebar-border-active: #2e4a30;
-  --win-title-color:        #7ed87e;
-  --winbtn-bg:              #0b140b;
-  --winbtn-border:          #2a4a2a;
-  --winbtn-color:           #7ed87e;
-  --winbtn-hover-bg:        #111e11;
-  --winbtn-hover-border:    #3a6a3a;
-  --winbtn-close-bg:        #1a0808;
-  --winbtn-close-color:     #c04040;
-  --winbtn-close-border:    #501818;
-  --winbtn-max-bg:          #0c180c;
-  --winbtn-max-color:       #6ab06a;
-  --winbtn-max-border:      #1e301e;
-  --winbtn-min-bg:          #0f1a0f;
+  --win-border:             #5830a0;
+  --titlebar-bg:            #1e1040;   /* solid purple header — not see-through */
+  --titlebar-bg-active:     #301a62;   /* richer purple when window is focused */
+  --titlebar-border-active: #7f55b5;
+  --win-title-color:        #ffffff;   /* white on purple — maximum legibility */
+  --winbtn-bg:              #221545;
+  --winbtn-border:          #5830a0;
+  --winbtn-color:           #ccb0ff;
+  --winbtn-hover-bg:        #381e68;
+  --winbtn-hover-border:    #7f55b5;
+  --winbtn-close-bg:        #2a0e1e;
+  --winbtn-close-color:     #ff6868;
+  --winbtn-close-border:    #801830;
+  --winbtn-max-bg:          #1e1240;
+  --winbtn-max-color:       #9878d8;
+  --winbtn-max-border:      #3c2478;
+  --winbtn-min-bg:          #1a1038;
 
   /* ── Contact chat bubbles ── */
-  --chat-npc-bg:      #122012;
-  --chat-npc-border:  #1e381e;
-  --chat-npc-color:   #9ee89e;
-  --chat-player-bg:   #0e1e30;
-  --chat-player-border: #1a3050;
-  --chat-player-color: #7ac4e8;
+  --chat-npc-bg:        #1a1235;
+  --chat-npc-border:    #5830a0;
+  --chat-npc-color:     #ece0ff;
+  --chat-player-bg:     #0e1430;
+  --chat-player-border: #182e70;
+  --chat-player-color:  #7cc8ff;
 
-  /* ── Radio / COMMS (analog hardware channel — intentional contrast) ── */
-  --radio-bg:          #0c0a02;
-  --radio-border:      #786858;
-  --radio-chrome:      #0e0c0a;
-  --radio-win-border:  #8a7a60;
-  --radio-title-color: #c8c0a0;
-  --radio-carrier: #5a8e5a;
-  --radio-freq:    #2e4e2e;
-  --radio-t0:      #e0b840;
-  --radio-t1:      #b08828;
-  --radio-t2:      #786020;
-  --radio-noise:   #302810;
+  /* ── Radio / COMMS ── */
+  --radio-bg:          #0c0a1c;
+  --radio-border:      #5830a0;
+  --radio-chrome:      #100e1e;
+  --radio-win-border:  #7f55b5;
+  --radio-title-color: #d8c8ff;
+  --radio-carrier:     #4a3a90;
+  --radio-freq:        #302060;
+  --radio-t0:          #f0e8ff;
+  --radio-t1:          #ccaaf0;
+  --radio-t2:          #a888d8;
+  --radio-noise:       #5830a0;   /* at 0.35 opacity = dim decorative separator */
 
   /* ── Threat levels (god panel) ── */
   --inf-infected: #c87830;
@@ -111,8 +114,10 @@
   --map-label-sub: rgba(255,255,255,0.50);
 
   /* ── Misc semantic ── */
-  --status-lost:    #c84040;
-  --leader-star:    #e8c030;
+  --status-lost:        #ff7070;
+  --leader-star:        #e8c030;
+  --lone-operator:      #ff7070;
+  --radio-btn-hover-bg: #1a1238;
 
 }
 
@@ -239,7 +244,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* Items panel */
 #items-panel {
-  padding: 10px 12px;
+  padding: clamp(12px, 1.5vw, 28px) clamp(14px, 2vw, 36px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -247,32 +252,45 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .item-ref-entry {
-  padding: 10px 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: clamp(12px, 2vw, 32px);
+  padding: clamp(14px, 1.8vh, 30px) 0;
   border-bottom: 1px solid var(--border);
 }
 
 .item-ref-entry:last-child { border-bottom: none; }
 
-.item-ref-header {
+.item-ref-body {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
+  flex-direction: column;
+  gap: clamp(6px, 0.6vw, 12px);
 }
 
 .item-ref-name {
-  font-size: 11px;
+  font-size: clamp(14px, 1.4vw, 22px);
   font-weight: bold;
   color: var(--text-dim);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  margin: 0;
 }
 
 .item-ref-desc {
   margin: 0;
-  font-size: 10px;
-  color: #555570;
-  line-height: 1.6;
+  font-size: clamp(12px, 1vw, 16px);
+  color: var(--text-dim);
+  line-height: 1.75;
+  max-width: 90ch;
+  opacity: 0.7;
+}
+
+#items-panel .item-chip {
+  font-size: clamp(12px, 1.2vw, 18px);
+  padding: clamp(8px, 0.9vw, 16px) clamp(14px, 1.6vw, 28px);
+  cursor: default;
+  pointer-events: none;
 }
 
 /* Utility task buttons (right side of taskbar — dimmer than window buttons) */
@@ -296,6 +314,30 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   letter-spacing: 0.04em;
 }
 #btn-reset-ui:hover { background: var(--btn-bg-hover); color: var(--text-dim); border-color: var(--btn-border-hover); }
+
+.taskbar-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-dimmer);
+  padding: 0 6px 0 16px;
+  align-self: center;
+  white-space: nowrap;
+}
+
+#theme-select {
+  padding: 7px 8px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-color);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+#theme-select:hover  { background: var(--btn-bg-hover); color: var(--text-dim); border-color: var(--btn-border-hover); }
+#theme-select:focus  { outline: none; border-color: var(--border-active); }
 
 /* ── Windows ── */
 .win {
@@ -624,6 +666,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   gap: 4px;
   padding: 7px 9px 9px;
   font-family: system-ui, -apple-system, sans-serif;
+  background: var(--chrome-raised);
 }
 
 .roster-leader-name {
@@ -678,7 +721,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .roster-alone {
   font-size: 10px;
   letter-spacing: 0.5px;
-  color: #904040;
+  color: var(--lone-operator);
   font-style: italic;
 }
 
@@ -803,7 +846,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* ── Districts ── */
 #districts polygon {
-  stroke: var(--bg);
+  stroke: var(--map-district-stroke, var(--bg));
   stroke-width: 2;
   stroke-linejoin: round;
   cursor: pointer;
@@ -871,7 +914,7 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 #win-radio .win-btn:hover {
-  background: #181410;
+  background: var(--radio-btn-hover-bg);
   border-color: var(--radio-win-border);
   color: var(--text-dim);
 }
@@ -933,20 +976,48 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 .radio-msg {
-  font-size: 12px;
-  line-height: 1.55;
-  letter-spacing: 0.04em;
-  transition: color 0.6s;
+  display: block;
+  line-height: 1.65;
 }
 
-.radio-msg--t0 { color: var(--radio-t0); }
-.radio-msg--t1 { color: var(--radio-t1); }
-.radio-msg--t2 { color: var(--radio-t2); }
-
 .radio-time {
-  opacity: 0.45;
-  font-size: 10px;
-  letter-spacing: 0.02em;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  white-space: nowrap;
+  margin-right: 5px;
+  vertical-align: baseline;
+}
+
+.radio-location {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  color: var(--radio-t0);
+  white-space: nowrap;
+  margin-right: 5px;
+  vertical-align: baseline;
+}
+
+.radio-body {
+  display: inline;
+  font-size: 13px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-weight: normal;
+  letter-spacing: 0.01em;
+  color: var(--radio-t0);
+}
+
+.radio-sep {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--radio-t0);
+  opacity: 0.35;
+  padding: 1px 0;
+  user-select: none;
 }
 
 .radio-noise {

@@ -6,14 +6,14 @@ import holt       from './scripts/holt.js'
 // ── CONFIG & CONSTANTS ──
 
 const TICK_MS       = 3500
-const SPREAD_RATE   = 0.12
+const SPREAD_RATE   = 0.15  // SIR β — transmission coefficient, not per-zombie rate
 let spreadChance = 0.35
 const ROLES = ['police', 'fire', 'civilian']
 
 // ── GAME CLOCK ──
 const GAME_START_HOUR = 9   // game world begins at 09:00 Day 1
 const GAME_START_DAY  = 1
-const MINS_PER_TICK   = 15  // each tick advances game clock by 15 minutes
+const MINS_PER_TICK   = 5   // each tick advances game clock by 5 minutes
 
 const PRESETS = {
   'default': { label: 'Default', seed: { 'millbrook': 15 } },
@@ -34,7 +34,7 @@ const ITEMS = {
 
 // ── FACTORIES ──
 
-const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'FAK', 'radio': 'RAD', 'rations': 'FOOD', 'binoculars': 'BNO' }
+const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'AID', 'radio': 'RAD', 'rations': 'FOOD', 'binoculars': 'BNO' }
 
 const PERSON_NAMES = {
   police:   ['Jack Sullivan', 'Maria Chen', 'Dave Kowalski', 'Frank Diaz', 'Linda Brooks', 'Ray Kim'],
@@ -364,7 +364,7 @@ function handlePersonDeath(person, districtId) {
   }
   director.emit('person-death', { person, districtId })
   delete state.people[person.id]
-  broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] UNIT DOWN — ${crackle()}no further contact.`)
+  broadcastEvent(`[${d.label.toUpperCase()}] UNIT DOWN — no further contact.`)
 }
 
 function disbandUnit(unitId, districtId) {
@@ -776,15 +776,20 @@ function broadcastEvent(text) {
   renderRadio()
 }
 
+const RADIO_STATIC_SEPS = ['[krrk]', '[szzt]', '[fssh]', '[wzzt]']
+
 function renderRadio() {
   const feed = document.getElementById('radio-feed')
   if (!feed) return
-  const now = state.tick
-  feed.innerHTML = radioFeed.map(m => {
-    const age = now - m.tick
-    const cls = age < 2 ? 't0' : age < 5 ? 't1' : 't2'
-    const html = m.text.replace(/(\[wzzt\]|\[szzt\]|\[krrk\]|\[fssh\])/g, '<span class="radio-noise">$1</span>')
-    return `<div class="radio-msg radio-msg--${cls}"><span class="radio-time">[${m.time}]</span> ${html}</div>`
+  feed.innerHTML = radioFeed.map((m, i) => {
+    const locMatch = m.text.match(/^\[([^\]]+)\]\s*(.*)$/)
+    const location = locMatch ? locMatch[1] : null
+    const body     = locMatch ? locMatch[2] : m.text
+    const locHtml  = location ? `<span class="radio-location">[${location}]</span>` : ''
+    const sep      = i < radioFeed.length - 1
+      ? `<div class="radio-sep">${RADIO_STATIC_SEPS[i % RADIO_STATIC_SEPS.length]}</div>`
+      : ''
+    return `<div class="radio-msg"><span class="radio-time">[${m.time}]</span>${locHtml}<span class="radio-body">${body}</span></div>${sep}`
   }).join('')
 }
 
@@ -1328,11 +1333,14 @@ function tick() {
   const prevHumans = {}
   for (const [id, d] of Object.entries(state.districts)) prevHumans[id] = d.humans
 
-  // Local spread using suppressed rate
+  // Local spread — SIR interaction term: β × (zombies × humans) / total
+  // Peaks at 50/50, tapers naturally when either population is rare.
+  // This makes early infection slow, mid-game fast, and the last survivors hard to eliminate.
   for (const d of Object.values(state.districts)) {
     if (d.zombies === 0 || d.humans === 0) continue
-    const rate = getEffectiveSpreadRate(d)
-    const n = Math.floor(d.zombies * rate)
+    const β     = getEffectiveSpreadRate(d)
+    const total = d.zombies + d.humans
+    const n     = Math.floor(β * d.zombies * d.humans / total)
     if (n > 0) {
       d.zombies += n
       d.humans   = Math.max(0, d.humans - n)
@@ -1342,7 +1350,7 @@ function tick() {
   // Detect newly-overrun districts
   for (const [id, d] of Object.entries(state.districts)) {
     if (d.humans === 0 && prevHumans[id] > 0) {
-      broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] ${crackle()}SIGNAL LOST — district fallen.`)
+      broadcastEvent(`[${d.label.toUpperCase()}] SIGNAL LOST — district fallen.`)
     }
   }
 
@@ -1358,7 +1366,7 @@ function tick() {
         if (neighbors.length) {
           const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
           state.districts[spreadDest].zombies += 1
-          broadcastEvent(`${crackle()}[${state.districts[spreadDest].label.toUpperCase()}] Movement detected — infected advancing.`)
+          broadcastEvent(`[${state.districts[spreadDest].label.toUpperCase()}] Movement detected — infected advancing.`)
         }
       }
     }
@@ -1377,7 +1385,7 @@ function tick() {
         if (Math.random() < 0.40) {
           const found = d.loot.pop()
           person.items.push(found)
-          broadcastEvent(`${crackle()}[${d.label.toUpperCase()}] ${person.name} — recovered ${ITEMS[found]?.name ?? found}.`)
+          broadcastEvent(`[${d.label.toUpperCase()}] ${person.name} — recovered ${ITEMS[found]?.name ?? found}.`)
         }
       }
     }
@@ -1667,7 +1675,7 @@ function renderGodPanel() {
   table.innerHTML = rows
 }
 
-// Dispatch toolbar — EXPANDED / CONDENSED switcher
+// Dispatch toolbar — EXPANDED / CONDENSED / BY DISTRICT switcher
 document.querySelectorAll('.layout-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const panel  = document.getElementById('units-panel')
@@ -1676,6 +1684,7 @@ document.querySelectorAll('.layout-btn').forEach(btn => {
     document.querySelectorAll('.layout-btn').forEach(b =>
       b.classList.toggle('layout-btn--active', b.dataset.layout === layout)
     )
+    renderUnitsPanel()
   })
 })
 
@@ -1775,6 +1784,241 @@ function startGame() {
 
 document.getElementById('btn-start').addEventListener('click', startGame)
 
+// ── UI Theme system ──
+// setGlobalTheme(id) applies all CSS vars onto document.documentElement, which
+// overrides the :root block via inline-style cascade priority. applyWindowThemes()
+// then layers per-window overrides on top for any windows that need them.
+
+const GLOBAL_THEMES = {
+
+  'terminal-green': {
+    '--desktop-bg':'#020402','--taskbar-bg':'#040804','--bg':'#060b06','--surface':'#0a1208','--chrome-raised':'#0e180e',
+    '--border':'#1a2e1a','--border-sub':'#0e180e','--border-active':'#2e4e30',
+    '--text':'#7ed87e','--text-dim':'#7ed87e','--text-dimmer':'#7ed87e','--accent':'#a8eaa8',
+    '--btn-bg':'#080f08','--btn-bg-hover':'#0e1a0e','--btn-bg-active':'#0c180c',
+    '--btn-border':'#2a4a2a','--btn-border-hover':'#3a6a3a','--btn-border-active':'#2e4e30',
+    '--btn-color':'#7ed87e','--btn-color-active':'#a8eaa8',
+    '--win-border':'#1a2e1a','--titlebar-bg':'#090f09','--titlebar-bg-active':'#0d1a0d',
+    '--titlebar-border-active':'#2e4a30','--win-title-color':'#7ed87e',
+    '--winbtn-bg':'#0b140b','--winbtn-border':'#2a4a2a','--winbtn-color':'#7ed87e',
+    '--winbtn-hover-bg':'#111e11','--winbtn-hover-border':'#3a6a3a',
+    '--winbtn-close-bg':'#1a0808','--winbtn-close-color':'#c04040','--winbtn-close-border':'#501818',
+    '--winbtn-max-bg':'#0c180c','--winbtn-max-color':'#6ab06a','--winbtn-max-border':'#1e301e',
+    '--winbtn-min-bg':'#0f1a0f',
+    '--chat-npc-bg':'#122012','--chat-npc-border':'#1e381e','--chat-npc-color':'#9ee89e',
+    '--chat-player-bg':'#0e1e30','--chat-player-border':'#1a3050','--chat-player-color':'#7ac4e8',
+    '--radio-bg':'#0c0a02','--radio-border':'#786858','--radio-chrome':'#0e0c0a',
+    '--radio-win-border':'#8a7a60','--radio-title-color':'#c8c0a0',
+    '--radio-carrier':'#5a8e5a','--radio-freq':'#2e4e2e',
+    '--radio-t0':'#e0b840','--radio-t1':'#b08828','--radio-t2':'#786020','--radio-noise':'#302810',
+    '--status-lost':'#c84040','--leader-star':'#e8c030','--lone-operator':'#904040','--radio-btn-hover-bg':'#181410',
+  },
+
+  'morning-coffee': {
+    '--desktop-bg':'#080500','--taskbar-bg':'#0c0800','--bg':'#100c04','--surface':'#171208','--chrome-raised':'#1e1810',
+    '--border':'#3c2e18','--border-sub':'#261a0a','--border-active':'#7a5e38',
+    '--text':'#d4b870','--text-dim':'#9a8050','--text-dimmer':'#584830','--accent':'#ecd080',
+    '--btn-bg':'#130d04','--btn-bg-hover':'#1e1608','--btn-bg-active':'#1a1208',
+    '--btn-border':'#4c3a20','--btn-border-hover':'#7a5e38','--btn-border-active':'#8a6e48',
+    '--btn-color':'#c4a060','--btn-color-active':'#e8c878',
+    '--win-border':'#483618','--titlebar-bg':'#100c04','--titlebar-bg-active':'#1a1408',
+    '--titlebar-border-active':'#6a5030','--win-title-color':'#c8a860',
+    '--winbtn-bg':'#150e04','--winbtn-border':'#4c3a20','--winbtn-color':'#b09850',
+    '--winbtn-hover-bg':'#201808','--winbtn-hover-border':'#7a5e38',
+    '--winbtn-close-bg':'#1c0a08','--winbtn-close-color':'#c04030','--winbtn-close-border':'#501818',
+    '--winbtn-max-bg':'#141008','--winbtn-max-color':'#a08840','--winbtn-max-border':'#3c2c14',
+    '--winbtn-min-bg':'#181408',
+    '--chat-npc-bg':'#1e1508','--chat-npc-border':'#3c2c14','--chat-npc-color':'#d4b060',
+    '--chat-player-bg':'#0c1018','--chat-player-border':'#1a2838','--chat-player-color':'#7ac4e8',
+    '--radio-bg':'#0c0900','--radio-border':'#786858','--radio-chrome':'#100c04',
+    '--radio-win-border':'#8a7a60','--radio-title-color':'#c8b880',
+    '--radio-carrier':'#7a8a5a','--radio-freq':'#4a4030',
+    '--radio-t0':'#e0b840','--radio-t1':'#b08828','--radio-t2':'#786020','--radio-noise':'#302810',
+    '--status-lost':'#c84040','--leader-star':'#e8c030','--lone-operator':'#904040','--radio-btn-hover-bg':'#181410',
+  },
+
+  'midnight-purple': {
+    '--desktop-bg':'#09070f','--taskbar-bg':'#0d0b18','--bg':'#110e1c','--surface':'#17132a','--chrome-raised':'#1e1935',
+    '--border':'#3d2d6e','--border-sub':'#251a4a','--border-active':'#7f55b5',
+    '--text':'#f2eeff','--text-dim':'#c4aaee','--text-dimmer':'#c4aaee','--accent':'#bb99ff',
+    '--btn-bg':'#16102c','--btn-bg-hover':'#231a42','--btn-bg-active':'#2c2252',
+    '--btn-border':'#5830a0','--btn-border-hover':'#7f55b5','--btn-border-active':'#9a70d8',
+    '--btn-color':'#ccb0ff','--btn-color-active':'#ffffff',
+    '--win-border':'#5830a0','--titlebar-bg':'#1e1040','--titlebar-bg-active':'#301a62',
+    '--titlebar-border-active':'#7f55b5','--win-title-color':'#ffffff',
+    '--winbtn-bg':'#221545','--winbtn-border':'#5830a0','--winbtn-color':'#ccb0ff',
+    '--winbtn-hover-bg':'#381e68','--winbtn-hover-border':'#7f55b5',
+    '--winbtn-close-bg':'#2a0e1e','--winbtn-close-color':'#ff6868','--winbtn-close-border':'#801830',
+    '--winbtn-max-bg':'#1e1240','--winbtn-max-color':'#9878d8','--winbtn-max-border':'#3c2478',
+    '--winbtn-min-bg':'#1a1038',
+    '--chat-npc-bg':'#1a1235','--chat-npc-border':'#5830a0','--chat-npc-color':'#ece0ff',
+    '--chat-player-bg':'#0e1430','--chat-player-border':'#182e70','--chat-player-color':'#7cc8ff',
+    '--radio-bg':'#0c0a1c','--radio-border':'#5830a0','--radio-chrome':'#100e1e',
+    '--radio-win-border':'#7f55b5','--radio-title-color':'#d8c8ff',
+    '--radio-carrier':'#4a3a90','--radio-freq':'#302060',
+    '--radio-t0':'#f0e8ff','--radio-t1':'#ccaaf0','--radio-t2':'#a888d8','--radio-noise':'#5830a0',
+    '--status-lost':'#ff7070','--leader-star':'#e8c030','--lone-operator':'#ff7070','--radio-btn-hover-bg':'#1a1238',
+  },
+
+  'cyberpunk': {
+    '--desktop-bg':'#030508','--taskbar-bg':'#050810','--bg':'#070b18','--surface':'#0c1025','--chrome-raised':'#101530',
+    '--border':'#1a1a5e','--border-sub':'#0e0e3a','--border-active':'#00d4ff',
+    '--text':'#00e5ff','--text-dim':'#0098c0','--text-dimmer':'#004870','--accent':'#ff2d78',
+    '--btn-bg':'#08081e','--btn-bg-hover':'#101040','--btn-bg-active':'#14145a',
+    '--btn-border':'#1a1a60','--btn-border-hover':'#00d4ff','--btn-border-active':'#ff2d78',
+    '--btn-color':'#00c8f0','--btn-color-active':'#ff2d78',
+    '--win-border':'#1a2080','--titlebar-bg':'#080840','--titlebar-bg-active':'#0e0070',
+    '--titlebar-border-active':'#00d4ff','--win-title-color':'#00e5ff',
+    '--winbtn-bg':'#08084a','--winbtn-border':'#1a1a70','--winbtn-color':'#00c8f0',
+    '--winbtn-hover-bg':'#0a0a70','--winbtn-hover-border':'#00d4ff',
+    '--winbtn-close-bg':'#2a0820','--winbtn-close-color':'#ff3068','--winbtn-close-border':'#801040',
+    '--winbtn-max-bg':'#081040','--winbtn-max-color':'#0098c0','--winbtn-max-border':'#1a2878',
+    '--winbtn-min-bg':'#060830',
+    '--chat-npc-bg':'#080828','--chat-npc-border':'#1a1a70','--chat-npc-color':'#80e8ff',
+    '--chat-player-bg':'#1a0820','--chat-player-border':'#501040','--chat-player-color':'#ff80b0',
+    '--radio-bg':'#04040e','--radio-border':'#1a1a70','--radio-chrome':'#060618',
+    '--radio-win-border':'#00d4ff','--radio-title-color':'#00e5ff',
+    '--radio-carrier':'#0050a0','--radio-freq':'#101850',
+    '--radio-t0':'#00e5ff','--radio-t1':'#0098c0','--radio-t2':'#004870','--radio-noise':'#1a1a60',
+    '--status-lost':'#ff3068','--leader-star':'#ffe040','--lone-operator':'#ff3068','--radio-btn-hover-bg':'#0a0a28',
+  },
+
+  'windows-95': {
+    '--desktop-bg':'#008080','--taskbar-bg':'#c0c0c0','--bg':'#c0c0c0','--surface':'#c0c0c0','--chrome-raised':'#a8a8a8',
+    '--border':'#808080','--border-sub':'#c0c0c0','--border-active':'#000080',
+    '--text':'#000000','--text-dim':'#333333','--text-dimmer':'#333333','--accent':'#000080',
+    '--btn-bg':'#c0c0c0','--btn-bg-hover':'#d4d4d4','--btn-bg-active':'#b8b8b8',
+    '--btn-border':'#808080','--btn-border-hover':'#404040','--btn-border-active':'#000080',
+    '--btn-color':'#000000','--btn-color-active':'#000000',
+    '--win-border':'#808080','--titlebar-bg':'#000080','--titlebar-bg-active':'#1084d0',
+    '--titlebar-border-active':'#0000ff','--win-title-color':'#ffffff',
+    '--winbtn-bg':'#c0c0c0','--winbtn-border':'#808080','--winbtn-color':'#000000',
+    '--winbtn-hover-bg':'#d0d0d0','--winbtn-hover-border':'#404040',
+    '--winbtn-close-bg':'#c0c0c0','--winbtn-close-color':'#000000','--winbtn-close-border':'#808080',
+    '--winbtn-max-bg':'#c0c0c0','--winbtn-max-color':'#000000','--winbtn-max-border':'#808080',
+    '--winbtn-min-bg':'#c0c0c0',
+    '--chat-npc-bg':'#e0e8ff','--chat-npc-border':'#0000c0','--chat-npc-color':'#000060',
+    '--chat-player-bg':'#ffffff','--chat-player-border':'#808080','--chat-player-color':'#000000',
+    '--radio-bg':'#f0f0f0','--radio-border':'#808080','--radio-chrome':'#e0e0e0',
+    '--radio-win-border':'#808080','--radio-title-color':'#000000',
+    '--radio-carrier':'#008000','--radio-freq':'#808080',
+    '--radio-t0':'#000000','--radio-t1':'#333333','--radio-t2':'#666666','--radio-noise':'#808080',
+    '--status-lost':'#c80000','--leader-star':'#c8a000','--lone-operator':'#800000','--radio-btn-hover-bg':'#d0d0d0',
+    '--map-district-stroke':'#000000',
+  },
+
+  'blood-moon': {
+    '--desktop-bg':'#0a0204','--taskbar-bg':'#0e0306','--bg':'#120408','--surface':'#18060c','--chrome-raised':'#200a12',
+    '--border':'#5a0e20','--border-sub':'#300610','--border-active':'#c82040',
+    '--text':'#f0c8c8','--text-dim':'#c07880','--text-dimmer':'#804050','--accent':'#ff4060',
+    '--btn-bg':'#160508','--btn-bg-hover':'#220810','--btn-bg-active':'#2a0c14',
+    '--btn-border':'#580e1e','--btn-border-hover':'#c82040','--btn-border-active':'#e83050',
+    '--btn-color':'#e09090','--btn-color-active':'#ffffff',
+    '--win-border':'#8a1428','--titlebar-bg':'#1a0408','--titlebar-bg-active':'#300810',
+    '--titlebar-border-active':'#c82040','--win-title-color':'#ffffff',
+    '--winbtn-bg':'#200608','--winbtn-border':'#580e1e','--winbtn-color':'#e09090',
+    '--winbtn-hover-bg':'#380c14','--winbtn-hover-border':'#c82040',
+    '--winbtn-close-bg':'#2a0406','--winbtn-close-color':'#ff5050','--winbtn-close-border':'#901020',
+    '--winbtn-max-bg':'#1e0608','--winbtn-max-color':'#c86080','--winbtn-max-border':'#480c18',
+    '--winbtn-min-bg':'#180408',
+    '--chat-npc-bg':'#1e0610','--chat-npc-border':'#580e1e','--chat-npc-color':'#f0a8a8',
+    '--chat-player-bg':'#0c0e20','--chat-player-border':'#181e50','--chat-player-color':'#8090e0',
+    '--radio-bg':'#0c0206','--radio-border':'#580e1e','--radio-chrome':'#100408',
+    '--radio-win-border':'#c82040','--radio-title-color':'#e0a0a0',
+    '--radio-carrier':'#702030','--radio-freq':'#3a0810',
+    '--radio-t0':'#ffd0d0','--radio-t1':'#e09090','--radio-t2':'#b05858','--radio-noise':'#701828',
+    '--status-lost':'#ff4040','--leader-star':'#e8c030','--lone-operator':'#ff5050','--radio-btn-hover-bg':'#1a0408',
+  },
+}
+
+const _allGlobalThemeKeys = new Set(
+  Object.values(GLOBAL_THEMES).flatMap(t => Object.keys(t))
+)
+
+function setGlobalTheme(id) {
+  const vars = GLOBAL_THEMES[id]
+  if (!vars) return
+  _allGlobalThemeKeys.forEach(k => document.documentElement.style.removeProperty(k))
+  Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
+  applyWindowThemes()
+  localStorage.setItem('dispatch-theme', id)
+  const sel = document.getElementById('theme-select')
+  if (sel && sel.value !== id) sel.value = id
+}
+
+const WINDOW_THEMES = {
+  'default': {},  // inherits base theme from :root — no overrides
+
+  'morning-coffee': {
+    '--bg':                   '#0c0a02',
+    '--surface':              '#111008',
+    '--chrome-raised':        '#0e0c0a',
+    '--border':               '#786858',
+    '--border-sub':           '#4a3c2a',
+    '--border-active':        '#9a8a6a',
+    '--text':                 '#c8c0a0',
+    '--text-dim':             '#a09070',
+    '--text-dimmer':          '#605040',
+    '--accent':               '#e8d8a0',
+    '--win-border':           '#8a7a60',
+    '--titlebar-bg':          '#0e0c0a',
+    '--titlebar-bg-active':   '#181610',
+    '--win-title-color':      '#c8c0a0',
+    '--winbtn-bg':            '#140e06',
+    '--winbtn-border':        '#6a5a40',
+    '--winbtn-color':         '#b0a070',
+    '--winbtn-hover-bg':      '#201810',
+    '--winbtn-hover-border':  '#8a7a58',
+    '--winbtn-close-bg':      '#1e0c08',
+    '--winbtn-close-color':   '#c04030',
+    '--winbtn-close-border':  '#5a2018',
+    '--btn-bg':               '#140e06',
+    '--btn-bg-hover':         '#201a10',
+    '--btn-bg-active':        '#1c1610',
+    '--btn-border':           '#6a5a40',
+    '--btn-border-hover':     '#8a7a58',
+    '--btn-border-active':    '#9a8a68',
+    '--btn-color':            '#b0a070',
+    '--btn-color-active':     '#d0c090',
+    '--radio-btn-hover-bg':   '#181410',
+    '--radio-bg':             '#0c0a02',
+    '--radio-border':         '#786858',
+    '--radio-chrome':         '#0e0c0a',
+    '--radio-win-border':     '#8a7a60',
+    '--radio-title-color':    '#c8c0a0',
+    '--radio-carrier':        '#7a8a5a',
+    '--radio-freq':           '#4a4030',
+  },
+}
+
+// Which theme each window uses. 'default' = inherit from base :root theme.
+const WINDOW_THEME_MAP = {
+  'win-contacts': 'default',
+  'win-dispatch': 'default',
+  'win-map':      'default',
+  'win-radio':    'default',
+  'win-items':    'default',
+  'win-sitrep':   'default',
+}
+
+const _allWindowThemeKeys = new Set(
+  Object.values(WINDOW_THEMES).flatMap(t => Object.keys(t))
+)
+
+function applyWindowThemes() {
+  for (const [winId, themeId] of Object.entries(WINDOW_THEME_MAP)) {
+    const el   = document.getElementById(winId)
+    const vars = WINDOW_THEMES[themeId] ?? {}
+    if (!el) continue
+    _allWindowThemeKeys.forEach(k => el.style.removeProperty(k))
+    Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v))
+  }
+}
+
+applyWindowThemes()
+setGlobalTheme(localStorage.getItem('dispatch-theme') || 'windows-95')
+document.getElementById('theme-select').addEventListener('change', e => setGlobalTheme(e.target.value))
+
 // ── Map palette switcher ──
 
 const MAP_PALETTES = {
@@ -1818,4 +2062,4 @@ setMapPalette('paper')
 render()
 
 // Dev: expose internals to window for console/preview debugging
-Object.assign(window, { state, tick, director, gameTime, gameDay, NARRATIVE_SCRIPTS, when, triggerToCondition, dispatchUnit, handlePersonDeath, disbandUnit })
+Object.assign(window, { state, tick, director, gameTime, gameDay, NARRATIVE_SCRIPTS, when, triggerToCondition, dispatchUnit, handlePersonDeath, disbandUnit, setGlobalTheme, GLOBAL_THEMES })

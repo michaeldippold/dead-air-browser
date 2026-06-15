@@ -246,51 +246,51 @@
       <div class="win-body" id="items-panel">
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">Gun</span>
-            <span class="item-chip item-chip--gun">GUN</span>
+            <p class="item-ref-desc">Your best tool for putting down zombies. Units armed with a Gun have a strong chance to score a kill each engagement, and their range lets them open fire before contact — meaning they take less return damage. Police units start with one. Rare everywhere else.</p>
           </div>
-          <p class="item-ref-desc">Your best tool for putting down zombies. Units armed with a Gun have a strong chance to score a kill each engagement, and their range lets them open fire before contact — meaning they take less return damage. Police units start with one. Rare everywhere else.</p>
+          <span class="item-chip item-chip--gun">GUN</span>
         </div>
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">Fire Axe</span>
-            <span class="item-chip item-chip--fire-axe">AXE</span>
+            <p class="item-ref-desc">A solid close-quarters weapon. Slightly less effective than a firearm, but far better than going in empty-handed. Fire units start with one, and they turn up often in industrial areas. Good to have; great if a Gun isn't available.</p>
           </div>
-          <p class="item-ref-desc">A solid close-quarters weapon. Slightly less effective than a firearm, but far better than going in empty-handed. Fire units start with one, and they turn up often in industrial areas. Good to have; great if a Gun isn't available.</p>
+          <span class="item-chip item-chip--fire-axe">AXE</span>
         </div>
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">First Aid Kit</span>
-            <span class="item-chip item-chip--first-aid">FAK</span>
+            <p class="item-ref-desc">Emergency triage. When any unit in the district falls to critically low health, a Civilian carrying an AID kit will automatically patch them up — restoring a meaningful chunk of health before they go down. One kit, one use: it's consumed in the process. Best carried by Civilians who sit just behind your fighters.</p>
           </div>
-          <p class="item-ref-desc">Emergency triage. When any unit in the district falls to critically low health, a Civilian carrying a FAK will automatically patch them up — restoring a meaningful chunk of health before they go down. One kit, one use: it's consumed in the process. Best carried by Civilians who sit just behind your fighters.</p>
+          <span class="item-chip item-chip--first-aid">AID</span>
         </div>
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">Radio</span>
-            <span class="item-chip item-chip--radio">RAD</span>
+            <p class="item-ref-desc">Intel from the ground. While a Civilian carrying a Radio is stationed in a district, that district's live human and infected counts appear in the District Info panel. No Radio means no numbers — you're making decisions blind. The intel cuts out if the Civilian dies or redeploys.</p>
           </div>
-          <p class="item-ref-desc">Intel from the ground. While a Civilian carrying a Radio is stationed in a district, that district's live human and infected counts appear in the District Info panel. No Radio means no numbers — you're making decisions blind. The intel cuts out if the Civilian dies or redeployes.</p>
+          <span class="item-chip item-chip--radio">RAD</span>
         </div>
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">Rations</span>
-            <span class="item-chip item-chip--rations">RAT</span>
+            <p class="item-ref-desc">Slow recovery, never runs out. Any unit carrying Rations heals a small amount each tick, passively, for as long as they hold it. The Rations are never consumed. Best suited for units in prolonged engagements who can't be pulled back for rest.</p>
           </div>
-          <p class="item-ref-desc">Slow recovery, never runs out. Any unit carrying Rations heals a small amount each tick, passively, for as long as they hold it. The Rations are never consumed. Best suited for units in prolonged engagements who can't be pulled back for rest.</p>
+          <span class="item-chip item-chip--rations">RAT</span>
         </div>
 
         <div class="item-ref-entry">
-          <div class="item-ref-header">
+          <div class="item-ref-body">
             <span class="item-ref-name">Binoculars</span>
-            <span class="item-chip item-chip--binoculars">BNO</span>
+            <p class="item-ref-desc">See farther, react sooner. While any unit carrying Binoculars is stationed in a district, the human and infected counts of every neighboring district also appear in your District Info panel. A single unit in the right position becomes an early warning system for threats you don't yet have eyes on.</p>
           </div>
-          <p class="item-ref-desc">See farther, react sooner. While any unit carrying Binoculars is stationed in a district, the human and infected counts of every neighboring district also appear in your District Info panel. A single unit in the right position becomes an early warning system for threats you don't yet have eyes on.</p>
+          <span class="item-chip item-chip--binoculars">BNO</span>
         </div>
 
       </div>
@@ -341,8 +341,17 @@
     <button class="task-btn" data-win="dispatch">DISPATCH</button>
     <button class="task-btn" data-win="map">MAP</button>
     <button class="task-btn" data-win="radio">COMMS</button>
+    <button class="task-btn" data-win="items">ITEMS</button>
     <div style="flex:1"></div>
-    <button class="task-btn task-btn--utility" data-win="items">ITEMS</button>
+    <label class="taskbar-label" for="theme-select">THEME</label>
+    <select id="theme-select">
+      <option value="terminal-green">Terminal Green</option>
+      <option value="morning-coffee">Morning Coffee</option>
+      <option value="midnight-purple" selected>Midnight Purple</option>
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="windows-95">Windows 95</option>
+      <option value="blood-moon">Blood Moon</option>
+    </select>
     <button id="btn-reset-ui">Reset UI</button>
   </div>
 
