@@ -953,45 +953,50 @@ function renderDistrictDetail() {
   document.getElementById('ddv-name').textContent = d.label
   document.getElementById('ddv-cat').textContent  = d.category
 
-  const hasIntel = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
+  const hasIntel  = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
+  const revealHint = '<div class="ddv-reveal-hint">Reveal: [RAD] [BNO]</div>'
+  const unknown    = `<span class="ddv-status--unknown">UNKNOWN</span>${revealHint}`
 
   // Status
   const ddvStatus = document.getElementById('ddv-status')
   if (hasIntel) {
     const { label, cls } = getDistrictStatus(d)
-    ddvStatus.textContent = label
-    ddvStatus.className   = cls
+    ddvStatus.innerHTML = `<span class="${cls}">${label}</span>${revealHint}`
   } else {
-    ddvStatus.textContent = 'UNKNOWN'
-    ddvStatus.className   = 'ddv-status--unknown'
+    ddvStatus.innerHTML = unknown
   }
 
   // Population
   const ddvPop = document.getElementById('ddv-pop')
   if (hasIntel) {
-    ddvPop.innerHTML = `<span>Humans: ${d.humans.toLocaleString()}</span><span>Infected: ${d.zombies.toLocaleString()}</span>`
+    ddvPop.innerHTML = `<span>Humans: ${d.humans.toLocaleString()}</span><span>Infected: ${d.zombies.toLocaleString()}</span>${revealHint}`
   } else {
-    ddvPop.innerHTML = '<span class="ddv-no-intel">No radio coverage</span>'
+    ddvPop.innerHTML = unknown
   }
 
   // Units here
   const ddvUnits = document.getElementById('ddv-units')
-  const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
-  if (unitsHere.length === 0) {
-    ddvUnits.innerHTML = '<span class="ddv-no-intel">None</span>'
+  if (!hasIntel) {
+    ddvUnits.innerHTML = unknown
   } else {
-    ddvUnits.innerHTML = unitsHere.map(u => {
-      const size = u.personIds.length
-      return `<div class="ddv-unit-row"><span class="ddv-unit-label">${u.label}</span><span>${size}p</span></div>`
-    }).join('')
+    const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
+    const listHtml  = unitsHere.length === 0
+      ? '<span class="ddv-no-intel">None</span>'
+      : unitsHere.map(u => {
+          const size = u.personIds.length
+          return `<div class="ddv-unit-row"><span class="ddv-unit-label">${u.label}</span><span>${size}p</span></div>`
+        }).join('')
+    ddvUnits.innerHTML = listHtml + revealHint
   }
 
-  // Loot
+  // Possible loot (static pool — what can spawn here, not live items)
   const ddvLoot = document.getElementById('ddv-loot')
-  if (!d.loot || d.loot.length === 0) {
+  const pool      = LOOT_POOLS[state.selected] ?? LOOT_POOLS[d.category]
+  if (!pool || pool.length === 0) {
     ddvLoot.innerHTML = '<span class="ddv-no-intel">None</span>'
   } else {
-    ddvLoot.innerHTML = d.loot.map(key => {
+    const uniqueKeys = [...new Set(pool.map(e => e.item))]
+    ddvLoot.innerHTML = uniqueKeys.map(key => {
       const item = ITEMS[key]
       return `<div class="item-chip item-chip--${key}">${item?.name ?? key}</div>`
     }).join('')
