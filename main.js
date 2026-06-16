@@ -954,7 +954,7 @@ function renderDistrictDetail() {
   document.getElementById('ddv-cat').textContent  = d.category
 
   const hasIntel  = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
-  const revealHint = '<div class="ddv-reveal-hint">Reveal: [RAD] [BNO]</div>'
+  const revealHint = `<div class="ddv-reveal-hint">Reveal: <span class="roster-item-abbrev item-chip--radio">RAD</span><span class="roster-item-abbrev item-chip--binoculars">BNO</span></div>`
   const unknown    = `<span class="ddv-status--unknown">UNKNOWN</span>${revealHint}`
 
   // Status
@@ -982,10 +982,7 @@ function renderDistrictDetail() {
     const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
     const listHtml  = unitsHere.length === 0
       ? '<span class="ddv-no-intel">None</span>'
-      : unitsHere.map(u => {
-          const size = u.personIds.length
-          return `<div class="ddv-unit-row"><span class="ddv-unit-label">${u.label}</span><span>${size}p</span></div>`
-        }).join('')
+      : unitsHere.map(u => renderUnitCard(u, 'badges')).join('')
     ddvUnits.innerHTML = listHtml + revealHint
   }
 

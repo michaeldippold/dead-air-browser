@@ -482,31 +482,35 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   letter-spacing: 1px;
 }
 
-.ddv-reveal-hint {
-  font-size: 10px;
-  font-weight: normal;
-  letter-spacing: 0.5px;
-  color: var(--text-dimmer);
-}
 
 .ddv-status--clear    { color: var(--accent); }
-.ddv-status--light    { color: var(--text-dim); }
+.ddv-status--light    { color: #ffffff; }
 .ddv-status--heavy    { color: var(--status-lost); }
 .ddv-status--overrun  { color: var(--status-lost); animation: pending-pulse 1.2s ease-in-out infinite; }
-.ddv-status--unknown  { color: var(--text-dimmer); font-style: italic; font-weight: normal; }
+.ddv-status--unknown  { color: #ffffff; }
 
 #ddv-pop {
   display: flex;
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .ddv-no-intel {
   font-size: 11px;
-  color: var(--text-dimmer);
-  font-style: italic;
+  color: #ffffff;
+}
+
+.ddv-reveal-hint {
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
 }
 
 #ddv-units {
@@ -515,18 +519,12 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   gap: 4px;
 }
 
-.ddv-unit-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.ddv-unit-label {
-  font-weight: bold;
-  color: var(--text);
-}
+/* Badge-style unit cards inside district detail panel */
+#ddv-units .roster-card          { flex-direction: row; cursor: default; }
+#ddv-units .roster-card:hover    { transform: none; }
+#ddv-units .roster-portrait      { width: 9px; height: unset; min-height: unset; align-self: stretch; flex-shrink: 0; overflow: hidden; }
+#ddv-units .roster-portrait svg  { display: none; }
+#ddv-units .roster-card-body     { flex: 1; min-width: 0; overflow: hidden; padding: 7px 10px; gap: 4px; justify-content: center; }
 
 #ddv-loot {
   display: flex;
