@@ -583,30 +583,13 @@ const adjacency = {
 
 // ── INIT ──
 
-// Pre-build clip-paths so selected stroke renders inside polygon only
-function initClipPaths() {
-  const svg  = document.getElementById('city-map')
-  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
-  document.querySelectorAll('#districts polygon').forEach(poly => {
-    const cp    = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath')
-    cp.id       = `clip-${poly.id}`
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
-    shape.setAttribute('points', poly.getAttribute('points'))
-    cp.appendChild(shape)
-    defs.appendChild(cp)
-  })
-  svg.prepend(defs)
-}
-initClipPaths()
 
 // ── DOM REFS ──
 
 const godBtn      = document.getElementById('btn-god-mode')
 const tickDisplay = document.getElementById('tick-display')
 const timeDisplay = document.getElementById('time-display')
-const infoName    = document.getElementById('info-name')
-const infoCat     = document.getElementById('info-cat')
-const infoPop     = document.getElementById('info-pop')
+const mapContainer  = document.getElementById('map-container')
 const unitsPanel    = document.getElementById('units-panel')
 const contactsPanel = document.getElementById('contacts-panel')
 const unitsList   = document.getElementById('units-list')
@@ -801,7 +784,7 @@ function toggleMinimize(id) {
     document.body.classList.remove('god-mode')
     syncGodBtn()
     renderGodPanel()
-    updateRightPanel()
+    renderDistrictDetail()
   }
   syncTaskbar()
 }
@@ -910,7 +893,7 @@ godBtn.addEventListener('click', () => {
   }
   syncGodBtn()
   renderGodPanel()
-  updateRightPanel()
+  renderDistrictDetail()
 })
 
 function syncGodBtn() {
@@ -935,70 +918,83 @@ document.getElementById('unit-dots').addEventListener('click', e => {
 })
 
 function selectDistrict(id) {
-  const pinGroup = document.getElementById('district-pin')
-
   if (state.selected) {
     const prev = document.getElementById(state.selected)
-    if (prev) {
-      prev.classList.remove('selected')
-      prev.removeAttribute('clip-path')
-    }
+    if (prev) prev.classList.remove('selected')
   }
 
   if (state.selected === id) {
-    state.selected       = null
-    infoName.textContent = '—'
-    infoCat.textContent  = 'Click a district'
-    infoPop.innerHTML    = ''
-    if (pinGroup) pinGroup.innerHTML = ''
+    state.selected = null
+    delete mapContainer.dataset.view
     return
   }
 
   state.selected = id
   const poly = document.getElementById(id)
-  if (poly) {
-    poly.setAttribute('clip-path', `url(#clip-${id})`)
-    poly.classList.add('selected')
-    if (pinGroup) {
-      const b = poly.getBBox()
-      const pinSize = 84
-      // Needle tip in the 500×500 viewBox lands at ≈(94, 406) after transforms.
-      // Center horizontally on the district; 8px (≈37 SVG units) from the top.
-      const svgX = b.x + b.width / 2 - (94 / 500) * pinSize
-      const svgY = b.y + 37 - (406 / 500) * pinSize
-
-      pinGroup.innerHTML = `<svg x="${svgX.toFixed(1)}" y="${svgY.toFixed(1)}" width="${pinSize}" height="${pinSize}" viewBox="0 0 500 500" overflow="visible">
-        <g transform="translate(500,0) scale(-1,1)">
-          <g transform="translate(250,250) rotate(-45) translate(-250,-250)">
-            <path d="M 235 270 L 250 470 L 265 270 Z" fill="#b0bec5" stroke="black" stroke-width="25" stroke-linejoin="round" paint-order="stroke fill"/>
-            <rect x="215" y="120" width="70" height="90" fill="#ff4d40"/>
-            <ellipse cx="250" cy="270" rx="95" ry="75" fill="#ff4d40" stroke="black" stroke-width="25" paint-order="stroke fill"/>
-            <ellipse cx="250" cy="120" rx="80" ry="50" fill="#ff4d40" stroke="black" stroke-width="25" paint-order="stroke fill"/>
-          </g>
-        </g>
-      </svg>`
-    }
-  }
-  updateRightPanel()
+  if (poly) poly.classList.add('selected')
+  mapContainer.dataset.view = 'district'
+  renderDistrictDetail()
 }
 
-function updateRightPanel() {
+function getDistrictStatus(d) {
+  const total = d.humans + d.zombies
+  if (total === 0 || d.zombies === 0) return { label: 'CLEAR',   cls: 'ddv-status--clear' }
+  const ratio = d.zombies / total
+  if (ratio < 0.35)              return { label: 'LIGHT',   cls: 'ddv-status--light' }
+  if (ratio < 0.75)              return { label: 'HEAVY',   cls: 'ddv-status--heavy' }
+  return                                { label: 'OVERRUN', cls: 'ddv-status--overrun' }
+}
+
+function renderDistrictDetail() {
   if (!state.selected) return
   const d = state.districts[state.selected]
   if (!d) return
-  infoName.textContent = d.label
-  infoCat.textContent  = d.category
 
-  const hasRadio = districtHasRadio(state.selected)
-  const hasBino  = districtHasBinoView(state.selected)
-  if (state.godMode || hasRadio || hasBino) {
-    let badge = ''
-    if (!state.godMode) badge = hasRadio
-      ? '<div class="radio-intel-badge">RADIO INTEL</div>'
-      : '<div class="radio-intel-badge">BINOC INTEL</div>'
-    infoPop.innerHTML = `${badge}<span class="pop-stat">Humans: ${d.humans.toLocaleString()}</span><span class="pop-sep">·</span><span class="pop-stat">Infected: ${d.zombies.toLocaleString()}</span>`
+  document.getElementById('ddv-name').textContent = d.label
+  document.getElementById('ddv-cat').textContent  = d.category
+
+  const hasIntel = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
+
+  // Status
+  const ddvStatus = document.getElementById('ddv-status')
+  if (hasIntel) {
+    const { label, cls } = getDistrictStatus(d)
+    ddvStatus.textContent = label
+    ddvStatus.className   = cls
   } else {
-    infoPop.innerHTML = '<span class="no-intel">No intel</span>'
+    ddvStatus.textContent = 'UNKNOWN'
+    ddvStatus.className   = 'ddv-status--unknown'
+  }
+
+  // Population
+  const ddvPop = document.getElementById('ddv-pop')
+  if (hasIntel) {
+    ddvPop.innerHTML = `<span>Humans: ${d.humans.toLocaleString()}</span><span>Infected: ${d.zombies.toLocaleString()}</span>`
+  } else {
+    ddvPop.innerHTML = '<span class="ddv-no-intel">No radio coverage</span>'
+  }
+
+  // Units here
+  const ddvUnits = document.getElementById('ddv-units')
+  const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
+  if (unitsHere.length === 0) {
+    ddvUnits.innerHTML = '<span class="ddv-no-intel">None</span>'
+  } else {
+    ddvUnits.innerHTML = unitsHere.map(u => {
+      const size = u.personIds.length
+      return `<div class="ddv-unit-row"><span class="ddv-unit-label">${u.label}</span><span>${size}p</span></div>`
+    }).join('')
+  }
+
+  // Loot
+  const ddvLoot = document.getElementById('ddv-loot')
+  if (!d.loot || d.loot.length === 0) {
+    ddvLoot.innerHTML = '<span class="ddv-no-intel">None</span>'
+  } else {
+    ddvLoot.innerHTML = d.loot.map(key => {
+      const item = ITEMS[key]
+      return `<div class="item-chip item-chip--${key}">${item?.name ?? key}</div>`
+    }).join('')
   }
 }
 
@@ -1572,7 +1568,7 @@ function tick() {
 function render() {
   tickDisplay.textContent = state.started ? `TICK ${String(state.tick).padStart(3, '0')}` : '—'
   timeDisplay.textContent = `DAY ${gameDay()} · ${gameTime()}`
-  updateRightPanel()
+  renderDistrictDetail()
   renderUnitsPanel()
   renderUnitDots()
   renderContactsPanel()

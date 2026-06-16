@@ -111,14 +111,6 @@
       </div>
       <div class="win-body" id="map-container">
 
-        <!-- District info bar (top) -->
-        <div id="district-info-bar">
-          <div id="info-name">—</div>
-          <div id="info-cat">CLICK A DISTRICT</div>
-          <div id="info-pop"></div>
-        </div>
-
-
         <!-- Map SVG -->
         <div id="map-svg-wrap">
         <select id="map-palette-select" class="game-select">
@@ -195,10 +187,23 @@
             </g>
 
             <g id="unit-dots" pointer-events="all"></g>
-            <g id="district-pin" pointer-events="none"></g>
 
           </svg>
         </div><!-- #map-svg-wrap -->
+
+        <!-- District detail sidebar -->
+        <div id="district-detail-panel">
+          <div id="ddv-name"></div>
+          <div id="ddv-cat"></div>
+          <div class="udv-section-header">STATUS</div>
+          <div id="ddv-status"></div>
+          <div class="udv-section-header">POPULATION</div>
+          <div id="ddv-pop"></div>
+          <div class="udv-section-header">UNITS HERE</div>
+          <div id="ddv-units"></div>
+          <div class="udv-section-header">LOOT</div>
+          <div id="ddv-loot"></div>
+        </div>
 
       </div>
     </div>
