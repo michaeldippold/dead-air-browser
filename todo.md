@@ -40,13 +40,11 @@ The core loop is operational. Key systems in place:
 ## v0.9.0 — Story & Stakes
 
 > Win/lose conditions are live. The remaining gap: the early game is too predictable and the story is thin.
-> Add multi-person units, narrative clock, and fill out the story beats.
+> Fill out narrative clock, caller arcs, and story beats.
 
-- [ ] **Multi-person units.** Refactor `initStartingUnits` to spawn mixed-composition squads (police + embedded radio civilian; fire + embedded medic; civilian + police protection). Each person rolls independently using weapon-based hit chance. `MAX_UNIT_SIZE = 4` cap is in place. Starting roster target: ~16–18 people across 9 units.
 - [ ] **Narrative clock scripts.** Time-based Director beats for: pre-dawn opening context (ambient COMMS), first midnight (tone shift), overnight atmosphere. Infrastructure ready — `{ type: 'game-time', hour: N }` triggers work. Non-interactive beats go directly in `main.js` as `director.register()`; interactive callers go in `scripts/`. Timer values are in ticks (5 game-mins each). Red herring / non-zombie early scripts to break up the info density.
-- [ ] **Notification / Alert system.** A popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Closeable via button or Escape. General enough that Director events, story beats, and district overrun can all push to it later.
+- [ ] **Caller silence on death.** When a scripted caller's person dies in the sim, their contact should go dark — final transmission tone-shifts (static, a cut-off mid-sentence line, or an ominous quiet), then the channel closes permanently. This is the core emotional beat of the design: "a cop absorbing hits while a civilian radios you, then going silent." Currently nothing happens to the contact when their person dies.
 - [ ] **Contacts response options — visibility fix.** The RESPOND choices are easy to miss. Make them obviously interactive before the Sandra Hill arc ships.
-- [ ] **COMMS quick fixes.** Static between messages should be occasional, not guaranteed every gap. Raise message cap from 5 to 10.
 - [ ] **Sandra Hill narrative arc.** Already in the ambient caller pool — promote to a full scripted arc.
 - [ ] **Rescue scenario.** A story beat that fires when a unit enters a district where a scripted caller is hiding. The `director.on('unit-enters', ...)` hook is already wired and has never been used.
 - [ ] **The Oblivious Guy** (levity caller). Calls about something completely unrelated. Does not believe in zombies. Resolves peacefully regardless of game state. No stakes — just tone balance.
@@ -57,9 +55,9 @@ The core loop is operational. Key systems in place:
 ## v1.0.0 — Presentable
 
 > 1.0 means a stranger who didn't build this can pick it up and understand it.
-> That requires onboarding, a readable map, a functional dispatch screen, and real district consequences.
+> That requires onboarding, a functional dispatch screen, real district consequences, and the narrative feeling alive.
 
-- [ ] **Map overhaul.** Click a district → detail panel inside the map window showing everything you know (label, category, unit count, loot present) and clearly marking what you *don't* know (zombie count = UNKNOWN until a radio-carrying unit is present). Legend is already gone; kill the CLICK A DISTRICT bar too — the detail panel replaces it. District category text in SVG switches to sans-serif. Blueprint map theme. Unit dots redesigned. Note: drag-from-dispatch-to-district-detail-roster is a natural future dispatch path, but deferred — map-polygon drop and the dropdown in unit detail are sufficient for now.
+- [ ] **Citizen groups forming mid-game.** As the situation escalates, survivor groups should contact dispatch and become dispatchable units — distinct from the scripted callers, these are emergent. A mid-game Director beat spawns a new civilian unit in a non-overrun residential district and opens a contact. Gives the player late-game roster relief and makes the world feel populated. Design doc calls this out as a core mechanic; not yet implemented.
 - [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive.
 - [ ] **Onboarding / Tutorial.** The first caller a new player gets is a scripted tutorial — walks through the interface before the real chaos starts. Panel spotlight mechanic: CSS class on `#desktop` dims all panels except the one being described. Tone: in-universe, interrupted by the real situation. Short; offer a skip on the start screen. Covers: map, contacts, dispatch roster, COMMS.
 - [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
