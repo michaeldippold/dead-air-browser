@@ -274,6 +274,7 @@ function spawnScript(scriptId) {
   state.contacts.push(contact)
 
   advanceNarrativeCaller(contact, 0)
+  showAlert('INCOMING TRANSMISSION', `${script.name} is requesting contact. Check CONTACTS to respond.`)
 }
 
 function advanceNarrativeCaller(contact, nodeId) {
@@ -366,8 +367,14 @@ function handlePersonDeath(person, districtId) {
   const unit = state.units[person.unitId]
   if (unit) {
     unit.personIds = unit.personIds.filter(id => id !== person.id)
-    if (unit.leaderPersonId === person.id) unit.leaderPersonId = unit.personIds[0] ?? null
-    if (unit.personIds.length === 0) disbandUnit(unit.id, districtId)
+    const wasLeader = unit.leaderPersonId === person.id
+    if (wasLeader) unit.leaderPersonId = unit.personIds[0] ?? null
+    if (unit.personIds.length === 0) {
+      disbandUnit(unit.id, districtId)
+    } else if (wasLeader) {
+      const newLeader = state.people[unit.leaderPersonId]
+      showAlert('LEADER DOWN', `${person.name} (${unit.label}) is KIA. ${newLeader?.name ?? 'Unit personnel'} has assumed command at ${d?.label ?? 'unknown location'}.`)
+    }
   }
   director.emit('person-death', { person, districtId })
   delete state.people[person.id]
