@@ -18,21 +18,22 @@
     <div class="start-field">
       <div class="field-label">SCENARIO</div>
       <select id="preset-select">
-        <option value="default">Default</option>
-        <option value="custom">Custom</option>
+        <option value="standard">Standard</option>
+        <option value="developer">Developer</option>
       </select>
     </div>
 
-    <div id="custom-zone-grid"></div>
-
-    <div class="start-field">
-      <div class="field-label">SPREAD RATE</div>
-      <div class="spread-row">
-        <button class="zone-btn" id="spread-dec">−</button>
-        <span id="spread-val">35</span><span class="spread-pct">%</span>
-        <button class="zone-btn" id="spread-inc">+</button>
-        <span class="spread-hint">chance per tick of outbreak crossing district lines</span>
+    <div id="developer-controls">
+      <div class="start-field">
+        <div class="field-label">SPREAD RATE</div>
+        <div class="spread-row">
+          <button class="zone-btn" id="spread-dec">−</button>
+          <span id="spread-val">35</span><span class="spread-pct">%</span>
+          <button class="zone-btn" id="spread-inc">+</button>
+          <span class="spread-hint">chance per tick of outbreak crossing district lines</span>
+        </div>
       </div>
+      <div id="custom-zone-grid"></div>
     </div>
 
     <button id="btn-start">START MISSION</button>
@@ -53,6 +54,7 @@
       <button id="btn-god-mode">GOD MODE: OFF</button>
       <button id="btn-test-win">WIN</button>
       <button id="btn-test-lose">LOSE</button>
+      <button id="btn-pause">PAUSE</button>
     </div>
   </header>
 
@@ -65,12 +67,7 @@
         <div class="win-controls"></div>
       </div>
       <div class="win-body" id="dispatch-container">
-        <div id="units-panel" data-card-layout="expanded">
-          <div id="dispatch-toolbar">
-            <button class="layout-btn layout-btn--active" data-layout="expanded">EXPANDED</button>
-            <button class="layout-btn" data-layout="condensed">CONDENSED</button>
-            <button class="layout-btn" data-layout="district">BY DISTRICT</button>
-          </div>
+        <div id="units-panel" data-card-layout="cards">
           <div id="units-view">
             <div id="units-list"></div>
           </div>
@@ -85,15 +82,23 @@
               <div id="udv-type"></div>
               <div id="udv-location"></div>
             </div>
-            <div id="udv-activity"></div>
-            <div id="udv-members"></div>
-            <div id="udv-items"></div>
+            <div class="udv-section-header">LOCATION</div>
             <div id="udv-dispatch">
-              <select id="udv-target"></select>
+              <select id="udv-target" class="game-select"></select>
               <button id="btn-udv-send">DISPATCH</button>
             </div>
+            <div class="udv-section-header">CURRENTLY DOING</div>
+            <div id="udv-activity"></div>
+            <div class="udv-section-header">ROSTER</div>
+            <div id="udv-members"></div>
+            <div class="udv-section-header">ITEMS</div>
+            <div id="udv-items"></div>
           </div>
         </div>
+        <select id="dispatch-layout-select" class="game-select">
+          <option value="cards">Cards</option>
+          <option value="badges">Badges</option>
+        </select>
       </div>
     </div>
 
@@ -112,18 +117,10 @@
           <div id="info-pop"></div>
         </div>
 
-        <!-- Legend bar (bottom) -->
-        <div id="map-legend-bar">
-          <div class="legend-row" data-cat="residential"><span class="swatch"></span>Residential</div>
-          <div class="legend-row" data-cat="government"><span class="swatch"></span>Government</div>
-          <div class="legend-row" data-cat="medical"><span class="swatch"></span>Medical</div>
-          <div class="legend-row" data-cat="retail"><span class="swatch"></span>Retail</div>
-          <div class="legend-row" data-cat="industrial"><span class="swatch"></span>Industrial</div>
-        </div>
 
         <!-- Map SVG -->
         <div id="map-svg-wrap">
-        <select id="map-palette-select">
+        <select id="map-palette-select" class="game-select">
           <option value="tactical">Tactical Dark</option>
           <option value="dusty">Post-it</option>
           <option value="paper">Paper Map</option>
@@ -217,7 +214,6 @@
       <div class="win-body" id="contacts-panel">
 
         <div id="contacts-view">
-          <div class="panel-label">CONTACTS</div>
           <div id="contacts-list"></div>
         </div>
 
@@ -345,10 +341,10 @@
     <button class="task-btn" data-win="items">ITEMS</button>
     <div style="flex:1"></div>
     <label class="taskbar-label" for="theme-select">THEME</label>
-    <select id="theme-select">
-      <option value="terminal-green">Terminal Green</option>
+    <select id="theme-select" class="game-select">
+      <option value="terminal-green" selected>Terminal Green</option>
       <option value="morning-coffee">Morning Coffee</option>
-      <option value="midnight-purple" selected>Midnight Purple</option>
+      <option value="midnight-purple">Midnight Purple</option>
       <option value="cyberpunk">Cyberpunk</option>
       <option value="windows-95">Windows 95</option>
       <option value="blood-moon">Blood Moon</option>

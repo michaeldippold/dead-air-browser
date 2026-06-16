@@ -15,11 +15,18 @@ const GAME_START_HOUR = 9   // game world begins at 09:00 Day 1
 const GAME_START_DAY  = 1
 const MINS_PER_TICK   = 5   // each tick advances game clock by 5 minutes
 
-const PRESETS = {
-  'default': { label: 'Default', seed: { 'millbrook': 15 } },
+const SCENARIOS = {
+  standard: {
+    numDistricts: 3,
+    totalZombies: 12,
+    distribution: 'even',   // 'even' | 'linear' | 'all-in-one'
+    spreadChance: 0.35,
+    delay:        0,        // reserved: ticks before first zombie placement
+  },
 }
 
 let tickInterval = null
+let gamePaused   = false
 
 // ── ITEMS ──
 
@@ -370,6 +377,7 @@ function handlePersonDeath(person, districtId) {
 function disbandUnit(unitId, districtId) {
   const d = state.districts[districtId]
   if (d) d.unitIds = d.unitIds.filter(id => id !== unitId)
+  state.unitsLost++
   director.emit('unit-disbanded', { unitId, districtId })
   delete state.units[unitId]
 }
@@ -379,9 +387,9 @@ function disbandUnit(unitId, districtId) {
 const THREAT_MOD = { police: 3, fire: 2, civilian: 1 }
 
 function getHitChance(person) {
-  const base = person.items.includes('gun')      ? 0.70
-             : person.items.includes('fire-axe') ? 0.65
-             : 0.50
+  const base = person.items.includes('gun')      ? 0.50
+             : person.items.includes('fire-axe') ? 0.25
+             : 0.10
   const ws = woundState(person)
   if (ws === 'wounded')  return base * 0.80
   if (ws === 'critical') return base * 0.40
@@ -472,6 +480,7 @@ const state = {
   started:         false,
   won:             false,
   lost:            false,
+  unitsLost:       0,
   godMode:         false,
   selected:        null,
   selectedUnit:    null,
@@ -501,24 +510,51 @@ const state = {
 let _unitCounter = 0
 
 ;(function initStartingUnits() {
-  function spawn(role, items, districtId) {
-    const label  = `Unit ${++_unitCounter}`
-    const person = makePerson(nextPersonName(role), role, items)
-    const unit   = makeUnit(label, districtId, [person.id])
-    person.unitId = unit.id
-    state.people[person.id] = person
-    state.units[unit.id]    = unit
+  // members: [{ role, items }, ...] — first entry is the leader
+  function spawnUnit(districtId, members) {
+    const label   = `Unit ${++_unitCounter}`
+    const persons = members.map(({ role, items }) => makePerson(nextPersonName(role), role, items))
+    const unit    = makeUnit(label, districtId, persons.map(p => p.id))
+    persons.forEach(p => { p.unitId = unit.id; state.people[p.id] = p })
+    state.units[unit.id] = unit
     state.districts[districtId].unitIds.push(unit.id)
   }
-  spawn('police',   ['gun'],               'police-hq')
-  spawn('police',   ['gun'],               'police-hq')
-  spawn('police',   ['gun'],               'police-hq')
-  spawn('fire',     ['fire-axe'],          'fire-station')
-  spawn('fire',     ['fire-axe'],          'fire-station')
-  spawn('fire',     ['fire-axe'],          'fire-station')
-  spawn('civilian', ['first-aid', 'radio'], 'city-hall')
-  spawn('civilian', ['first-aid', 'radio'], 'city-hall')
-  spawn('civilian', ['first-aid'],          'city-hall')
+
+  // Police HQ — 2 units: 2 police + 1 embedded civilian
+  spawnUnit('police-hq', [
+    { role: 'police',   items: ['gun']       },
+    { role: 'police',   items: ['gun']       },
+    { role: 'civilian', items: ['radio']     },
+  ])
+  spawnUnit('police-hq', [
+    { role: 'police',   items: ['gun']       },
+    { role: 'police',   items: ['gun']       },
+    { role: 'civilian', items: ['first-aid'] },
+  ])
+
+  // Fire Station — 2 units: 2 fire + 1 embedded civilian
+  spawnUnit('fire-station', [
+    { role: 'fire',     items: ['fire-axe']  },
+    { role: 'fire',     items: ['fire-axe']  },
+    { role: 'civilian', items: ['first-aid'] },
+  ])
+  spawnUnit('fire-station', [
+    { role: 'fire',     items: ['fire-axe']  },
+    { role: 'fire',     items: ['fire-axe']  },
+    { role: 'civilian', items: ['radio']     },
+  ])
+
+  // City Hall — 2 units: 2 civilian + 1 police for protection
+  spawnUnit('city-hall', [
+    { role: 'civilian', items: ['first-aid', 'radio'] },
+    { role: 'civilian', items: ['first-aid']          },
+    { role: 'police',   items: ['gun']                },
+  ])
+  spawnUnit('city-hall', [
+    { role: 'civilian', items: ['radio']   },
+    { role: 'civilian', items: ['rations'] },
+    { role: 'police',   items: ['gun']     },
+  ])
 })()
 
 const adjacency = {
@@ -759,7 +795,7 @@ function toggleMinimize(id) {
 
 // ── RADIO / COMMS ──
 
-const RADIO_MAX = 5
+const RADIO_MAX = 10
 const RADIO_TTL = 10
 const STATIC_TAGS = ['[wzzt]', '[szzt]', '[krrk]', '[fssh]']
 let radioFeed = []
@@ -770,7 +806,7 @@ function crackle() {
 
 function broadcastEvent(text) {
   if (!state.started) return
-  radioFeed.unshift({ text, tick: state.tick, time: gameTime() })
+  radioFeed.unshift({ text, tick: state.tick, time: gameTime(), sep: Math.random() < 0.35 })
   radioFeed = radioFeed.filter(m => state.tick - m.tick < RADIO_TTL)
   if (radioFeed.length > RADIO_MAX) radioFeed.length = RADIO_MAX
   renderRadio()
@@ -786,7 +822,7 @@ function renderRadio() {
     const location = locMatch ? locMatch[1] : null
     const body     = locMatch ? locMatch[2] : m.text
     const locHtml  = location ? `<span class="radio-location">[${location}]</span>` : ''
-    const sep      = i < radioFeed.length - 1
+    const sep      = i < radioFeed.length - 1 && m.sep
       ? `<div class="radio-sep">${RADIO_STATIC_SEPS[i % RADIO_STATIC_SEPS.length]}</div>`
       : ''
     return `<div class="radio-msg"><span class="radio-time">[${m.time}]</span>${locHtml}<span class="radio-body">${body}</span></div>${sep}`
@@ -929,13 +965,13 @@ function setUnitsView(view)    { unitsPanel.dataset.view    = view || '' }
 function setContactsView(view) { contactsPanel.dataset.view = view || '' }
 
 unitsList.addEventListener('click', e => {
-  const card = e.target.closest('.roster-card')
+  const card = e.target.closest('[data-unit-id]')
   if (!card) return
   showUnitDetail(card.dataset.unitId)
 })
 
 unitsList.addEventListener('mouseover', e => {
-  const card = e.target.closest('.roster-card')
+  const card = e.target.closest('[data-unit-id]')
   if (!card) return
   document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
   const poly = document.getElementById(card.dataset.districtId)
@@ -963,7 +999,6 @@ function renderUnitDetail(unit) {
   udvLocation.textContent = d?.label ?? '—'
 
   udvActivity.innerHTML = `
-    <div class="activity-label">ACTIVITY</div>
     <div class="activity-btns">
       ${['engage', 'hide', 'scavenge'].map(a =>
         `<button class="activity-btn${unit.activity === a ? ' activity-btn--active' : ''}" data-activity="${a}">${a.toUpperCase()}</button>`
@@ -983,20 +1018,17 @@ function renderUnitDetail(unit) {
     const ws       = woundState(p)
     const isLeader = p.id === unit.leaderPersonId
     return `<div class="udv-member">
-      <span class="member-dot member-dot--${p.role}"></span>
-      ${isLeader ? `<span class="leader-ws-star ws-${ws}">★</span>` : '<span class="udv-member-spacer"></span>'}
+      ${isLeader ? leaderStar(p.role, ws) : `<span class="member-dot member-dot--${p.role}"></span>`}
       <span class="udv-member-name">${p.name}</span>
       <span class="udv-member-role">${p.role.toUpperCase()}</span>
       <span class="udv-ws-badge ws-${ws}">${ws.toUpperCase()}</span>
     </div>`
   }).join('')
 
-  udvTarget.innerHTML = '<option value="">— select destination —</option>' +
-    Object.entries(state.districts)
-      .filter(([nid]) => nid !== unit.districtId)
-      .sort(([, a], [, b]) => a.label.localeCompare(b.label))
-      .map(([nid, nd]) => `<option value="${nid}">${nd.label}</option>`)
-      .join('')
+  udvTarget.innerHTML = Object.entries(state.districts)
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([nid, nd]) => `<option value="${nid}"${nid === unit.districtId ? ' selected' : ''}>${nd.label}</option>`)
+    .join('')
 }
 
 function hideUnitDetail() {
@@ -1253,7 +1285,8 @@ function dispatchUnit(unitId, destId) {
 btnUdvSend.addEventListener('click', () => {
   if (!state.selectedUnit) return
   const destId = udvTarget.value
-  if (!destId) return
+  const unit = state.units[state.selectedUnit.unitId]
+  if (!destId || !unit || destId === unit.districtId) return
   dispatchUnit(state.selectedUnit.unitId, destId)
   hideUnitDetail()
 })
@@ -1261,7 +1294,7 @@ btnUdvSend.addEventListener('click', () => {
 // ── DRAG-AND-DROP DISPATCH ──
 
 unitsList.addEventListener('dragstart', e => {
-  const card = e.target.closest('.roster-card')
+  const card = e.target.closest('[data-unit-id]')
   if (!card) return
   e.dataTransfer.setData('text/plain', card.dataset.unitId)
   e.dataTransfer.effectAllowed = 'move'
@@ -1292,38 +1325,62 @@ document.querySelectorAll('#districts polygon').forEach(poly => {
 
 // ── SIMULATION ──
 
-const LOSE_FLAVOR = 'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.'
-const WIN_FLAVOR  = 'At some point in the early hours, the last confirmed contact went down and the radio stopped reporting new movement. Nobody believed it right away — the instinct was to wait for the next transmission, the next district going dark. But it didn\'t come. The city held. Not cleanly, not without cost, but it held. The logs were reviewed for days afterward, trying to identify the decision that made the difference. Nobody could agree on which one it was. Society could begin to rebuild. For now.'
+const FLAVOR = {
+  winDawn:      'At some point in the early hours, the radio went quiet in a way that was different from before. Not the quiet of a district going dark — the quiet of nothing new moving. Dawn came without an announcement. The city held through the night. Not every district, not without cost, but enough. The logs were reviewed for days afterward, looking for the decision that made the difference. Nobody could agree on which one it was.',
+  loseUnits:    'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.',
+  loseOverrun:  'The tipping point was never a single moment. Districts fell one by one, each one making the next easier to lose. By the time ten were gone, the math had already finished the argument. The last transmissions were just confirmation of what the map had been saying for hours. The city is gone. The dispatcher is still at the console.',
+  loseHope:     'Four units. That\'s the number that broke it. Each disbandment was a decision — someone\'s last transmission, someone\'s equipment going silent. After the fourth, the weight of the radio traffic changed. It wasn\'t about the city anymore. It was about how long the city had left. The dispatcher closed the channel at 23:12 and didn\'t reopen it.',
+}
 
-function checkLose() {
-  if (state.won || state.lost) return
-  const totalUnits = Object.keys(state.units).length
-  if (totalUnits > 0) return
+const OVERRUN_THRESHOLD    = 0.75  // zombie ratio at which a district counts as lost for losecon
+const UNITS_LOST_LIMIT     = 4
+const DISTRICTS_LOST_LIMIT = 10
+const MAX_UNIT_SIZE        = 4     // leader + 3 members max; enforced when adding survivors
 
-  state.lost = true
-  if (tickInterval) clearInterval(tickInterval)
-
-  document.getElementById('win-title').textContent        = 'ALL UNITS LOST'
+function showEndScreen(title, restartLabel, flavor) {
+  if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
+  document.getElementById('win-title').textContent        = title
   document.getElementById('win-ticks').textContent        = `${state.tick} TICKS`
   document.getElementById('win-time').textContent         = `DAY ${gameDay()} · ${gameTime()}`
-  document.getElementById('btn-win-restart').textContent  = 'TRY AGAIN'
-  document.getElementById('win-flavor').textContent       = LOSE_FLAVOR
+  document.getElementById('btn-win-restart').textContent  = restartLabel
+  document.getElementById('win-flavor').textContent       = flavor
   document.getElementById('win-overlay').classList.add('visible')
 }
 
+function checkLose() {
+  if (state.won || state.lost) return
+
+  // Condition 1 — all units dead
+  if (Object.keys(state.units).length === 0) {
+    state.lost = true
+    showEndScreen('ALL UNITS LOST', 'TRY AGAIN', FLAVOR.loseUnits)
+    return
+  }
+
+  // Condition 2 — 10 of 14 districts functionally overrun (≥75% zombie ratio)
+  const overrunCount = Object.values(state.districts).filter(d => {
+    const total = d.humans + d.zombies
+    return total > 0 && d.zombies / total >= OVERRUN_THRESHOLD
+  }).length
+  if (overrunCount >= DISTRICTS_LOST_LIMIT) {
+    state.lost = true
+    showEndScreen('CITY FALLEN', 'TRY AGAIN', FLAVOR.loseOverrun)
+    return
+  }
+
+  // Condition 3 — too many units lost to combat
+  if (state.unitsLost >= UNITS_LOST_LIMIT) {
+    state.lost = true
+    showEndScreen('SITUATION UNCONTAINABLE', 'TRY AGAIN', FLAVOR.loseHope)
+  }
+}
+
 function checkWin() {
-  if (state.won) return
-  const totalZombies = Object.values(state.districts).reduce((sum, d) => sum + d.zombies, 0)
-  if (totalZombies > 0) return
+  if (state.won || state.lost) return
+  if (state.tick < ticksFor(30)) return   // dawn = 6am next day, 252 ticks
 
   state.won = true
-  if (tickInterval) clearInterval(tickInterval)
-
-  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
-  document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
-  document.getElementById('win-flavor').textContent      = WIN_FLAVOR
-  document.getElementById('win-overlay').classList.add('visible')
+  showEndScreen('OUTBREAK CONTAINED', 'PLAY AGAIN', FLAVOR.winDawn)
 }
 
 function tick() {
@@ -1395,7 +1452,7 @@ function tick() {
     const persons = personsInDistrict(districtId)
     if (persons.length === 0) continue
 
-    // Attack phase — engage units only; hide/scavenge and sim:false persons do not fight
+    // Attack phase — engage units only; each person rolls their weapon's hit chance
     for (const unit of districtUnits) {
       if (unit.activity !== 'engage') continue
       for (const person of personsInUnit(unit.id)) {
@@ -1426,11 +1483,11 @@ function tick() {
     // Medic phase — civilians with first-aid heal the most critical person
     const postCombat = personsInDistrict(districtId)
     const medics     = postCombat.filter(p => p.role === 'civilian' && p.items.includes('first-aid'))
-    const needHeal   = postCombat.filter(p => p.health < 70 && p.health > 0).sort((a, b) => a.health - b.health)
+    const needHeal   = postCombat.filter(p => p.health <= 50 && p.health > 0).sort((a, b) => a.health - b.health)
     for (const medic of medics) {
       if (needHeal.length === 0) break
       const patient = needHeal.shift()
-      patient.health = Math.min(100, patient.health + 30)
+      patient.health = Math.min(100, patient.health + 20)
       medic.items.splice(medic.items.indexOf('first-aid'), 1)
     }
 
@@ -1488,99 +1545,75 @@ const PORTRAIT_SVG = `<svg viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg
   <path d="M8,72 Q8,44 30,40 Q52,44 52,72Z" fill="rgba(8,8,10,0.40)"/>
 </svg>`
 
+const STAR_POINTS = '7,1 8.5,5 12.7,5.1 9.4,7.8 10.5,11.9 7,9.4 3.5,11.9 4.6,7.8 1.3,5.1 5.5,5'
+function leaderStar(role, ws) {
+  return `<svg class="leader-star ws-${ws}" data-role="${role}" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><polygon points="${STAR_POINTS}"/></svg>`
+}
+
 function renderUnitsPanel() {
   const units = Object.values(state.units)
-
   if (units.length === 0) {
     unitsList.innerHTML = '<div class="no-units">No active units</div>'
     return
   }
 
-  const layout = document.getElementById('units-panel').dataset.cardLayout || 'expanded'
-  if (layout === 'district') { renderUnitsByDistrict(units); return }
-
-  unitsList.innerHTML = units.map(unit => {
-    const leader  = state.people[unit.leaderPersonId]
-    if (!leader) return ''
-    const persons = personsInUnit(unit.id)
-    const allItems = [...new Set(persons.flatMap(p => p.items))]
-    const itemsHtml = allItems.map(k =>
-      `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
-    ).join('')
-
-    const leaderWs  = woundState(leader)
-    const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
-    const membersRow = nonLeaders.length === 0
-      ? `<div class="roster-alone">LONE OPERATOR</div>`
-      : `<div class="roster-members-dots">${
-          nonLeaders.map(p =>
-            `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
-          ).join('')
-        }</div>`
-
-    const activityBadge = `<span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>`
-
-    return `<div class="roster-card" draggable="true" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
-      <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
-      <div class="roster-card-body">
-        <div class="roster-leader-name"><span class="leader-ws-star ws-${leaderWs}">★</span><span class="member-dot member-dot--${leader.role}"></span><span class="leader-name-text">${leader.name.replace(/^(\w)(\w+)\s/, '$1. ')}</span></div>
-        <div class="roster-unit-label">${unit.label}${activityBadge}</div>
-        ${membersRow}
-        ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
-      </div>
-    </div>`
-  }).join('')
-}
-
-function renderUnitsByDistrict(units) {
+  const layout = document.getElementById('units-panel').dataset.cardLayout || 'cards'
   const byDistrict = {}
   for (const unit of units) {
     if (!byDistrict[unit.districtId]) byDistrict[unit.districtId] = []
     byDistrict[unit.districtId].push(unit)
   }
-
-  const sortedDistricts = Object.keys(byDistrict).sort((a, b) =>
+  const sorted = Object.keys(byDistrict).sort((a, b) =>
     (state.districts[a]?.label ?? a).localeCompare(state.districts[b]?.label ?? b)
   )
 
-  unitsList.innerHTML = sortedDistricts.map(districtId => {
-    const d = state.districts[districtId]
-    const rows = byDistrict[districtId].map(unit => {
-      const leader  = state.people[unit.leaderPersonId]
-      if (!leader) return ''
-      const persons    = personsInUnit(unit.id)
-      const allItems   = [...new Set(persons.flatMap(p => p.items))]
-      const itemsHtml  = allItems.map(k =>
-        `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
-      ).join('')
-      const leaderWs   = woundState(leader)
-      const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
-      const membersHtml = nonLeaders.length === 0
-        ? `<span class="roster-alone">LONE OPERATOR</span>`
-        : nonLeaders.map(p =>
-            `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
-          ).join('')
-
-      return `<div class="roster-card roster-card--row" draggable="true" data-unit-id="${unit.id}" data-district-id="${districtId}">
-        <div class="roster-row-top">
-          <span class="leader-ws-star ws-${leaderWs}">★</span>
-          <span class="member-dot member-dot--${leader.role}"></span>
-          <span class="roster-row-name">${leader.name.replace(/^(\w)(\w+)\s/, '$1. ')}</span>
-          <span class="roster-row-unit">${unit.label}</span>
-          <span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>
-        </div>
-        <div class="roster-row-bottom">
-          <div class="roster-row-members">${membersHtml}</div>
-          ${itemsHtml ? `<div class="roster-row-items">${itemsHtml}</div>` : ''}
-        </div>
-      </div>`
-    }).join('')
-
+  unitsList.innerHTML = sorted.map(districtId => {
+    const d        = state.districts[districtId]
+    const inner    = byDistrict[districtId].map(u => renderUnitCard(u, layout)).join('')
+    const wrapCls  = 'district-cards'
     return `<div class="district-group">
       <div class="district-group-header">${d?.label ?? districtId}</div>
-      ${rows}
+      <div class="${wrapCls}">${inner}</div>
     </div>`
   }).join('')
+}
+
+function renderUnitCard(unit, layout) {
+  const leader     = state.people[unit.leaderPersonId]
+  if (!leader) return ''
+  const persons    = personsInUnit(unit.id)
+  const allItems   = [...new Set(persons.flatMap(p => p.items))]
+  const itemsHtml  = allItems.map(k =>
+    `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
+  ).join('')
+  const leaderWs   = woundState(leader)
+  const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
+  const memberDots = nonLeaders.map(p =>
+    `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
+  ).join('')
+  const actBadge   = `<span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>`
+  const shortName  = leader.name.replace(/^(\w)(\w+)\s/, '$1. ')
+
+  if (layout === 'cards' || layout === 'badges') {
+    const membersEl = nonLeaders.length > 0
+      ? `<div class="roster-members-dots">${memberDots}</div>`
+      : `<div class="roster-alone">LONE OPERATOR</div>`
+    return `<div class="roster-card" draggable="true" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
+      <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
+      <div class="roster-card-body">
+        <div class="roster-card-headline">
+          <span class="roster-unit-label">${unit.label}</span>
+          ${actBadge}
+        </div>
+        <div class="roster-leader-row">
+          <div class="roster-leader-name">${leaderStar(leader.role, leaderWs)}<span class="leader-name-text">${shortName}</span></div>
+          ${membersEl}
+        </div>
+        ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
+      </div>
+    </div>`
+  }
+
 }
 
 function renderUnitDots() {
@@ -1675,53 +1708,78 @@ function renderGodPanel() {
   table.innerHTML = rows
 }
 
-// Dispatch toolbar — EXPANDED / CONDENSED / BY DISTRICT switcher
-document.querySelectorAll('.layout-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const panel  = document.getElementById('units-panel')
-    const layout = btn.dataset.layout
-    panel.dataset.cardLayout = layout
-    document.querySelectorAll('.layout-btn').forEach(b =>
-      b.classList.toggle('layout-btn--active', b.dataset.layout === layout)
-    )
-    renderUnitsPanel()
-  })
+document.getElementById('dispatch-layout-select').addEventListener('change', e => {
+  document.getElementById('units-panel').dataset.cardLayout = e.target.value
+  renderUnitsPanel()
 })
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
 document.getElementById('btn-reset-ui').addEventListener('click', resetLayout)
 
+document.getElementById('btn-pause').addEventListener('click', () => {
+  if (state.won || state.lost) return
+  gamePaused = !gamePaused
+  if (gamePaused) {
+    clearInterval(tickInterval)
+    tickInterval = null
+  } else {
+    tickInterval = setInterval(tick, TICK_MS)
+  }
+  document.getElementById('btn-pause').textContent = gamePaused ? 'RESUME' : 'PAUSE'
+})
+
 document.getElementById('btn-test-win').addEventListener('click', () => {
   if (state.won || state.lost) return
   state.won = true
-  if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
-  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
-  document.getElementById('btn-win-restart').textContent = 'PLAY AGAIN'
-  document.getElementById('win-title').textContent       = 'OUTBREAK CONTAINED'
-  document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${WIN_FLAVOR}`
-  document.getElementById('win-overlay').classList.add('visible')
+  showEndScreen('OUTBREAK CONTAINED', 'PLAY AGAIN', FLAVOR.winDawn)
+  document.getElementById('win-flavor').innerHTML =
+    `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${FLAVOR.winDawn}`
 })
 
 document.getElementById('btn-test-lose').addEventListener('click', () => {
   if (state.won || state.lost) return
   state.lost = true
-  if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
-  document.getElementById('win-title').textContent       = 'ALL UNITS LOST'
-  document.getElementById('win-ticks').textContent       = `${state.tick} TICKS`
-  document.getElementById('win-time').textContent        = `DAY ${gameDay()} · ${gameTime()}`
-  document.getElementById('btn-win-restart').textContent = 'TRY AGAIN'
-  document.getElementById('win-flavor').innerHTML        = `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${LOSE_FLAVOR}`
-  document.getElementById('win-overlay').classList.add('visible')
+  showEndScreen('ALL UNITS LOST', 'TRY AGAIN', FLAVOR.loseUnits)
+  document.getElementById('win-flavor').innerHTML =
+    `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${FLAVOR.loseUnits}`
 })
 
 // ── START SCREEN ──
 
-const customCounts = {}
+function seedFromScenario(scenario) {
+  const { numDistricts, totalZombies, distribution } = scenario
+  spreadChance = scenario.spreadChance
+
+  const candidates = Object.entries(state.districts)
+    .filter(([, d]) => d.category !== 'government')
+    .map(([id]) => id)
+
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
+  }
+
+  const chosen = candidates.slice(0, Math.min(numDistricts, candidates.length))
+
+  if (distribution === 'even') {
+    const base      = Math.floor(totalZombies / chosen.length)
+    const remainder = totalZombies % chosen.length
+    chosen.forEach((id, i) => { state.districts[id].zombies = base + (i < remainder ? 1 : 0) })
+  } else if (distribution === 'linear') {
+    const n     = chosen.length
+    const total = n * (n + 1) / 2
+    chosen.forEach((id, i) => { state.districts[id].zombies = Math.round(totalZombies * (n - i) / total) })
+  } else if (distribution === 'all-in-one') {
+    state.districts[chosen[0]].zombies = totalZombies
+  }
+}
+
+const customCounts      = {}
 Object.keys(state.districts).forEach(id => customCounts[id] = 0)
 
-const presetSelect   = document.getElementById('preset-select')
-const customZoneGrid = document.getElementById('custom-zone-grid')
+const presetSelect       = document.getElementById('preset-select')
+const customZoneGrid     = document.getElementById('custom-zone-grid')
+const developerControls  = document.getElementById('developer-controls')
 
 function renderCustomGrid() {
   customZoneGrid.innerHTML = Object.entries(state.districts)
@@ -1749,12 +1807,7 @@ customZoneGrid.addEventListener('click', e => {
 })
 
 presetSelect.addEventListener('change', () => {
-  if (presetSelect.value === 'custom') {
-    const defaultSeed = PRESETS['default']?.seed ?? {}
-    Object.keys(customCounts).forEach(id => { customCounts[id] = defaultSeed[id] ?? 0 })
-    renderCustomGrid()
-  }
-  customZoneGrid.classList.toggle('visible', presetSelect.value === 'custom')
+  developerControls.classList.toggle('visible', presetSelect.value === 'developer')
 })
 
 document.getElementById('spread-dec').addEventListener('click', () => {
@@ -1769,14 +1822,12 @@ document.getElementById('spread-inc').addEventListener('click', () => {
 
 function startGame() {
   state.started = true
-  const value = presetSelect.value
-  if (value === 'custom') {
+  if (presetSelect.value === 'developer') {
     Object.entries(customCounts).forEach(([id, n]) => {
       if (n > 0) state.districts[id].zombies = n
     })
   } else {
-    const seed = PRESETS[value]?.seed ?? {}
-    Object.entries(seed).forEach(([id, n]) => { state.districts[id].zombies = n })
+    seedFromScenario(SCENARIOS[presetSelect.value] ?? SCENARIOS.standard)
   }
   document.getElementById('start-screen').classList.remove('visible')
   tickInterval = setInterval(tick, TICK_MS)
@@ -1807,10 +1858,10 @@ const GLOBAL_THEMES = {
     '--winbtn-min-bg':'#0f1a0f',
     '--chat-npc-bg':'#122012','--chat-npc-border':'#1e381e','--chat-npc-color':'#9ee89e',
     '--chat-player-bg':'#0e1e30','--chat-player-border':'#1a3050','--chat-player-color':'#7ac4e8',
-    '--radio-bg':'#0c0a02','--radio-border':'#786858','--radio-chrome':'#0e0c0a',
-    '--radio-win-border':'#8a7a60','--radio-title-color':'#c8c0a0',
+    '--radio-bg':'#060b06','--radio-border':'#1a2e1a','--radio-chrome':'#0e180e',
+    '--radio-win-border':'#2e4e30','--radio-title-color':'#7ed87e',
     '--radio-carrier':'#5a8e5a','--radio-freq':'#2e4e2e',
-    '--radio-t0':'#e0b840','--radio-t1':'#b08828','--radio-t2':'#786020','--radio-noise':'#302810',
+    '--radio-t0':'#a8eaa8','--radio-t1':'#7ed87e','--radio-t2':'#4a7a4a','--radio-noise':'#1a2e1a',
     '--status-lost':'#c84040','--leader-star':'#e8c030','--lone-operator':'#904040','--radio-btn-hover-bg':'#181410',
   },
 
@@ -1940,82 +1991,11 @@ function setGlobalTheme(id) {
   if (!vars) return
   _allGlobalThemeKeys.forEach(k => document.documentElement.style.removeProperty(k))
   Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
-  applyWindowThemes()
   localStorage.setItem('dispatch-theme', id)
   const sel = document.getElementById('theme-select')
   if (sel && sel.value !== id) sel.value = id
 }
 
-const WINDOW_THEMES = {
-  'default': {},  // inherits base theme from :root — no overrides
-
-  'morning-coffee': {
-    '--bg':                   '#0c0a02',
-    '--surface':              '#111008',
-    '--chrome-raised':        '#0e0c0a',
-    '--border':               '#786858',
-    '--border-sub':           '#4a3c2a',
-    '--border-active':        '#9a8a6a',
-    '--text':                 '#c8c0a0',
-    '--text-dim':             '#a09070',
-    '--text-dimmer':          '#605040',
-    '--accent':               '#e8d8a0',
-    '--win-border':           '#8a7a60',
-    '--titlebar-bg':          '#0e0c0a',
-    '--titlebar-bg-active':   '#181610',
-    '--win-title-color':      '#c8c0a0',
-    '--winbtn-bg':            '#140e06',
-    '--winbtn-border':        '#6a5a40',
-    '--winbtn-color':         '#b0a070',
-    '--winbtn-hover-bg':      '#201810',
-    '--winbtn-hover-border':  '#8a7a58',
-    '--winbtn-close-bg':      '#1e0c08',
-    '--winbtn-close-color':   '#c04030',
-    '--winbtn-close-border':  '#5a2018',
-    '--btn-bg':               '#140e06',
-    '--btn-bg-hover':         '#201a10',
-    '--btn-bg-active':        '#1c1610',
-    '--btn-border':           '#6a5a40',
-    '--btn-border-hover':     '#8a7a58',
-    '--btn-border-active':    '#9a8a68',
-    '--btn-color':            '#b0a070',
-    '--btn-color-active':     '#d0c090',
-    '--radio-btn-hover-bg':   '#181410',
-    '--radio-bg':             '#0c0a02',
-    '--radio-border':         '#786858',
-    '--radio-chrome':         '#0e0c0a',
-    '--radio-win-border':     '#8a7a60',
-    '--radio-title-color':    '#c8c0a0',
-    '--radio-carrier':        '#7a8a5a',
-    '--radio-freq':           '#4a4030',
-  },
-}
-
-// Which theme each window uses. 'default' = inherit from base :root theme.
-const WINDOW_THEME_MAP = {
-  'win-contacts': 'default',
-  'win-dispatch': 'default',
-  'win-map':      'default',
-  'win-radio':    'default',
-  'win-items':    'default',
-  'win-sitrep':   'default',
-}
-
-const _allWindowThemeKeys = new Set(
-  Object.values(WINDOW_THEMES).flatMap(t => Object.keys(t))
-)
-
-function applyWindowThemes() {
-  for (const [winId, themeId] of Object.entries(WINDOW_THEME_MAP)) {
-    const el   = document.getElementById(winId)
-    const vars = WINDOW_THEMES[themeId] ?? {}
-    if (!el) continue
-    _allWindowThemeKeys.forEach(k => el.style.removeProperty(k))
-    Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v))
-  }
-}
-
-applyWindowThemes()
 setGlobalTheme(localStorage.getItem('dispatch-theme') || 'terminal-green')
 document.getElementById('theme-select').addEventListener('change', e => setGlobalTheme(e.target.value))
 

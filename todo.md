@@ -31,33 +31,45 @@ The core loop is operational. Key systems in place:
 - **Map** — SVG districts, Paper Map palette, unit dots by leader role, click to open unit detail
 - **Roster** — EXPANDED / CONDENSED / BY DISTRICT views, activity badges, drag-and-drop dispatch
 - **Theme system** — 6 palettes (Terminal Green, Morning Coffee, Midnight Purple, Cyberpunk, Windows 95, Blood Moon), live switcher, localStorage persistence
+- **Difficulty system** — `SCENARIOS` object with `numDistricts`, `totalZombies`, `distribution`, `spreadChance`, `delay` fields; `seedFromScenario()` picks random non-government districts with Fisher-Yates shuffle; Standard / Developer modes; spread rate and zone grid are Developer-only
+- **Code cleanup** — dead `.task-btn--utility` CSS removed; `WINDOW_THEMES` per-window override system removed; terminal green COMMS panel now inherits the global theme instead of frozen coffee colors; First Aid Kit code aligned with description (50 HP threshold, 20 HP restore)
 
 ---
 
 ## v0.9.0 — Story & Stakes
 
-> The gap that matters most: there is no win condition. Players have no destination.
-> Fix that, add stakes to events the player currently misses, and fill out the story.
+> The gap that matters most: the early game is too predictable and there are no real stakes.
+> Fix win/lose conditions, add multi-person units, narrative clock, and fill out the story.
 
-- [ ] **Win condition — survive to dawn.** Pick a tick count that represents first light. Wire a win-state check into the Director. The win screen should feel like a rumor that turned out to be true.
+- [ ] **Win condition — survive to dawn (6am, 252 ticks).** Replace impossible all-zombies-gone check in `checkWin()` with `state.tick >= ticksFor(30)`. Wire a win-state check at the start of each tick. The win screen exists; the condition just needs replacing.
+- [ ] **Lose condition 2 — city overrun.** 10 of 14 districts reach ≥75% zombie ratio. Distinct COMMS flavor and overlay title. `checkLose()` already exists; add a second branch.
+- [ ] **Lose condition 3 — too many units lost.** Track `state.unitsLost` counter in `disbandUnit()`; lose at 4. "The dispatcher loses hope." Distinct flavor text.
+- [ ] **Multi-person units.** Refactor `initStartingUnits` to spawn mixed-composition squads (police + embedded radio civilian; fire + embedded medic; civilian + police protection). Leader deals 1× damage; non-leaders roll at 0.5× effectiveness. Suppression stays per-unit, unchanged. Starting roster target: ~16–18 people across 9 units.
+- [ ] **Narrative clock scripts.** Time-based Director beats for: pre-dawn opening context (ambient COMMS), first midnight (tone shift), overnight atmosphere. Infrastructure ready — `{ type: 'game-time', hour: N }` triggers work. Non-interactive beats go directly in `main.js` as `director.register()`; interactive callers go in `scripts/`. Timer values are in ticks (5 game-mins each). Red herring / non-zombie early scripts to break up the info density.
 - [ ] **Notification / Alert system.** A popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Closeable via button or Escape. General enough that Director events, story beats, and district overrun can all push to it later.
+- [ ] **Contacts response options — visibility fix.** The RESPOND choices are easy to miss. Make them obviously interactive before the Sandra Hill arc ships.
+- [ ] **COMMS quick fixes.** Static between messages should be occasional, not guaranteed every gap. Raise message cap from 5 to 10.
 - [ ] **Sandra Hill narrative arc.** Already in the ambient caller pool — promote to a full scripted arc.
 - [ ] **Rescue scenario.** A story beat that fires when a unit enters a district where a scripted caller is hiding. The `director.on('unit-enters', ...)` hook is already wired and has never been used.
 - [ ] **The Oblivious Guy** (levity caller). Calls about something completely unrelated. Does not believe in zombies. Resolves peacefully regardless of game state. No stakes — just tone balance.
 - [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
-- [ ] **Code cleanup.** Remove dead CSS (`.task-btn--utility` is now unused). Audit stale TODO comments in source. Review `WINDOW_THEMES['morning-coffee']` in JS — it was built for per-window use and may be vestigial now that the global theme system exists.
 
 ---
 
 ## v1.0.0 — Presentable
 
 > 1.0 means a stranger who didn't build this can pick it up and understand it.
-> That requires onboarding, sound that makes the world feel real, and consequences that make the map matter.
+> That requires onboarding, a readable map, a functional dispatch screen, and real district consequences.
 
+- [ ] **Map overhaul.** Click a district → slide-in detail panel showing everything you know (label, category, unit count, loot present) and clearly marking what you *don't* know (zombie count = UNKNOWN until a radio-carrying unit is present). Kill the CLICK A DISTRICT info bar and the legend — the detail panel replaces both. District category text in SVG switches to sans-serif. Blueprint map theme. Unit dots redesigned.
+- [ ] **Dispatch screen rework.** Rename EXPANDED / CONDENSED / BY DISTRICT → CARDS / BADGES / ROWS. All three layouts sorted by district; district grouping headers always visible. Unit name and current activity are the most prominent info on every card — leader name is secondary or absent. Activity switcher styled as the primary action, not a tab strip. Cards show current district. The dispatch and map panels intentionally restate the same information in complementary ways.
+- [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive.
 - [ ] **Onboarding / Tutorial.** The first caller a new player gets is a scripted tutorial — walks through the interface before the real chaos starts. Panel spotlight mechanic: CSS class on `#desktop` dims all panels except the one being described. Tone: in-universe, interrupted by the real situation. Short; offer a skip on the start screen. Covers: map, contacts, dispatch roster, COMMS.
 - [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
 - [ ] **Sound Tier 3 — event-triggered.** Wire Director hooks to stings: `person-death`, `unit-disbanded`. Script nodes get an optional `sound` field played on node entry. `broadcastEvent` accepts an optional sound param.
 - [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now.
+- [ ] **Search for survivors activity.** New unit action alongside ENGAGE/HIDE/SCAVENGE. Each tick: very low base chance (~1–2%) to find a survivor — spawns them as a new no-item member of the unit, fires an alert notification, emits a director event (`survivor-found`) for story beats. Flashlight in unit inventory boosts the chance slightly (maybe 1.5×). Across a full 23-hour run this should happen ≤5 times across all units — rare enough to feel like an event. Secret sauce: `director.on('survivor-found', ...)` is where scripted arcs can hook in (a named NPC survivor with a story, a planted item, a reveal).
+- [ ] **New items: knife, flashlight.** Knife: 0.15 hit chance, melee-only, added to loot tables (not spawned). Flashlight: no combat value, boosts survivor-search odds, added to loot tables; ~1/3 of starting civilian squad members spawn with one. Expand the **More items** list too: bolt cutters (unlocks certain loot), flare (reveals adjacent districts without binoculars), megaphone (civilian morale / zombie aggro mechanic).
 - [ ] **Start the pure data removal pass.** Replace unit HP numbers with status words (HEALTHY / WOUNDED / CRITICAL). Single render change, meaningfully shifts the game toward its intended feel. Don't remove zombie counts yet — one step at a time.
 
 ---
@@ -65,6 +77,9 @@ The core loop is operational. Key systems in place:
 ## Backlog (v1.1+)
 
 These are good ideas that aren't load-bearing for the core experience yet.
+
+### Fire Mechanics
+A rare sim event spawns a fire in a district. Fire spreads independently (adjacent districts, slower than zombies), kills both humans AND zombies, and creates a double-edged pressure. Hose item added to fire unit loadout — only fire units can suppress it. The longer it burns, the worse the damage. Player cannot cause fire. Implementation: new district property `fire: boolean`, new sim phase after zombie spread, new `fire-hose` item. Build after 1.0.0 is locked.
 
 ### More Levity Callers
 - **The Prank Caller** — periodic, never useful, hangs up before you respond.
@@ -98,6 +113,9 @@ Build none of this until D3 is worth pulling in for other reasons too (e.g. data
 
 ### Camera Feeds
 Faked CCTV-style windows showing animated loops — a dark street silhouette, rain on pavement, lightning that strobes the scene for a frame. Pure AV flavor, zero gameplay information, but enormous atmosphere payoff at fullscreen. Implementation: a single looping GIF or canvas animation per feed, maybe one or two feeds max. Pairs naturally with ambient rain audio from the sound system. Think how much Project Zomboid wrings out of its isometric camera — the same principle applied to a static feed. Build this last, after the Terminal window, once the rest of the game is solid enough that flavor is the marginal gain.
+
+### Military Unit Type — National Guard
+A late-game Director event unlocks a military contact once certain conditions are met (e.g., N hours survived, N districts lost, a specific story beat). Calling in the National Guard spawns one or more military units — a fourth role type distinct from police/fire/civilian. Higher base threat modifier, armed with a machine gun item (higher hit chance or multi-kill per attack roll). Arrives with fanfare and changes the tone of the endgame significantly. The "you almost didn't need us" feeling if the player has held on long enough.
 
 ### Full Pure Data Removal
 - No zombie counts visible to player — just density words (CLEAR / LIGHT / HEAVY / OVERRUN)

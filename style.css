@@ -293,14 +293,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   pointer-events: none;
 }
 
-/* Utility task buttons (right side of taskbar — dimmer than window buttons) */
-.task-btn--utility {
-  color: var(--text-dimmer);
-  border-color: var(--border-sub);
-}
-.task-btn--utility:hover { color: var(--text-dim); border-color: var(--btn-border-hover); }
-.task-btn--utility.win-minimized { color: var(--text-dimmer); background: var(--taskbar-bg); }
-.task-btn--utility:not(.win-minimized) { color: var(--btn-color-active); background: var(--btn-bg-active); border-color: var(--btn-border-active); }
 
 #btn-reset-ui {
   padding: 7px 14px;
@@ -324,20 +316,20 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   white-space: nowrap;
 }
 
-#theme-select {
-  padding: 7px 8px;
+/* ── Shared select style — all in-game dropdowns ── */
+.game-select {
   background: var(--btn-bg);
+  color: var(--text-dim);
   border: 1px solid var(--btn-border);
-  color: var(--btn-color);
-  font: inherit;
+  font-family: inherit;
   font-size: 13px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
   cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  outline: none;
 }
-#theme-select:hover  { background: var(--btn-bg-hover); color: var(--text-dim); border-color: var(--btn-border-hover); }
-#theme-select:focus  { outline: none; border-color: var(--border-active); }
+.game-select:hover { border-color: var(--btn-border-hover); color: var(--text); }
+.game-select:focus { outline: none; border-color: var(--border-active); }
 
 /* ── Windows ── */
 .win {
@@ -511,26 +503,16 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   padding: 10px;
 }
 
-#map-palette-select {
+#map-palette-select,
+#dispatch-layout-select {
   position: absolute;
   bottom: 12px;
   right: 14px;
   z-index: 2;
-  background: var(--btn-bg);
-  color: var(--text-dim);
-  border: 1px solid var(--btn-border);
-  font-family: inherit;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  padding: 6px 10px;
-  cursor: pointer;
-  outline: none;
 }
 
-#map-palette-select:hover {
-  border-color: var(--btn-border-hover);
-  color: var(--text);
-}
+#units-panel[data-view="unit-detail"] ~ #dispatch-layout-select,
+#units-panel[data-view="item-description"] ~ #dispatch-layout-select { display: none; }
 
 #city-map {
   width: 100%;
@@ -553,79 +535,33 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* View switching */
 #units-panel > div                                                   { display: none; }
-#units-panel > #dispatch-toolbar                                     { display: flex; }
 #units-panel > #units-view                                           { display: flex; flex: 1; }
 #units-panel[data-view="unit-detail"] > #units-view                  { display: none; }
 #units-panel[data-view="unit-detail"] > #unit-detail-view            { display: flex; }
 #units-panel[data-view="item-description"] > #units-view             { display: none; }
 #units-panel[data-view="item-description"] > #item-description-view  { display: flex; }
 
-/* Dispatch toolbar — layout mode switcher */
-#dispatch-toolbar {
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.layout-btn {
-  font-size: 10px;
-  letter-spacing: 1px;
-  padding: 4px 10px;
-  color: var(--text-dimmer);
-  border-color: var(--border-sub);
-  background: var(--bg);
-}
-
-.layout-btn.layout-btn--active {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ── Condensed card mode ── */
-#units-panel[data-card-layout="condensed"] .roster-card {
-  flex-direction: row;
-}
-
-#units-panel[data-card-layout="condensed"] .roster-portrait {
-  width: 9px;
-  height: unset;
-  min-height: unset;
-  align-self: stretch;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-#units-panel[data-card-layout="condensed"] .roster-portrait svg {
-  display: none;
-}
-
-#units-panel[data-card-layout="condensed"] .roster-card-body {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  padding: 7px 10px;
-  gap: 3px;
-  justify-content: center;
-}
-
-
 
 #units-view {
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px;
+  padding: 8px 0;
   min-height: 0;
   flex-direction: column;
 }
 
 #units-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── District group wrappers ── */
+.district-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 8px;
-  align-items: start;
+  padding: 8px 10px 10px;
 }
 
 /* ── Roster cards ── */
@@ -663,20 +599,40 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .roster-card-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   padding: 7px 9px 9px;
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--chrome-raised);
 }
 
-.roster-leader-name {
+.roster-card-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.roster-unit-label {
   font-size: 14px;
   font-weight: bold;
-  color: var(--accent);
+  letter-spacing: 0.4px;
+  color: var(--text);
+  text-transform: uppercase;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-leader-name {
+  font-size: 14px;
+  font-weight: normal;
+  color: var(--text-dim);
   letter-spacing: 0.2px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -687,23 +643,21 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   min-width: 0;
 }
 
-.roster-unit-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  letter-spacing: 0.8px;
-  color: var(--text-dim);
-  text-transform: uppercase;
+
+/* Leader star — role-colored SVG star; replaces role dot for unit leaders */
+.leader-star {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: transparent;
 }
-
-
-/* Leader star — always command gold, no background, pulses on critical */
-.leader-ws-star { font-size: 17px; }
-.leader-ws-star.ws-healthy,
-.leader-ws-star.ws-wounded,
-.leader-ws-star.ws-critical { color: var(--leader-star); background: none; }
-.leader-ws-star.ws-critical  { animation: pulse-crit 1s infinite; }
+.leader-star[data-role="police"]   { fill: var(--unit-police); }
+.leader-star[data-role="fire"]     { fill: var(--unit-fire); }
+.leader-star[data-role="civilian"] { fill: var(--unit-civilian); }
+.leader-star.ws-healthy,
+.leader-star.ws-wounded,
+.leader-star.ws-critical { background: transparent; color: inherit; }
+.leader-star.ws-critical { animation: pulse-crit 1s infinite; }
 
 /* Member dots — colored by role */
 .member-dot {
@@ -716,7 +670,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .member-dot--fire     { background: var(--unit-fire); }
 .member-dot--civilian { background: var(--unit-civilian); }
 
-.roster-members-dots { display: flex; gap: 4px; align-items: center; min-height: 10px; }
+.roster-leader-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.roster-members-dots { display: flex; gap: 4px; align-items: center; min-height: 10px; flex-shrink: 0; }
 
 .roster-alone {
   font-size: 10px;
@@ -738,7 +699,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .roster-item-abbrev {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.3px;
   color: var(--text-dimmer);
   background: var(--chrome-raised);
@@ -762,33 +723,32 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #unit-detail-view {
   display: none;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 15px;
+  padding: 14px 12px 12px;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 #udv-header {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 #udv-members {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  overflow-y: auto;
 }
 
 #udv-items {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  flex-shrink: 0;
 }
 
 .udv-member {
@@ -800,12 +760,11 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   border-bottom: 1px solid var(--border-sub);
 }
 
-.udv-member-spacer { width: 14px; flex-shrink: 0; }
 .udv-member-name { color: var(--text); flex: 1; letter-spacing: 0.2px; }
-.udv-member-role { color: var(--text-dimmer); font-size: 10px; letter-spacing: 0.8px; }
+.udv-member-role { color: var(--text-dimmer); font-size: 13px; letter-spacing: 0.8px; }
 
 #unit-detail-view .member-dot { width: 16px; height: 16px; }
-#unit-detail-view .leader-ws-star { font-size: 20px; }
+#unit-detail-view .leader-star { width: 20px; height: 20px; }
 
 #udv-dispatch {
   display: flex;
@@ -815,19 +774,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 #udv-dispatch #udv-target {
   flex: 1;
-  background: var(--btn-bg);
-  border: 1px solid var(--btn-border);
-  color: var(--text);
-  font-family: inherit;
   font-size: 11px;
   padding: 5px 7px;
-  cursor: pointer;
 }
 
 #udv-dispatch #btn-udv-send { flex-shrink: 0; }
 
 .udv-ws-badge {
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 1px;
   padding: 1px 4px;
   border-radius: 2px;
@@ -1397,6 +1351,7 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   letter-spacing: 1px;
   color: var(--accent);
   border-color: var(--accent);
+  margin-bottom: 4px;
 }
 
 #btn-udv-back:hover,
@@ -1407,7 +1362,7 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 #udv-type {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: bold;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -1415,11 +1370,19 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 #udv-location {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-top: -6px;
+}
+
+.udv-section-header {
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+  flex-shrink: 0;
 }
 
 
@@ -1429,7 +1392,6 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   gap: 8px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
 }
 
 .udv-no-items {
@@ -1582,15 +1544,20 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 
 #preset-select:focus { outline: none; border-color: var(--accent); }
 
-#custom-zone-grid {
+#developer-controls {
   display: none;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
   border-top: 1px solid var(--border);
   padding-top: 4px;
 }
 
-#custom-zone-grid.visible { display: grid; }
+#developer-controls.visible { display: block; }
+
+#custom-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
 
 .zone-row {
   display: flex;
@@ -1779,86 +1746,20 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   color: var(--bg);
 }
 
-/* ── By District layout ── */
-
-#units-panel[data-card-layout="district"] #units-list {
-  display: block;
-  padding: 0;
-}
+/* ── District grouping (all layouts) ── */
 
 .district-group { margin-bottom: 4px; }
 
 .district-group-header {
-  font-size: 9px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-dimmer);
-  opacity: 0.5;
-  padding: 6px 10px 3px;
-  border-bottom: 1px solid var(--border-sub);
-}
-
-.roster-card--row {
-  flex-direction: column;
-  gap: 3px;
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid var(--border-sub);
-  padding: 5px 10px 6px;
-  background: var(--surface);
-}
-
-.roster-card--row:hover {
-  border-color: var(--border-sub);
-  transform: none;
-  background: var(--chrome-raised);
-}
-
-.roster-row-top {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.roster-row-name {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: bold;
-  color: var(--accent);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roster-row-unit {
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  color: var(--text-dimmer);
-  opacity: 0.55;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  flex-shrink: 0;
+  color: var(--text);
+  padding: 8px 10px 4px;
+  border-bottom: 1px solid var(--border-sub);
 }
 
-.roster-row-bottom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 22px;
-}
-
-.roster-row-members {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex: 1;
-}
-
-.roster-row-items {
-  display: flex;
-  gap: 3px;
-  flex-wrap: wrap;
-}
 
 /* ── Unit dots on SVG map ── */
 
@@ -1897,7 +1798,6 @@ polygon.drop-target {
   gap: 4px;
   flex-shrink: 0;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border);
 }
 
 .activity-label {
@@ -1914,10 +1814,10 @@ polygon.drop-target {
 
 .activity-btn {
   flex: 1;
-  padding: 4px 6px;
-  font-size: 10px;
+  padding: 8px 6px;
+  font-size: 11px;
   letter-spacing: 1px;
-  color: var(--text-dimmer);
+  color: var(--text);
   border-color: var(--border-sub);
   background: var(--bg);
   opacity: 0.6;
@@ -1950,12 +1850,58 @@ polygon.drop-target {
 /* ── Activity badge on roster cards ── */
 
 .roster-activity {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.8px;
-  font-style: italic;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+}
+
+.roster-activity--engage {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(168,234,168,0.08);
+}
+
+.roster-activity--hide {
   color: var(--radio-t0);
+  border-color: var(--radio-t0);
+  background: rgba(224,184,64,0.08);
 }
 
 .roster-activity--scavenge {
   color: var(--chip-bno-color);
+  border-color: var(--chip-bno-border);
+  background: rgba(72,136,216,0.08);
+}
+
+/* ── BADGES layout — condensed horizontal card with role stripe ── */
+
+#units-panel[data-card-layout="badges"] .roster-card {
+  flex-direction: row;
+}
+
+#units-panel[data-card-layout="badges"] .roster-portrait {
+  width: 9px;
+  height: unset;
+  min-height: unset;
+  align-self: stretch;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#units-panel[data-card-layout="badges"] .roster-portrait svg {
+  display: none;
+}
+
+#units-panel[data-card-layout="badges"] .roster-card-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  gap: 8px;
+  justify-content: center;
 }
