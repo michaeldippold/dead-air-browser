@@ -503,7 +503,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   padding: 10px;
 }
 
-#map-palette-select,
+#map-palette-select { display: none; }
+
 #dispatch-layout-select {
   position: absolute;
   bottom: 12px;
@@ -1813,6 +1814,17 @@ polygon.drop-target {
 @keyframes drop-pulse {
   from { opacity: 1; }
   to   { opacity: 0.45; }
+}
+
+/* ── Contact location pulse ── */
+
+polygon.contact-district {
+  animation: contact-district-pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes contact-district-pulse {
+  from { fill: transparent; }
+  to   { fill: color-mix(in srgb, var(--accent) 28%, transparent); }
 }
 
 /* ── Unit activity picker (unit detail view) ── */

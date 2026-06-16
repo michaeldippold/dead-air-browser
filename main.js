@@ -1099,6 +1099,10 @@ function renderContactMeta(contact) {
   cdvMeta.style.display = ''
 }
 
+function _clearContactDistrictPulse() {
+  document.querySelectorAll('#districts polygon.contact-district').forEach(p => p.classList.remove('contact-district'))
+}
+
 function showContactDetail(contactId) {
   const contact = state.contacts.find(c => c.id === contactId)
   if (!contact) return
@@ -1109,11 +1113,17 @@ function showContactDetail(contactId) {
   renderContactMeta(contact)
   renderContactMessages(contact)
   setContactsView('contact-detail')
+  _clearContactDistrictPulse()
+  if (contact.location) {
+    const poly = document.getElementById(contact.location)
+    if (poly) poly.classList.add('contact-district')
+  }
 }
 
 function hideContactDetail() {
   state.selectedContact = null
   setContactsView(null)
+  _clearContactDistrictPulse()
 }
 
 function showItemDescription(key) {
@@ -2046,11 +2056,26 @@ function setGlobalTheme(id) {
 }
 
 setGlobalTheme(localStorage.getItem('dispatch-theme') || 'terminal-green')
-document.getElementById('theme-select').addEventListener('change', e => setGlobalTheme(e.target.value))
+document.getElementById('theme-select').addEventListener('change', e => {
+  setGlobalTheme(e.target.value)
+  setMapPalette(document.getElementById('map-palette-select').value)
+  applyMapLabelOverride(e.target.value)
+})
 
 // ── Map palette switcher ──
 
 const MAP_PALETTES = {
+  outline: {
+    '--map-panel-bg':          'transparent',
+    '--map-label':             '#ffffff',
+    '--map-label-sub':         'rgba(255,255,255,0.60)',
+    '--map-district-stroke':   'var(--accent)',
+    '--col-res': 'transparent', '--col-res-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
+    '--col-gov': 'transparent', '--col-gov-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
+    '--col-med': 'transparent', '--col-med-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
+    '--col-ret': 'transparent', '--col-ret-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
+    '--col-ind': 'transparent', '--col-ind-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
+  },
   tactical: {
     '--map-panel-bg':          '#070b0e',
     '--map-label':             'rgba(170,200,185,0.95)',
@@ -2091,13 +2116,29 @@ function setMapPalette(key) {
   Object.entries(palette).forEach(([prop, val]) => root.style.setProperty(prop, val))
 }
 
+const MAP_LABEL_OVERRIDES = {
+  'windows-95': {
+    '--map-label':     '#000080',
+    '--map-label-sub': 'rgba(0,0,128,0.60)',
+  }
+}
+
+function applyMapLabelOverride(themeId) {
+  const overrides = MAP_LABEL_OVERRIDES[themeId]
+  if (!overrides) return
+  const root = document.documentElement
+  Object.entries(overrides).forEach(([k, v]) => root.style.setProperty(k, v))
+}
+
 document.getElementById('map-palette-select').addEventListener('change', e => {
   setMapPalette(e.target.value)
+  applyMapLabelOverride(document.getElementById('theme-select').value)
 })
 
 const mapPaletteSelect = document.getElementById('map-palette-select')
-mapPaletteSelect.value = 'tactical'
-setMapPalette('tactical')
+mapPaletteSelect.value = 'outline'
+setMapPalette('outline')
+applyMapLabelOverride(document.getElementById('theme-select').value)
 
 render()
 
