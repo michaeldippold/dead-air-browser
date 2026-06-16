@@ -961,7 +961,7 @@ function renderDistrictDetail() {
   const ddvStatus = document.getElementById('ddv-status')
   if (hasIntel) {
     const { label, cls } = getDistrictStatus(d)
-    ddvStatus.innerHTML = `<span class="${cls}">${label}</span>${revealHint}`
+    ddvStatus.innerHTML = `<span class="${cls}">${label}</span>`
   } else {
     ddvStatus.innerHTML = unknown
   }
@@ -969,7 +969,7 @@ function renderDistrictDetail() {
   // Population
   const ddvPop = document.getElementById('ddv-pop')
   if (hasIntel) {
-    ddvPop.innerHTML = `<span>Humans: ${d.humans.toLocaleString()}</span><span>Infected: ${d.zombies.toLocaleString()}</span>${revealHint}`
+    ddvPop.innerHTML = `<span>Humans: ${d.humans.toLocaleString()}</span><span>Infected: ${d.zombies.toLocaleString()}</span>`
   } else {
     ddvPop.innerHTML = unknown
   }
@@ -983,7 +983,7 @@ function renderDistrictDetail() {
     const listHtml  = unitsHere.length === 0
       ? '<span class="ddv-no-intel">None</span>'
       : unitsHere.map(u => renderUnitCard(u, 'badges')).join('')
-    ddvUnits.innerHTML = listHtml + revealHint
+    ddvUnits.innerHTML = listHtml
   }
 
   // Possible loot (static pool — what can spawn here, not live items)
@@ -1674,7 +1674,7 @@ function renderUnitDots() {
   if (!dotsGroup) return
   dotsGroup.innerHTML = ''
 
-  for (const [districtId, d] of Object.entries(state.districts)) {
+  for (const [districtId] of Object.entries(state.districts)) {
     const units = unitsInDistrict(districtId)
     if (units.length === 0) continue
 
@@ -1682,8 +1682,8 @@ function renderUnitDots() {
     if (!poly) continue
 
     const bbox   = poly.getBBox()
-    const dotR   = 8
-    const dotGap = 20
+    const dotR   = 11
+    const dotGap = 26
     const margin = 14
 
     units.forEach((unit, i) => {

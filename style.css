@@ -446,11 +446,17 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-shrink: 0;
   display: none;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
   padding: 14px 12px;
   overflow-y: auto;
   border-left: 1px solid var(--border);
   background: var(--surface);
+}
+
+.ddv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 #map-container[data-view="district"] #district-detail-panel {
@@ -470,7 +476,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   letter-spacing: 1px;
   color: var(--text-dimmer);
   text-transform: uppercase;
-  margin-bottom: 4px;
 }
 
 #ddv-status {
@@ -1407,7 +1412,7 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 .udv-section-header {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: bold;
   color: var(--text);
   letter-spacing: 0.5px;
