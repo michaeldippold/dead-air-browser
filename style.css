@@ -1662,27 +1662,15 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   font-style: italic;
 }
 
-/* ── Alert system ── */
-#alert-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  background: rgba(0, 0, 0, 0.25);
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 90px;
+/* ── Alert window ── */
+#alert-panel {
+  padding: 18px 20px;
 }
-#alert-overlay.visible { display: flex; }
 
-#alert-box {
-  width: 380px;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  padding: 20px 24px 16px;
+#alert-message {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .alert-title {
@@ -1698,16 +1686,6 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   line-height: 1.8;
   letter-spacing: 0.3px;
 }
-
-#alert-dismiss {
-  align-self: flex-end;
-  padding: 5px 14px;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--accent);
-  border-color: var(--accent);
-}
-#alert-dismiss:hover { background: var(--accent); color: var(--bg); }
 
 /* ── Win overlay ── */
 #win-overlay {

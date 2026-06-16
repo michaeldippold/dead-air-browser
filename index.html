@@ -54,6 +54,7 @@
       <button id="btn-god-mode">SITREP</button>
       <button id="btn-test-win">WIN</button>
       <button id="btn-test-lose">LOSE</button>
+      <button id="btn-test-alert">ALERT</button>
       <button id="btn-pause">PAUSE</button>
     </div>
   </header>
@@ -331,6 +332,18 @@
       <div class="win-resize" data-win="sitrep"></div>
     </div>
 
+    <!-- Alert window -->
+    <div class="win" id="win-alert">
+      <div class="win-titlebar">
+        <span class="win-title">ALERT</span>
+        <div class="win-controls"></div>
+      </div>
+      <div class="win-body" id="alert-panel">
+        <div id="alert-message"></div>
+      </div>
+      <div class="win-resize" data-win="alert"></div>
+    </div>
+
   </div><!-- #desktop -->
 
   <div id="taskbar">
@@ -354,12 +367,6 @@
 
 </div><!-- #app -->
 
-<div id="alert-overlay">
-  <div id="alert-box">
-    <div id="alert-message"></div>
-    <button id="alert-dismiss">DISMISS</button>
-  </div>
-</div>
 
 <div id="win-overlay">
   <div id="win-card">

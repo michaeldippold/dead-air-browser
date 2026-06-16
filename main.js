@@ -621,7 +621,7 @@ const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
-const WIN_IDS = ['dispatch', 'map', 'contacts', 'radio', 'sitrep', 'items']
+const WIN_IDS = ['dispatch', 'map', 'contacts', 'radio', 'sitrep', 'items', 'alert']
 const LAYOUT_WIN_IDS = ['dispatch', 'map', 'contacts', 'radio']
 const winState = {}
 let _topZ = 10
@@ -637,6 +637,7 @@ function getDefaultLayout() {
     radio:    { x: dw - rw,           y: 0, w: rw,                           h: dh },
     sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
     items:    { x: Math.floor((dw - 420) / 2), y: Math.floor((dh - 480) / 2), w: 420, h: 480 },
+    alert:    { x: Math.floor((dw - 380) / 2), y: Math.floor((dh - 180) / 2), w: 380, h: 180 },
   }
 }
 
@@ -712,10 +713,15 @@ function initWindowManager() {
   })
 
   // These panels start minimized — not part of the default tiled layout
-  for (const id of ['sitrep', 'items']) {
+  for (const id of ['sitrep', 'items', 'alert']) {
     winState[id].minimized = true
     document.getElementById(`win-${id}`).classList.add('win-minimized')
   }
+
+  // Alert starts pinned so it can't be accidentally dragged
+  winState.alert.pinned = true
+  document.getElementById('win-alert').querySelector('.win-pin-btn').textContent = 'UNPIN'
+  document.getElementById('win-alert').querySelector('.win-pin-btn').classList.add('win-btn-active')
 
   bringToFront('dispatch')
   syncTaskbar()
@@ -852,23 +858,26 @@ function syncTaskbar() {
 
 // ── ALERT SYSTEM ──
 
-const alertOverlay = document.getElementById('alert-overlay')
 const alertMessage = document.getElementById('alert-message')
-const alertDismissBtn = document.getElementById('alert-dismiss')
+
+function _onAlertClickOutside(e) {
+  if (!document.getElementById('win-alert').contains(e.target)) dismissAlert()
+}
 
 function showAlert(title, body) {
   alertMessage.innerHTML = `<div class="alert-title">${title}</div><div class="alert-body">${body}</div>`
-  alertOverlay.classList.add('visible')
+  if (winState.alert?.minimized) toggleMinimize('alert')
+  bringToFront('alert')
+  setTimeout(() => document.addEventListener('click', _onAlertClickOutside, true), 0)
 }
 
 function dismissAlert() {
-  alertOverlay.classList.remove('visible')
+  if (!winState.alert?.minimized) toggleMinimize('alert')
+  document.removeEventListener('click', _onAlertClickOutside, true)
 }
 
-alertDismissBtn.addEventListener('click', dismissAlert)
-alertOverlay.addEventListener('click', e => { if (e.target === alertOverlay) dismissAlert() })
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && alertOverlay.classList.contains('visible')) dismissAlert()
+  if (e.key === 'Escape' && !winState.alert?.minimized) dismissAlert()
 })
 
 director.on('unit-disbanded', ({ unitId, districtId }) => {
@@ -1771,6 +1780,10 @@ document.getElementById('btn-test-lose').addEventListener('click', () => {
   showEndScreen('ALL UNITS LOST', 'TRY AGAIN', FLAVOR.loseUnits)
   document.getElementById('win-flavor').innerHTML =
     `<span class="win-override-notice">[Dispatcher override — outcome forced for testing.]</span>${FLAVOR.loseUnits}`
+})
+
+document.getElementById('btn-test-alert').addEventListener('click', () => {
+  showAlert('UNIT DISBANDED', 'All personnel lost at Fire Station. The district has been left unprotected.')
 })
 
 // ── START SCREEN ──
