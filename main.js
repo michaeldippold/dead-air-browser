@@ -869,7 +869,7 @@ godBtn.addEventListener('click', () => {
 })
 
 function syncGodBtn() {
-  godBtn.textContent = `GOD MODE: ${state.godMode ? 'ON' : 'OFF'}`
+  godBtn.textContent = 'SITREP'
 }
 
 // ── MAP ──
