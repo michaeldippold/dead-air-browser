@@ -82,6 +82,12 @@ Fake desktop icons, a desktop background that sells the dispatcher's office. Onc
 ### Unit-Scoped Morale
 A morale meter on the Unit (not individual persons). Drops on bad outcomes, rises on success. Affects combat effectiveness or response time. Design after the core loop is tuned.
 
+### Terminal Window
+A dedicated TERMINAL window where game actions can be driven by typed commands — for fast typers and keyboard-preferrers. Example: `/dispatch 1 westgate` dispatches Unit 1 to Westgate; returns a success line or an error code if the unit or district isn't found, or the unit is already there. Ideally covers the most common actions first: dispatch, set activity, check district status. The window itself fits the aesthetic perfectly — it's already a game about sitting at a computer. Low priority but high ceiling; build after the core UX is fully stable so the command vocabulary doesn't drift.
+
+### Camera Feeds
+Faked CCTV-style windows showing animated loops — a dark street silhouette, rain on pavement, lightning that strobes the scene for a frame. Pure AV flavor, zero gameplay information, but enormous atmosphere payoff at fullscreen. Implementation: a single looping GIF or canvas animation per feed, maybe one or two feeds max. Pairs naturally with ambient rain audio from the sound system. Think how much Project Zomboid wrings out of its isometric camera — the same principle applied to a static feed. Build this last, after the Terminal window, once the rest of the game is solid enough that flavor is the marginal gain.
+
 ### Full Pure Data Removal
 - No zombie counts visible to player — just density words (CLEAR / LIGHT / HEAVY / OVERRUN)
 - God mode removed from player-facing UI entirely

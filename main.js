@@ -2022,6 +2022,17 @@ document.getElementById('theme-select').addEventListener('change', e => setGloba
 // ── Map palette switcher ──
 
 const MAP_PALETTES = {
+  tactical: {
+    '--map-panel-bg':          '#070b0e',
+    '--map-label':             'rgba(170,200,185,0.95)',
+    '--map-label-sub':         'rgba(110,148,130,0.78)',
+    '--map-district-stroke':   '#28383f',
+    '--col-res': '#1c1810', '--col-res-h': '#2a2419',
+    '--col-gov': '#0c1828', '--col-gov-h': '#102234',
+    '--col-med': '#0c1e14', '--col-med-h': '#10281c',
+    '--col-ret': '#1a1028', '--col-ret-h': '#231538',
+    '--col-ind': '#1c1008', '--col-ind-h': '#271808',
+  },
   dusty: {
     '--map-panel-bg':  'transparent',
     '--map-label':     'rgba(40,30,25,0.85)',
@@ -2056,8 +2067,8 @@ document.getElementById('map-palette-select').addEventListener('change', e => {
 })
 
 const mapPaletteSelect = document.getElementById('map-palette-select')
-mapPaletteSelect.value = 'paper'
-setMapPalette('paper')
+mapPaletteSelect.value = 'tactical'
+setMapPalette('tactical')
 
 render()
 
