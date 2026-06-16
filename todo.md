@@ -21,16 +21,17 @@ The current god mode is a dev tool, not a game mode. Eventually it disappears en
 The core loop is operational. Key systems in place:
 
 - **Windowed UI** — CONTACTS, DISPATCH, MAP, COMMS, ITEMS, SITREP windows, taskbar, pin/minimize/maximize
-- **Simulation** — SIR-based local spread (bell curve, peaks at 50% ratio), inter-district spread (probabilistic), unit suppression, activity system (ENGAGE / HIDE / SCAVENGE), combat with wound states
-- **Person/Unit model** — Person is the core type; units are containers; loot drops on death with 40% transfer to district pool; scavenging activity
+- **Simulation** — SIR-based local spread (bell curve, peaks at 50% ratio), inter-district spread (probabilistic), unit suppression, activity system (ENGAGE / HIDE / SCAVENGE), weapon-based combat (gun 0.50 / fire-axe 0.25 / unarmed 0.10 hit chance) with wound state modifiers on rolls
+- **Win/lose conditions** — Win: survive to dawn (6 AM, 252 ticks). Lose 1: all units dead. Lose 2: 10+ districts reach ≥75% zombie ratio (CITY FALLEN). Lose 3: units lost ≥ limit (SITUATION UNCONTAINABLE). All three wired into the tick loop.
+- **Person/Unit model** — Person is the core type; units are containers; `MAX_UNIT_SIZE = 4` cap; loot drops on death with 40% transfer to district pool; scavenging activity
 - **Director system** — `register()` for polling beats, `on()`/`emit()` for sim hooks (`person-death`, `unit-disbanded`, `unit-enters`); auto-registers from script `trigger` fields
 - **`when.*` vocabulary** — `zombiesIn`, `gameTime`, `humansGone`, `unitIn`, `random`, `allOf`, `anyOf`; `triggerToCondition()` maps script trigger descriptors to condition functions
 - **Script system** — narrative scripts as ES modules in `scripts/`; scripted callers are `sim:false` Persons protected from combat; 4 characters live: E. Novak, Marcus Webb, Danny, Dep. Dir. Holt
 - **COMMS feed** — time + location + body layout, static separators between transmissions, no age-based dimming
 - **Game clock** — 9:00 AM start, 5 min/tick (12 ticks/hour), full night ~15 real minutes at 3.5s/tick
-- **Map** — SVG districts, Paper Map palette, unit dots by leader role, click to open unit detail
-- **Roster** — EXPANDED / CONDENSED / BY DISTRICT views, activity badges, drag-and-drop dispatch
-- **Theme system** — 6 palettes (Terminal Green, Morning Coffee, Midnight Purple, Cyberpunk, Windows 95, Blood Moon), live switcher, localStorage persistence
+- **Map** — SVG districts, 3 map palettes (Tactical Dark / Post-it / Paper Map), unit dots by leader role, click to open unit detail; legend bar removed
+- **Dispatch screen** — CARDS / BADGES layouts, always district-grouped with visible headers, role-colored SVG leader stars (encodes role + leader status in one glyph), floating layout select at bottom-right; unit detail view with LOCATION / CURRENTLY DOING / ROSTER / ITEMS sections, dispatch dropdown defaults to current location; layout select hidden when detail view is open
+- **Theme system** — 6 palettes (Terminal Green, Morning Coffee, Midnight Purple, Cyberpunk, Windows 95, Blood Moon), live switcher, localStorage persistence; unified `.game-select` style across all dropdowns; PAUSE button in topbar
 - **Difficulty system** — `SCENARIOS` object with `numDistricts`, `totalZombies`, `distribution`, `spreadChance`, `delay` fields; `seedFromScenario()` picks random non-government districts with Fisher-Yates shuffle; Standard / Developer modes; spread rate and zone grid are Developer-only
 - **Code cleanup** — dead `.task-btn--utility` CSS removed; `WINDOW_THEMES` per-window override system removed; terminal green COMMS panel now inherits the global theme instead of frozen coffee colors; First Aid Kit code aligned with description (50 HP threshold, 20 HP restore)
 
@@ -38,13 +39,10 @@ The core loop is operational. Key systems in place:
 
 ## v0.9.0 — Story & Stakes
 
-> The gap that matters most: the early game is too predictable and there are no real stakes.
-> Fix win/lose conditions, add multi-person units, narrative clock, and fill out the story.
+> Win/lose conditions are live. The remaining gap: the early game is too predictable and the story is thin.
+> Add multi-person units, narrative clock, and fill out the story beats.
 
-- [ ] **Win condition — survive to dawn (6am, 252 ticks).** Replace impossible all-zombies-gone check in `checkWin()` with `state.tick >= ticksFor(30)`. Wire a win-state check at the start of each tick. The win screen exists; the condition just needs replacing.
-- [ ] **Lose condition 2 — city overrun.** 10 of 14 districts reach ≥75% zombie ratio. Distinct COMMS flavor and overlay title. `checkLose()` already exists; add a second branch.
-- [ ] **Lose condition 3 — too many units lost.** Track `state.unitsLost` counter in `disbandUnit()`; lose at 4. "The dispatcher loses hope." Distinct flavor text.
-- [ ] **Multi-person units.** Refactor `initStartingUnits` to spawn mixed-composition squads (police + embedded radio civilian; fire + embedded medic; civilian + police protection). Leader deals 1× damage; non-leaders roll at 0.5× effectiveness. Suppression stays per-unit, unchanged. Starting roster target: ~16–18 people across 9 units.
+- [ ] **Multi-person units.** Refactor `initStartingUnits` to spawn mixed-composition squads (police + embedded radio civilian; fire + embedded medic; civilian + police protection). Each person rolls independently using weapon-based hit chance. `MAX_UNIT_SIZE = 4` cap is in place. Starting roster target: ~16–18 people across 9 units.
 - [ ] **Narrative clock scripts.** Time-based Director beats for: pre-dawn opening context (ambient COMMS), first midnight (tone shift), overnight atmosphere. Infrastructure ready — `{ type: 'game-time', hour: N }` triggers work. Non-interactive beats go directly in `main.js` as `director.register()`; interactive callers go in `scripts/`. Timer values are in ticks (5 game-mins each). Red herring / non-zombie early scripts to break up the info density.
 - [ ] **Notification / Alert system.** A popup layer for events the player must not miss — distinct from COMMS (ambient) and Contacts (requires action). First use: unit disbanded. Closeable via button or Escape. General enough that Director events, story beats, and district overrun can all push to it later.
 - [ ] **Contacts response options — visibility fix.** The RESPOND choices are easy to miss. Make them obviously interactive before the Sandra Hill arc ships.
@@ -61,8 +59,7 @@ The core loop is operational. Key systems in place:
 > 1.0 means a stranger who didn't build this can pick it up and understand it.
 > That requires onboarding, a readable map, a functional dispatch screen, and real district consequences.
 
-- [ ] **Map overhaul.** Click a district → slide-in detail panel showing everything you know (label, category, unit count, loot present) and clearly marking what you *don't* know (zombie count = UNKNOWN until a radio-carrying unit is present). Kill the CLICK A DISTRICT info bar and the legend — the detail panel replaces both. District category text in SVG switches to sans-serif. Blueprint map theme. Unit dots redesigned.
-- [ ] **Dispatch screen rework.** Rename EXPANDED / CONDENSED / BY DISTRICT → CARDS / BADGES / ROWS. All three layouts sorted by district; district grouping headers always visible. Unit name and current activity are the most prominent info on every card — leader name is secondary or absent. Activity switcher styled as the primary action, not a tab strip. Cards show current district. The dispatch and map panels intentionally restate the same information in complementary ways.
+- [ ] **Map overhaul.** Click a district → slide-in detail panel showing everything you know (label, category, unit count, loot present) and clearly marking what you *don't* know (zombie count = UNKNOWN until a radio-carrying unit is present). Legend is already gone; kill the CLICK A DISTRICT bar too — the detail panel replaces it. District category text in SVG switches to sans-serif. Blueprint map theme. Unit dots redesigned.
 - [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive.
 - [ ] **Onboarding / Tutorial.** The first caller a new player gets is a scripted tutorial — walks through the interface before the real chaos starts. Panel spotlight mechanic: CSS class on `#desktop` dims all panels except the one being described. Tone: in-universe, interrupted by the real situation. Short; offer a skip on the start screen. Covers: map, contacts, dispatch roster, COMMS.
 - [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
