@@ -850,6 +850,35 @@ function syncTaskbar() {
   })
 }
 
+// ── ALERT SYSTEM ──
+
+const alertOverlay = document.getElementById('alert-overlay')
+const alertMessage = document.getElementById('alert-message')
+const alertDismissBtn = document.getElementById('alert-dismiss')
+
+function showAlert(title, body) {
+  alertMessage.innerHTML = `<div class="alert-title">${title}</div><div class="alert-body">${body}</div>`
+  alertOverlay.classList.add('visible')
+}
+
+function dismissAlert() {
+  alertOverlay.classList.remove('visible')
+}
+
+alertDismissBtn.addEventListener('click', dismissAlert)
+alertOverlay.addEventListener('click', e => { if (e.target === alertOverlay) dismissAlert() })
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && alertOverlay.classList.contains('visible')) dismissAlert()
+})
+
+director.on('unit-disbanded', ({ unitId, districtId }) => {
+  const d = state.districts[districtId]
+  showAlert(
+    'UNIT DISBANDED',
+    `All personnel lost at ${d?.label ?? districtId}. The district has been left unprotected.`
+  )
+})
+
 // ── GOD MODE ──
 
 if (state.godMode) document.body.classList.add('god-mode')
