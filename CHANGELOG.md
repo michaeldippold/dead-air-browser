@@ -4,6 +4,116 @@ All notable changes to Dispatch will be documented here.
 
 ---
 
+## [0.8.0] — 2026-06-16
+
+### Overview
+
+Theme system, district detail panel overhaul, alert window, map palettes, activity system (ENGAGE / HIDE / SCAVENGE), win/lose conditions, and a combat refactor. The game now has visual identity — six themes, four map palettes — and the first proper endgame: survive to dawn or lose in one of three ways.
+
+---
+
+### Theme System
+
+- Six global palettes: Terminal Green (default), Morning Coffee, Midnight Purple, Cyberpunk, Windows 95, Blood Moon
+- Live theme switcher in topbar — applies immediately, persisted to `localStorage`
+- All theme values are CSS custom properties on `:root`; switching the palette replaces the full variable set atomically
+
+---
+
+### Map Palettes
+
+- Four map palettes: Outline (default), Tactical Dark, Dusty, Paper
+- Outline palette is theme-adaptive: transparent fills, accent-colored outlines
+- Per-theme label overrides applied on top of palette (Windows 95 uses navy labels)
+- Palette switcher in map window header
+
+---
+
+### District Detail Panel
+
+- Full redesign: district name/category, status, population, active units, and possible loot — each in a distinct section
+- Status and population gated behind intel: shows UNKNOWN with reveal hint (RAD / BNO chips) when no radio or binoculars coverage
+- Possible loot section shows item chips from the district's loot pool
+- Units displayed as BADGES-layout cards inline in the panel
+
+---
+
+### Alert System
+
+- Alert rebuilt as a proper floating window with titlebar, ESC-to-dismiss, and click-outside-to-dismiss
+- Window starts pinned so it can't be accidentally dragged away
+- Wired to: leader KIA, unit disbanded, incoming narrative transmissions
+
+---
+
+### Activity System
+
+- Three unit activities: ENGAGE / HIDE / SCAVENGE, selectable in unit detail view
+- HIDE: unit's threat weight drops to 30% — zombies rarely target hiding units during counterattack
+- SCAVENGE: unit picks up items from the district loot pool (40% per-person chance per tick)
+- ENGAGE: standard combat behavior
+
+---
+
+### Win / Lose Conditions
+
+- **Win** — survive to dawn (6 AM the next day, 252 ticks). Flavor text: the city held through the night.
+- **Lose 1** — all units dead: ALL UNITS LOST
+- **Lose 2** — 10 of 14 districts reach ≥75% zombie ratio: CITY FALLEN
+- **Lose 3** — 4 or more units disbanded: SITUATION UNCONTAINABLE
+- All three lose conditions wired into the tick loop; dedicated flavor text for each
+
+---
+
+### SITREP
+
+- God mode debug screen renamed to SITREP; SITREP button in topbar opens the window
+- Closing the SITREP window also disables god mode
+
+---
+
+### Combat Refinements
+
+- Wound state modifiers on hit chance: WOUNDED ×0.80, CRITICAL ×0.40
+- Counterattack scales with danger ratio (zombie proportion) rather than raw zombie count
+- Scripted caller persons (`sim: false`) excluded from counterattack targeting
+- Drag-and-drop dispatch: unit cards in DISPATCH window are draggable onto SVG map districts
+
+---
+
+## [0.7.0] — 2026-06-15
+
+### Overview
+
+Narrative scripts as authored ES modules and Director event hooks. Four scripted characters are now live, each with a branching story arc, choice nodes, timers, and resolve states. The Director gains the ability to emit and consume simulation events.
+
+---
+
+### Narrative Scripts
+
+- Scripts live in `scripts/` as ES modules — one file per character, imported in `main.js`
+- Four characters: **E. Novak** (Memorial Medical), **Marcus Webb** (Ironworks), **Danny** (Northgate — a child on a landline), **Dep. Dir. Holt** (time-triggered at 11:00 AM)
+- Script format: `{ id, name, callerRole, callerItems, district, trigger, once, nodes }`
+- Node format: `{ text, choices, timer, timerNext, resolve }` — `resolve: 'lost'` closes the contact permanently; `resolve: 'waiting'` marks the arc complete but keeps the channel open
+- Player-ignored paths resolve on their own via timers — with worse outcomes
+
+---
+
+### Director Events
+
+- `director.on(event, handler)` / `director.emit(event, payload)` hooks wired into the simulation
+- Events produced: `person-death { person, districtId }`, `unit-disbanded { unitId, districtId }`, `unit-enters { unitId, destId, srcId }`
+- `unit-disbanded` wires to the alert system; `person-death` and `unit-enters` available for future script hooks
+
+---
+
+### `when.*` Vocabulary
+
+- `when.zombiesIn`, `when.gameTime`, `when.humansGone`, `when.unitIn`, `when.random`, `when.allOf`, `when.anyOf`
+- `triggerToCondition(trigger)` converts a script's declarative trigger object into a `(state) => boolean` — scripts describe their trigger as data, the Director handles wiring
+
+---
+
 ## [0.6.0] — 2026-06-15
 
 ### Overview
