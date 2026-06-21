@@ -1,12 +1,15 @@
 # Dispatch — Design Scratchpad
 
-> Running notes for design conversations still in motion. Not committed to build — todo.md is
-> the source of truth for what's actually queued, design.md is the source of truth for what the
-> game canonically is. This file exists so a conversation that happens over several days (and
-> possibly several Claude sessions) doesn't lose its own logic mid-thought.
+> **Lifecycle: this file is working memory for a single Claude session, not a persistent
+> record.** Use it freely mid-session to hold ideas, half-decisions, and open questions that
+> don't have a home yet. Before the session ends, every note in here must be resolved one of
+> two ways: deleted (no longer needed, superseded, or rejected) or moved into the right
+> permanent file — settled identity/premise into design.md, concrete build work into todo.md
+> (in the right version section). Never leave this file with content in it at the end of a
+> session. **Empty is the only correct state for this file between sessions.**
 >
-> When a decision here is solid enough to act on: settled identity/premise goes to design.md,
-> concrete build work goes to todo.md (in the right version section), and the note gets deleted
-> from here. Empty is the good state for this file — it means nothing is currently hanging.
+> Why: this file is not committed-to-build (todo.md is) and not canonical (design.md is) — it's
+> scratch space. If it's allowed to accumulate across sessions, it silently becomes a third
+> source of truth that the other two files will eventually contradict.
 
 ---
