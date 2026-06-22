@@ -37,6 +37,7 @@
     </div>
 
     <button id="btn-start">START MISSION</button>
+    <button id="btn-skip-tutorial">SKIP TUTORIAL</button>
     <div id="start-epitaph">The city will not be saved. Do what you can.</div>
   </div>
 </div>
@@ -45,7 +46,7 @@
 
   <header id="topbar">
     <div id="topbar-left">
-      <span id="game-title">DISPATCH</span>
+      <span id="game-title">LEXINGTON 911</span>
       <span id="tick-display">—</span>
       <span id="time-display">0:00</span>
     </div>
@@ -60,6 +61,31 @@
   </header>
 
   <div id="desktop">
+
+    <div id="desktop-badge"></div>
+
+    <div id="desktop-icons">
+      <button class="desktop-icon" data-win="contacts">
+        <span class="desktop-icon-glyph" style="mask-image:url('images/contacts.svg'); -webkit-mask-image:url('images/contacts.svg');"></span>
+        <span class="desktop-icon-label">CONTACTS</span>
+      </button>
+      <button class="desktop-icon" data-win="dispatch">
+        <span class="desktop-icon-glyph" style="mask-image:url('images/dispatch.svg'); -webkit-mask-image:url('images/dispatch.svg');"></span>
+        <span class="desktop-icon-label">DISPATCH</span>
+      </button>
+      <button class="desktop-icon" data-win="map">
+        <span class="desktop-icon-glyph" style="mask-image:url('images/map.svg'); -webkit-mask-image:url('images/map.svg');"></span>
+        <span class="desktop-icon-label">MAP</span>
+      </button>
+      <button class="desktop-icon" data-win="radio">
+        <span class="desktop-icon-glyph" style="mask-image:url('images/comms.svg'); -webkit-mask-image:url('images/comms.svg');"></span>
+        <span class="desktop-icon-label">COMMS</span>
+      </button>
+      <button class="desktop-icon" data-win="items">
+        <span class="desktop-icon-glyph" style="mask-image:url('images/items.svg'); -webkit-mask-image:url('images/items.svg');"></span>
+        <span class="desktop-icon-label">ITEMS</span>
+      </button>
+    </div>
 
     <!-- Window: Dispatch Roster -->
     <div class="win" id="win-dispatch">
@@ -365,15 +391,31 @@
   </div><!-- #desktop -->
 
   <div id="taskbar">
-    <button class="task-btn" data-win="contacts">CONTACTS</button>
-    <button class="task-btn" data-win="dispatch">DISPATCH</button>
-    <button class="task-btn" data-win="map">MAP</button>
-    <button class="task-btn" data-win="radio">COMMS</button>
-    <button class="task-btn" data-win="items">ITEMS</button>
+    <button class="task-btn" data-win="contacts">
+      <span class="task-btn-glyph" style="mask-image:url('images/contacts.svg'); -webkit-mask-image:url('images/contacts.svg');"></span>
+      CONTACTS
+    </button>
+    <button class="task-btn" data-win="dispatch">
+      <span class="task-btn-glyph" style="mask-image:url('images/dispatch.svg'); -webkit-mask-image:url('images/dispatch.svg');"></span>
+      DISPATCH
+    </button>
+    <button class="task-btn" data-win="map">
+      <span class="task-btn-glyph" style="mask-image:url('images/map.svg'); -webkit-mask-image:url('images/map.svg');"></span>
+      MAP
+    </button>
+    <button class="task-btn" data-win="radio">
+      <span class="task-btn-glyph" style="mask-image:url('images/comms.svg'); -webkit-mask-image:url('images/comms.svg');"></span>
+      COMMS
+    </button>
+    <button class="task-btn items-btn" data-win="items">
+      <span class="task-btn-glyph" style="mask-image:url('images/items.svg'); -webkit-mask-image:url('images/items.svg');"></span>
+      ITEMS
+    </button>
     <div style="flex:1"></div>
     <label class="taskbar-label" for="theme-select">THEME</label>
     <select id="theme-select" class="game-select">
       <option value="terminal-green" selected>Terminal Green</option>
+      <option value="terminal-white">Terminal White</option>
       <option value="morning-coffee">Morning Coffee</option>
       <option value="midnight-purple">Midnight Purple</option>
       <option value="cyberpunk">Cyberpunk</option>

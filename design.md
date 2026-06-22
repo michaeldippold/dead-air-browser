@@ -27,12 +27,13 @@ This identity does real work:
 
 ## Setting
 
-**The town:** a real Kentucky city (candidates under consideration: Lexington, Bowling Green,
-Owensboro — final pick not yet made, see todo.md v1.0.0). Real, specific place names ground the
-fiction — the actual hospital name instead of "Memorial," real neighborhood character instead of
-generic district labels. Worth deciding what the city's declining industry was (steel, auto
-parts, textiles, tobacco) — that detail should flavor caller voice and district identity, not
-just the skyline.
+**The town:** Lexington, Kentucky — picked as the real-world setting. The topbar title
+("LEXINGTON 911"), the desktop background (a Lexington-Fayette Urban County Police badge), and
+the surrounding UI chrome already reflect this choice; the deeper rename — real, specific place
+names instead of generic district labels, the actual hospital name instead of "Memorial" — is
+still open (see todo.md v1.0.0). Worth deciding what the city's declining industry was (steel,
+auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
+not just the skyline.
 
 **The timeframe:** a single overnight shift, **20:00–08:00**. Not open-ended. The original
 vision was an open-ended sim, but that conflicts directly with being a narrative game — finite

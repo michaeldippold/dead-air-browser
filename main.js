@@ -2,6 +2,7 @@ import eNovak    from './scripts/e-novak.js'
 import marcusWebb from './scripts/marcus-webb.js'
 import danny      from './scripts/danny.js'
 import holt       from './scripts/holt.js'
+import tutorial   from './scripts/tutorial.js'
 
 // ── CONFIG & CONSTANTS ──
 
@@ -165,7 +166,7 @@ const CALL_TEMPLATES = [
 // resolve: 'waiting' (alive, quiet) | 'lost' (dead — removes Person from sim)
 
 const NARRATIVE_SCRIPTS = Object.fromEntries(
-  [eNovak, marcusWebb, danny, holt].map(s => [s.id, s])
+  [eNovak, marcusWebb, danny, holt, tutorial].map(s => [s.id, s])
 )
 
 // ── DIRECTOR ──
@@ -262,8 +263,12 @@ function triggerToCondition(trigger) {
 // ── DIRECTOR BEATS ──
 // Scripts self-describe their trigger; the Director auto-registers from that field.
 // To add a new character: create scripts/<id>.js, import it above, add to the array.
+// Scripts with no `trigger` (e.g. the tutorial) are spawned directly by code instead —
+// Director.tick() never runs before state.started anyway, so condition-polling them
+// would be a no-op at best.
 
 Object.values(NARRATIVE_SCRIPTS).forEach(script => {
+  if (!script.trigger) return
   director.register({
     id:        script.id,
     once:      script.once ?? true,
@@ -293,6 +298,7 @@ function spawnScript(scriptId) {
   state.contacts.push(contact)
 
   advanceNarrativeCaller(contact, 0)
+  renderContactsPanel()
 }
 
 function advanceNarrativeCaller(contact, nodeId) {
@@ -308,6 +314,8 @@ function advanceNarrativeCaller(contact, nodeId) {
     contact.messages.push({ text: node.text, time: gameTime(), sender: 'npc' })
     contact.unread = true
   }
+
+  if (node.onEnter) node.onEnter(state, SCRIPT_ACTIONS)
 
   if (node.resolve === 'lost') {
     contact.alive  = false
@@ -331,6 +339,7 @@ function advanceNarrativeCaller(contact, nodeId) {
 }
 
 function processNarrativeCallers() {
+  let advanced = false
   for (const contact of state.contacts) {
     if (contact.type !== 'narrative') continue
 
@@ -341,6 +350,7 @@ function processNarrativeCallers() {
         const next = contact.pendingNext
         contact.pendingNext = null
         advanceNarrativeCaller(contact, next)
+        advanced = true
       }
       continue
     }
@@ -350,9 +360,15 @@ function processNarrativeCallers() {
     if (contact.timer <= 0) {
       const script = NARRATIVE_SCRIPTS[contact.scriptId]
       const node   = script?.nodes[contact.phase]
-      if (node?.timerNext != null) advanceNarrativeCaller(contact, node.timerNext)
+      if (node?.timerNext != null) {
+        advanceNarrativeCaller(contact, node.timerNext)
+        advanced = true
+      }
     }
   }
+  // Normally caught by tick()'s render() loop, but that's gated on state.started — this interval
+  // runs unconditionally (e.g. the pre-game tutorial), so it has to refresh the list itself.
+  if (advanced) renderContactsPanel()
 }
 
 // ── PERSON / UNIT HELPERS ──
@@ -751,13 +767,16 @@ function initWindowManager() {
     controls.querySelector('.win-close-btn').addEventListener('click', () => toggleMinimize(id))
   }
 
-  document.querySelectorAll('.task-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.win
-      if (winState[id].minimized) { toggleMinimize(id) }
-      else if (_activeWin === id)  { toggleMinimize(id) }
-      else                         { bringToFront(id) }
-    })
+  // Shared by taskbar buttons and desktop icons: minimized → restore, already-focused → minimize
+  // (closing it back to desktop), otherwise bring to front.
+  function focusOrToggleWindow(id) {
+    if (winState[id].minimized) { toggleMinimize(id) }
+    else if (_activeWin === id)  { toggleMinimize(id) }
+    else                         { bringToFront(id) }
+  }
+
+  document.querySelectorAll('.task-btn, .desktop-icon').forEach(btn => {
+    btn.addEventListener('click', () => focusOrToggleWindow(btn.dataset.win))
   })
 
   // These panels start minimized — not part of the default tiled layout
@@ -896,6 +915,59 @@ function toggleMaximize(id) {
   }
   applyWinGeometry(id)
   bringToFront(id)
+}
+
+// ── WINDOW-MANAGER SCRIPTING API ──
+// Lets a narrative script's onEnter side effect puppet the UI (panel spotlight, etc.)
+// without reaching into window-manager internals directly.
+
+function closeWindow(id)    { toggleMinimize(id) }
+function minimizeWindow(id) { toggleMinimize(id) }
+function maximizeWindow(id) { toggleMaximize(id) }
+
+function setWindowPosition(id, x, y) {
+  const ws = winState[id]
+  if (!ws) return
+  ws.x = x; ws.y = y
+  clampWin(id)
+  applyWinGeometry(id)
+}
+
+// `value` is visibility, 1.0 = fully clear, 0.0 = fully obscured. Implemented as a black overlay
+// layered over just the window's body (not the titlebar), so a dimmed window still reads as a
+// solid, present frame — like someone dimmed the lights, not like the window turned see-through.
+function setWindowOpacity(id, value) {
+  const body = document.getElementById(`win-${id}`)?.querySelector('.win-body')
+  if (!body) return
+  let overlay = body.querySelector('.win-dim-overlay')
+  if (value >= 1) {
+    overlay?.remove()
+    return
+  }
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.className = 'win-dim-overlay'
+    body.appendChild(overlay)
+  }
+  overlay.style.opacity = 1 - value
+}
+
+// Dims every window except `id` to make it stand out — the panel-highlight mechanic
+// design.md's Onboarding section calls for.
+function spotlightWindow(id) {
+  for (const winId of WIN_IDS) setWindowOpacity(winId, winId === id ? 1.0 : 0.1)
+}
+
+function clearSpotlight() {
+  for (const winId of WIN_IDS) setWindowOpacity(winId, 1.0)
+}
+
+// Capability object handed to a script node's onEnter(state, actions) — scripts are plain data
+// modules with no import access to main.js internals, so this is how they reach window-manager
+// and game-flow functions without a cross-module import.
+const SCRIPT_ACTIONS = {
+  closeWindow, minimizeWindow, maximizeWindow, setWindowPosition, setWindowOpacity,
+  spotlightWindow, clearSpotlight, bringToFront, showAlert, startGame,
 }
 
 function syncTaskbar() {
@@ -1429,6 +1501,11 @@ function resolveTransits() {
 }
 setInterval(resolveTransits, TICK_MS)
 
+// Unconditional, like resolveTransits above — narrative scripts (timers AND choice reply-delays)
+// need to advance before state.started is ever true, so the tutorial can use completely normal
+// script authoring (no special-cased event-driven-only advancement).
+setInterval(processNarrativeCallers, TICK_MS)
+
 // Refreshes only the displayed countdowns every real second — decoupled from TICK_MS so the
 // TRAVELING panel and EN ROUTE label count down 0:11, 0:10, 0:09... instead of jumping in
 // TICK_MS-sized chunks. Resolution of actual arrivals still happens in resolveTransits above.
@@ -1663,7 +1740,6 @@ function tick() {
   }
 
   director.tick()
-  processNarrativeCallers()
   checkCallEvent()
   render()
   checkLose()
@@ -2053,7 +2129,16 @@ function startGame() {
   tickInterval = setInterval(tick, TICK_MS)
 }
 
-document.getElementById('btn-start').addEventListener('click', startGame)
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (NARRATIVE_SCRIPTS.tutorial) {
+    document.getElementById('start-screen').classList.remove('visible')
+    spawnScript('tutorial')
+  } else {
+    startGame()
+  }
+})
+
+document.getElementById('btn-skip-tutorial').addEventListener('click', startGame)
 
 // ── UI Theme system ──
 // setGlobalTheme(id) applies all CSS vars onto document.documentElement, which
@@ -2083,6 +2168,29 @@ const GLOBAL_THEMES = {
     '--radio-carrier':'#5a8e5a','--radio-freq':'#2e4e2e',
     '--radio-t0':'#a8eaa8','--radio-t1':'#7ed87e','--radio-t2':'#4a7a4a','--radio-noise':'#1a2e1a',
     '--status-lost':'#c84040','--leader-star':'#e8c030','--lone-operator':'#904040','--radio-btn-hover-bg':'#181410',
+  },
+
+  'terminal-white': {
+    '--desktop-bg':'#050505','--taskbar-bg':'#080808','--bg':'#0a0a0a','--surface':'#101010','--chrome-raised':'#181818',
+    '--border':'#2e2e2e','--border-sub':'#181818','--border-active':'#5a5a5a',
+    '--text':'#f0f0f0','--text-dim':'#b8b8b8','--text-dimmer':'#b8b8b8','--accent':'#ffffff',
+    '--btn-bg':'#0c0c0c','--btn-bg-hover':'#161616','--btn-bg-active':'#121212',
+    '--btn-border':'#3a3a3a','--btn-border-hover':'#5a5a5a','--btn-border-active':'#707070',
+    '--btn-color':'#d8d8d8','--btn-color-active':'#ffffff',
+    '--win-border':'#2e2e2e','--titlebar-bg':'#0d0d0d','--titlebar-bg-active':'#181818',
+    '--titlebar-border-active':'#5a5a5a','--win-title-color':'#e8e8e8',
+    '--winbtn-bg':'#121212','--winbtn-border':'#3a3a3a','--winbtn-color':'#d0d0d0',
+    '--winbtn-hover-bg':'#1c1c1c','--winbtn-hover-border':'#5a5a5a',
+    '--winbtn-close-bg':'#1a0808','--winbtn-close-color':'#c04040','--winbtn-close-border':'#501818',
+    '--winbtn-max-bg':'#141414','--winbtn-max-color':'#c0c0c0','--winbtn-max-border':'#3a3a3a',
+    '--winbtn-min-bg':'#161616',
+    '--chat-npc-bg':'#161616','--chat-npc-border':'#3a3a3a','--chat-npc-color':'#f0f0f0',
+    '--chat-player-bg':'#202020','--chat-player-border':'#4a4a4a','--chat-player-color':'#ffffff',
+    '--radio-bg':'#050505','--radio-border':'#2e2e2e','--radio-chrome':'#0a0a0a',
+    '--radio-win-border':'#5a5a5a','--radio-title-color':'#e8e8e8',
+    '--radio-carrier':'#888888','--radio-freq':'#3a3a3a',
+    '--radio-t0':'#ffffff','--radio-t1':'#cccccc','--radio-t2':'#888888','--radio-noise':'#3a3a3a',
+    '--status-lost':'#c84040','--leader-star':'#e8c030','--lone-operator':'#904040','--radio-btn-hover-bg':'#181818',
   },
 
   'morning-coffee': {

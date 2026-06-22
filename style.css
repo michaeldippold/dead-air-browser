@@ -214,6 +214,74 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   background: var(--desktop-bg);
 }
 
+/* Lexington badge SVG renders black with no fill attribute of its own — masking it lets us
+   recolor to white without touching the (133KB, machine-generated) source file. */
+#desktop-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 35%;
+  aspect-ratio: 1500 / 1705;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
+  background-color: #fff;
+  -webkit-mask-image: url('images/lexington-badge.svg');
+  mask-image: url('images/lexington-badge.svg');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* Same default-black-no-fill icon SVGs as the badge — masked white per icon below. */
+#desktop-icons {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.desktop-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 76px;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+}
+
+.desktop-icon:hover { background: rgba(255, 255, 255, 0.08); border-color: transparent; }
+
+.desktop-icon-glyph {
+  width: 36px;
+  height: 36px;
+  background-color: #fff;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* The items (gun) icon reads visibly smaller/thinner than the others at the same box size */
+.desktop-icon[data-win="items"] .desktop-icon-glyph { width: 42px; height: 42px; }
+
+.desktop-icon-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 /* ── Taskbar ── */
 #taskbar {
   height: 46px;
@@ -227,7 +295,10 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .task-btn {
-  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
   background: var(--btn-bg);
   border: 1px solid var(--btn-border);
   color: var(--btn-color);
@@ -237,6 +308,30 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+}
+
+.task-btn-glyph {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* The items (gun) icon reads visibly smaller/thinner than the others at the same box size */
+.items-btn {
+  padding: 4px 16px;
+  gap: 0px;
+}
+
+.task-btn[data-win="items"] .task-btn-glyph {
+  width: 26px;
+  height: 26px;
 }
 
 .task-btn:hover               { background: var(--btn-bg-hover);   color: var(--text-dim); border-color: var(--btn-border-hover); }
@@ -405,6 +500,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   overflow: auto;
   position: relative;
   min-height: 0;
+}
+
+.win-dim-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  z-index: 30;
+  pointer-events: auto;
 }
 
 .win-edge { position: absolute; z-index: 20; pointer-events: all; }
@@ -1738,6 +1841,22 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 #btn-start:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+#btn-skip-tutorial {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-dimmer);
+  border-color: transparent;
+  background: transparent;
+}
+
+#btn-skip-tutorial:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 #start-flavor {
