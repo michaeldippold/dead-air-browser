@@ -38,7 +38,7 @@ export default {
     'holt-warn': {
       text: "You're telling me to move my staff based on — look, I have people trying to reach the mayor's office. I am not going to authorize a building evacuation because a dispatcher told me to.",
       choices: [
-        { label: 'Director. The spread will reach City Hall. Please move.', next: 'holt-convinced' },
+        { label: 'Director. The spread will reach the Government Center. Please move.', next: 'holt-convinced' },
       ],
       timer: 10, timerNext: 'holt-dig-in',
     },

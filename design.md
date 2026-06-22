@@ -27,12 +27,14 @@ This identity does real work:
 
 ## Setting
 
-**The town:** Lexington, Kentucky — picked as the real-world setting. The topbar title
-("LEXINGTON 911"), the desktop background (a Lexington-Fayette Urban County Police badge), and
-the surrounding UI chrome already reflect this choice; the deeper rename — real, specific place
-names instead of generic district labels, the actual hospital name instead of "Memorial" — is
-still open (see todo.md v1.0.0). Worth deciding what the city's declining industry was (steel,
-auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
+**The town:** Lexington, Kentucky — picked as the real-world setting. The game's title is
+**Dead Air** (topbar shows this, not the city or "Dispatch"); the desktop background is a
+Lexington-Fayette Urban County Police badge, recolored to match whatever theme is active. District
+labels are now real Lexington-flavored names (Joyce Park, Winburn, Castlewood, Auburn Grande, LPD
+HQ, Station No. 1, LFUCG Govt Center, Good Samaritan Hospital, Old Iron Works, Kendrick Ave, Market
+St, Newtown Commerce, Harrodsburg Road, Lexington Quarry) — internal district IDs are unchanged,
+only the `label` field and map text. Still open: deciding what the city's declining industry was
+(steel, auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
 not just the skyline.
 
 **The timeframe:** a single overnight shift, **20:00–08:00**. Not open-ended. The original
@@ -115,7 +117,7 @@ occupy.
   named locations.
 
 Location is never rendered on the map. It's metadata — a modifier on exposure and a label in
-contact text ("Marcus Webb — Ironworks, Loading Dock"), nothing more.
+contact text ("Marcus Webb — Old Iron Works, Loading Dock"), nothing more.
 
 Mechanically, location is a multiplier on the same threat-weight system that already governs
 combat targeting (the same lever the HIDE unit activity uses). Outside means high exposure.

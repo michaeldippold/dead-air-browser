@@ -215,7 +215,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 /* Lexington badge SVG renders black with no fill attribute of its own — masking it lets us
-   recolor to white without touching the (133KB, machine-generated) source file. */
+   recolor it (to the theme's text color, via currentColor) without touching the source file. */
 #desktop-badge {
   position: absolute;
   top: 50%;
@@ -225,7 +225,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   transform: translate(-50%, -50%);
   z-index: 0;
   pointer-events: none;
-  background-color: #fff;
+  background-color: currentColor;
   -webkit-mask-image: url('images/lexington-badge.svg');
   mask-image: url('images/lexington-badge.svg');
   -webkit-mask-repeat: no-repeat;
@@ -236,7 +236,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   mask-size: contain;
 }
 
-/* Same default-black-no-fill icon SVGs as the badge — masked white per icon below. */
+/* Same default-black-no-fill icon SVGs as the badge — recolored to the theme's text color below. */
 #desktop-icons {
   position: absolute;
   top: 16px;
@@ -263,7 +263,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .desktop-icon-glyph {
   width: 36px;
   height: 36px;
-  background-color: #fff;
+  background-color: currentColor;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;

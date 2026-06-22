@@ -1,6 +1,6 @@
-// E. Novak — Memorial Medical
+// E. Novak — Good Samaritan Hospital
 // Pharmacist sheltering in the hospital dispensary during the outbreak.
-// Trigger: zombies reach Memorial.
+// Trigger: zombies reach Good Samaritan Hospital.
 // Arc: she calls for help. Player can keep her in place, tell her to run, or ignore her.
 //      Ignoring her is survivable but haunting. Running is fast and probably fatal.
 //      Staying is slow, detailed, and ends with her attempting to move at dawn.
@@ -19,7 +19,7 @@ export default {
     // ── Opening call ──────────────────────────────────────────────────────────
 
     0: {
-      text: "This is Elaine Novak. I'm a pharmacist — I'm locked inside the dispensary at Memorial Medical. Whatever is happening out there started on my block maybe two hours ago. I have medication here. Is anyone coordinating a response?",
+      text: "This is Elaine Novak. I'm a pharmacist — I'm locked inside the dispensary at Good Samaritan Hospital. Whatever is happening out there started on my block maybe two hours ago. I have medication here. Is anyone coordinating a response?",
       choices: [
         { label: 'Stay put. We have the situation.',  next: 'stay-ack' },
         { label: 'Get out now — use a back exit.',    next: 'run'      },
@@ -92,7 +92,7 @@ export default {
     // ── Run paths ─────────────────────────────────────────────────────────────
 
     'run': {
-      text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Northgate. My sister. Tell her I tried.",
+      text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Joyce Park. My sister. Tell her I tried.",
       choices: null,
       timer: 6, timerNext: 'run-lost',
     },

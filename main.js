@@ -538,25 +538,25 @@ const state = {
   selected:        null,
   selectedUnit:    null,
   selectedContact: null,
-  contacts:        [ makeContact('City Hall') ],
+  contacts:        [ makeContact('LFUCG Govt Center') ],
   people:          {},
   units:           {},
   transits:        [],
   districts: {
-    'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
-    'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
-    'eastridge':    { label: 'Eastridge',       category: 'residential', humans: 1200, zombies: 0, unitIds: [], loot: rollLoot('eastridge',    'residential', 2) },
-    'westgate':     { label: 'Westgate',        category: 'residential', humans: 900,  zombies: 0, unitIds: [], loot: rollLoot('westgate',     'residential', 1) },
-    'police-hq':    { label: 'Police HQ',       category: 'government',  humans: 80,   zombies: 0, unitIds: [], loot: rollLoot('police-hq',    'government',  3) },
-    'fire-station': { label: 'Fire Station',    category: 'government',  humans: 60,   zombies: 0, unitIds: [], loot: rollLoot('fire-station', 'government',  3) },
-    'city-hall':    { label: 'City Hall',       category: 'government',  humans: 200,  zombies: 0, unitIds: [], loot: rollLoot('city-hall',    'government',  2) },
-    'memorial':     { label: 'Memorial',        category: 'medical',     humans: 600,  zombies: 0, unitIds: [], loot: rollLoot('memorial',     'medical',     4) },
-    'ironworks':    { label: 'Ironworks',       category: 'industrial',  humans: 380,  zombies: 0, unitIds: [], loot: rollLoot('ironworks',    'industrial',  2) },
-    'riverside':    { label: 'Riverside',       category: 'residential', humans: 1100, zombies: 0, unitIds: [], loot: rollLoot('riverside',    'residential', 2) },
-    'market':       { label: 'Market District', category: 'retail',      humans: 700,  zombies: 0, unitIds: [], loot: rollLoot('market',       'retail',      3) },
-    'commerce':     { label: 'Commerce Park',   category: 'retail',      humans: 650,  zombies: 0, unitIds: [], loot: rollLoot('commerce',     'retail',      2) },
-    'southend':     { label: 'Southend',        category: 'residential', humans: 950,  zombies: 0, unitIds: [], loot: rollLoot('southend',     'residential', 2) },
-    'industrial':   { label: 'Industrial Row',  category: 'industrial',  humans: 400,  zombies: 0, unitIds: [], loot: rollLoot('industrial',   'industrial',  2) },
+    'northgate':    { label: 'Joyce Park',              category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
+    'millbrook':    { label: 'Winburn',                 category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
+    'eastridge':    { label: 'Castlewood',              category: 'residential', humans: 1200, zombies: 0, unitIds: [], loot: rollLoot('eastridge',    'residential', 2) },
+    'westgate':     { label: 'Auburn Grande',           category: 'residential', humans: 900,  zombies: 0, unitIds: [], loot: rollLoot('westgate',     'residential', 1) },
+    'police-hq':    { label: 'LPD HQ',                  category: 'government',  humans: 80,   zombies: 0, unitIds: [], loot: rollLoot('police-hq',    'government',  3) },
+    'fire-station': { label: 'Station No. 1',           category: 'government',  humans: 60,   zombies: 0, unitIds: [], loot: rollLoot('fire-station', 'government',  3) },
+    'city-hall':    { label: 'LFUCG Govt Center',       category: 'government',  humans: 200,  zombies: 0, unitIds: [], loot: rollLoot('city-hall',    'government',  2) },
+    'memorial':     { label: 'Good Samaritan Hospital', category: 'medical',     humans: 600,  zombies: 0, unitIds: [], loot: rollLoot('memorial',     'medical',     4) },
+    'ironworks':    { label: 'Old Iron Works',          category: 'industrial',  humans: 380,  zombies: 0, unitIds: [], loot: rollLoot('ironworks',    'industrial',  2) },
+    'riverside':    { label: 'Kendrick Ave',            category: 'residential', humans: 1100, zombies: 0, unitIds: [], loot: rollLoot('riverside',    'residential', 2) },
+    'market':       { label: 'Market St',               category: 'retail',      humans: 700,  zombies: 0, unitIds: [], loot: rollLoot('market',       'retail',      3) },
+    'commerce':     { label: 'Newtown Commerce',        category: 'retail',      humans: 650,  zombies: 0, unitIds: [], loot: rollLoot('commerce',     'retail',      2) },
+    'southend':     { label: 'Harrodsburg Road',        category: 'residential', humans: 950,  zombies: 0, unitIds: [], loot: rollLoot('southend',     'residential', 2) },
+    'industrial':   { label: 'Lexington Quarry',        category: 'industrial',  humans: 400,  zombies: 0, unitIds: [], loot: rollLoot('industrial',   'industrial',  2) },
   }
 }
 
@@ -649,10 +649,10 @@ const hopsBetween = (a, b) => HOP_DISTANCE[a]?.[b] ?? 1
 let _transitCounter = 0
 
 const DISTRICT_CODE = {
-  'northgate': 'NG', 'millbrook': 'MB', 'eastridge': 'ER', 'westgate': 'WG',
-  'police-hq': 'PD', 'fire-station': 'FS', 'city-hall': 'CH', 'memorial': 'MM',
-  'ironworks': 'IW', 'riverside': 'RV', 'market': 'MK', 'commerce': 'CP',
-  'southend': 'SE', 'industrial': 'IR',
+  'northgate': 'JP', 'millbrook': 'WB', 'eastridge': 'CW', 'westgate': 'AG',
+  'police-hq': 'PD', 'fire-station': 'S1', 'city-hall': 'GC', 'memorial': 'GS',
+  'ironworks': 'IW', 'riverside': 'KA', 'market': 'MK', 'commerce': 'NC',
+  'southend': 'HR', 'industrial': 'LQ',
 }
 
 // ── INIT ──
@@ -2037,7 +2037,7 @@ document.getElementById('btn-test-lose').addEventListener('click', () => {
 })
 
 document.getElementById('btn-test-alert').addEventListener('click', () => {
-  showAlert('UNIT DISBANDED', 'All personnel lost at Fire Station. The district has been left unprotected.')
+  showAlert('UNIT DISBANDED', 'All personnel lost at Station No. 1. The district has been left unprotected.')
 })
 
 // ── START SCREEN ──
