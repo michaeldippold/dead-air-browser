@@ -5,15 +5,17 @@ import holt       from './scripts/holt.js'
 
 // ── CONFIG & CONSTANTS ──
 
-const TICK_MS       = 3500
+const TICK_MS       = 3000
 const SPREAD_RATE   = 0.15  // SIR β — transmission coefficient, not per-zombie rate
 let spreadChance = 0.35
 const ROLES = ['police', 'fire', 'civilian']
+const UNIT_TICKS_PER_HOP   = 2  // vehicle-fast
+const PERSON_TICKS_PER_HOP = 6  // on-foot, reserved for future caller Outside-travel — unused for now
 
 // ── GAME CLOCK ──
-const GAME_START_HOUR = 9   // game world begins at 09:00 Day 1
+const GAME_START_HOUR = 20  // game world begins at 20:00 (night shift) Day 1
 const GAME_START_DAY  = 1
-const MINS_PER_TICK   = 5   // each tick advances game clock by 5 minutes
+const MINS_PER_TICK   = 1   // each tick advances game clock by 1 minute
 
 const SCENARIOS = {
   standard: {
@@ -63,6 +65,8 @@ function makePerson(name, role, items = [], opts = {}) {
     sim:        opts.sim        ?? true,   // false = protected from sim combat/death
     districtId: opts.districtId ?? null,   // standalone location when not in a unit
     scriptId:   opts.scriptId   ?? null,   // links Person to their Script
+    location:   opts.location   ?? 'business',  // outside | business | residence — exposure modifier
+    activity:   opts.activity   ?? 'default',   // hide | default | scavenge — exposure modifier
   }
 }
 
@@ -86,7 +90,6 @@ const makeContact = (name, districtId = null) => ({
 
 const CALLER_POOL = [
   'Unknown Caller',
-  'Marcus Webb',
   'Unknown Caller',
   'Sandra Hill',
   'Officer Torres',
@@ -212,6 +215,22 @@ const director = (() => {
   }
 })()
 
+// Generalized contact-closing: any caller (ambient or scripted) whose backing Person dies for
+// real goes dark the same way an authored `resolve: 'lost'` node does. No-ops for unit-member
+// deaths (no matching contact).
+director.on('person-death', (s, { person }) => {
+  const contact = s.contacts.find(c => c.personId === person.id)
+  if (!contact || !contact.alive) return
+  contact.alive  = false
+  contact.status = 'dead'
+  contact.messages.push({ text: '[contact lost]', time: gameTime() })
+  contact.unread = true
+  if (s.selectedContact === contact.id) {
+    renderContactMessages(contact)
+    renderContactMeta(contact)
+  }
+})
+
 // ── WHEN — trigger condition helpers ─────────────────────────────────────────
 // Each helper returns a (state) => boolean function for use in Director beats.
 // Scripts declare their trigger as a plain object; triggerToCondition() converts
@@ -274,7 +293,6 @@ function spawnScript(scriptId) {
   state.contacts.push(contact)
 
   advanceNarrativeCaller(contact, 0)
-  showAlert('INCOMING TRANSMISSION', `${script.name} is requesting contact. Check CONTACTS to respond.`)
 }
 
 function advanceNarrativeCaller(contact, nodeId) {
@@ -348,7 +366,10 @@ function personsInUnit(unitId) {
 }
 
 function personsInDistrict(districtId) {
-  return unitsInDistrict(districtId).flatMap(u => personsInUnit(u.id))
+  const unitMembers = unitsInDistrict(districtId).flatMap(u => personsInUnit(u.id))
+  const standalone = Object.values(state.people).filter(p =>
+    !p.unitId && p.districtId === districtId && p.sim !== false)
+  return [...unitMembers, ...standalone]
 }
 
 function woundState(person) {
@@ -378,7 +399,9 @@ function handlePersonDeath(person, districtId) {
   }
   director.emit('person-death', { person, districtId })
   delete state.people[person.id]
-  broadcastEvent(`[${d.label.toUpperCase()}] UNIT DOWN — no further contact.`)
+  broadcastEvent(unit
+    ? `[${d.label.toUpperCase()}] UNIT DOWN — no further contact.`
+    : `[${d.label.toUpperCase()}] CONTACT LOST — no further transmission.`)
 }
 
 function disbandUnit(unitId, districtId) {
@@ -391,7 +414,9 @@ function disbandUnit(unitId, districtId) {
 
 // ── COMBAT & UTILITIES ──
 
-const THREAT_MOD = { police: 3, fire: 2, civilian: 1 }
+const THREAT_MOD    = { police: 3, fire: 2, civilian: 1 }
+const LOCATION_MOD  = { outside: 1.5, business: 1.0, residence: 0.5 }
+const ACTIVITY_MOD  = { engage: 1.0, default: 1.0, hide: 0.3, scavenge: 1.3 }
 
 function getHitChance(person) {
   const base = person.items.includes('gun')      ? 0.50
@@ -403,11 +428,16 @@ function getHitChance(person) {
   return base
 }
 
-// Hiding units are much harder to target — 30% of their normal threat weight
+// Exposure = role weight × Location × Activity. Units are implicitly Outside (they operate
+// across the whole district, no fixed location) — their existing activity multiplies on top.
+// Standalone Persons (callers) use their own location/activity fields.
 function effectiveThreatMod(person) {
+  const base = THREAT_MOD[person.role] ?? THREAT_MOD.civilian
   const unit = state.units[person.unitId]
-  const base = THREAT_MOD[person.role]
-  return unit?.activity === 'hide' ? base * 0.3 : base
+  if (unit) return base * LOCATION_MOD.outside * (ACTIVITY_MOD[unit.activity] ?? 1.0)
+  const locMod = LOCATION_MOD[person.location] ?? LOCATION_MOD.business
+  const actMod = ACTIVITY_MOD[person.activity] ?? ACTIVITY_MOD.default
+  return base * locMod * actMod
 }
 
 function pickCounterTarget(persons) {
@@ -451,7 +481,7 @@ function gameDay() {
 }
 
 // Convert a game-world hour (and optional minute) to the tick count at which that time occurs.
-// Used by Director beats: condition: () => state.tick >= ticksFor(11) means "at or after 11:00".
+// Used by Director beats: condition: () => state.tick >= ticksFor(21) means "at or after 21:00".
 function ticksFor(hour, minute = 0) {
   return Math.max(0, Math.ceil(((hour - GAME_START_HOUR) * 60 + minute) / MINS_PER_TICK))
 }
@@ -495,6 +525,7 @@ const state = {
   contacts:        [ makeContact('City Hall') ],
   people:          {},
   units:           {},
+  transits:        [],
   districts: {
     'northgate':    { label: 'Northgate',      category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
     'millbrook':    { label: 'Millbrook',       category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
@@ -579,6 +610,33 @@ const adjacency = {
   'commerce':     ['memorial', 'ironworks', 'market', 'southend', 'industrial'],
   'southend':     ['riverside', 'market', 'commerce', 'industrial'],
   'industrial':   ['commerce', 'southend'],
+}
+
+function computeHopDistances(graph) {
+  const dist = {}
+  for (const start of Object.keys(graph)) {
+    dist[start] = { [start]: 0 }
+    const queue = [start]
+    while (queue.length) {
+      const cur = queue.shift()
+      const d = dist[start][cur]
+      for (const next of graph[cur] || []) {
+        if (dist[start][next] === undefined) { dist[start][next] = d + 1; queue.push(next) }
+      }
+    }
+  }
+  return dist
+}
+const HOP_DISTANCE = computeHopDistances(adjacency)
+const hopsBetween = (a, b) => HOP_DISTANCE[a]?.[b] ?? 1
+
+let _transitCounter = 0
+
+const DISTRICT_CODE = {
+  'northgate': 'NG', 'millbrook': 'MB', 'eastridge': 'ER', 'westgate': 'WG',
+  'police-hq': 'PD', 'fire-station': 'FS', 'city-hall': 'CH', 'memorial': 'MM',
+  'ironworks': 'IW', 'riverside': 'RV', 'market': 'MK', 'commerce': 'CP',
+  'southend': 'SE', 'industrial': 'IR',
 }
 
 // ── INIT ──
@@ -1038,8 +1096,15 @@ function renderUnitDetail(unit) {
   const persons = personsInUnit(unit.id)
   const leader  = state.people[unit.leaderPersonId]
 
-  udvType.textContent     = unit.label
-  udvLocation.textContent = d?.label ?? '—'
+  udvType.textContent = unit.label
+  if (!unit.districtId) {
+    const t = state.transits.find(t => t.kind === 'unit' && t.refId === unit.id)
+    const destLabel = state.districts[t?.destId]?.label ?? '—'
+    const countdown = t ? formatCountdown(t.etaMs) : '0:00'
+    udvLocation.textContent = `EN ROUTE → ${destLabel} (${countdown})`
+  } else {
+    udvLocation.textContent = d?.label ?? '—'
+  }
 
   udvActivity.innerHTML = `
     <div class="activity-btns">
@@ -1198,7 +1263,13 @@ function checkCallEvent() {
   } else {
     const name = CALLER_POOL[_callerIdx++]
     const isNamed = name !== 'Unknown Caller'
-    contact = makeContact(name, isNamed ? triggerId : null)
+    const districtId = isNamed ? triggerId : null
+    const person = makePerson(name, 'civilian', [], {
+      sim: true, districtId, location: 'residence', activity: 'hide',
+    })
+    state.people[person.id] = person
+    contact = makeContact(name, districtId)
+    contact.personId = person.id
     state.contacts.push(contact)
   }
 
@@ -1216,26 +1287,6 @@ function checkCallEvent() {
 
   contact.messages.push({ text, time: timeStr, sender: 'npc' })
   contact.unread = true
-}
-
-function checkCallerSurvival() {
-  for (const contact of state.contacts) {
-    if (contact.personId) continue  // scripted callers only die when the Director says so
-    if (!contact.location || !contact.alive) continue
-    const d = state.districts[contact.location]
-    if (!d || d.zombies === 0) continue
-
-    const dangerRatio = d.zombies / Math.max(1, d.humans + d.zombies)
-    let deathChance = dangerRatio * 0.04
-    if (contact.status === 'hiding') deathChance *= 0.25
-
-    if (Math.random() < deathChance) {
-      contact.alive = false
-      contact.status = 'dead'
-      contact.messages.push({ text: '[contact lost]', time: gameTime() })
-      contact.unread = true
-    }
-  }
 }
 
 function renderContactsPanel() {
@@ -1325,15 +1376,70 @@ function dispatchUnit(unitId, destId) {
   if (!unit || !src || !dest || unit.districtId === destId) return
 
   const srcId = unit.districtId
-  src.unitIds  = src.unitIds.filter(id => id !== unitId)
-  dest.unitIds.push(unitId)
-  unit.districtId = destId
-  if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = destId
+  src.unitIds = src.unitIds.filter(id => id !== unitId)
+  unit.districtId = null
+  if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = null
 
-  director.emit('unit-enters', { unitId, destId, srcId })
+  const ticks = hopsBetween(srcId, destId) * UNIT_TICKS_PER_HOP
+  state.transits.push({
+    id: `t${++_transitCounter}`, kind: 'unit', refId: unitId,
+    srcId, destId, ticksRemaining: ticks, totalTicks: ticks,
+    etaMs: Date.now() + ticks * TICK_MS,
+  })
+
+  director.emit('unit-departs', { unitId, srcId, destId })
   broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
   renderUnitsPanel()
+  renderUnitDots()
+  renderTravelingPanel()
 }
+
+function resolveTransits() {
+  if (state.transits.length === 0) return
+  const remaining = []
+  for (const t of state.transits) {
+    t.ticksRemaining--
+    if (t.ticksRemaining > 0) { remaining.push(t); continue }
+    if (t.kind === 'unit') {
+      const unit = state.units[t.refId]
+      const dest = state.districts[t.destId]
+      if (unit && dest) {
+        unit.districtId = t.destId
+        dest.unitIds.push(t.refId)
+        if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = t.destId
+        director.emit('unit-enters', { unitId: t.refId, destId: t.destId, srcId: t.srcId })
+        broadcastEvent(`[${dest.label.toUpperCase()}] Unit arrived from ${state.districts[t.srcId]?.label ?? t.srcId}.`)
+      }
+    } else if (t.kind === 'person') {
+      const person = state.people[t.refId]
+      if (person) {
+        person.districtId = t.destId
+        director.emit('person-arrives', { personId: t.refId, destId: t.destId, srcId: t.srcId })
+      }
+    }
+  }
+  state.transits = remaining
+  renderUnitsPanel()
+  renderUnitDots()
+  renderTravelingPanel()
+  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
+    const unit = state.units[state.selectedUnit.unitId]
+    if (unit) renderUnitDetail(unit)
+  }
+}
+setInterval(resolveTransits, TICK_MS)
+
+// Refreshes only the displayed countdowns every real second — decoupled from TICK_MS so the
+// TRAVELING panel and EN ROUTE label count down 0:11, 0:10, 0:09... instead of jumping in
+// TICK_MS-sized chunks. Resolution of actual arrivals still happens in resolveTransits above.
+setInterval(() => {
+  if (state.transits.length === 0) return
+  renderTravelingPanel()
+  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
+    const unit = state.units[state.selectedUnit.unitId]
+    if (unit && !unit.districtId) renderUnitDetail(unit)
+  }
+}, 1000)
 
 btnUdvSend.addEventListener('click', () => {
   if (!state.selectedUnit) return
@@ -1430,7 +1536,7 @@ function checkLose() {
 
 function checkWin() {
   if (state.won || state.lost) return
-  if (state.tick < ticksFor(30)) return   // dawn = 6am next day, 252 ticks
+  if (state.tick < ticksFor(30)) return   // dawn = 6am next day, 600 ticks
 
   state.won = true
   showEndScreen('OUTBREAK CONTAINED', 'PLAY AGAIN', FLAVOR.winDawn)
@@ -1485,7 +1591,6 @@ function tick() {
   // Combat / activity resolution
   for (const [districtId, d] of Object.entries(state.districts)) {
     const districtUnits = unitsInDistrict(districtId)
-    if (districtUnits.length === 0) continue
 
     // Scavenge phase — runs even in clear districts
     for (const unit of districtUnits) {
@@ -1517,7 +1622,8 @@ function tick() {
       }
     }
 
-    // Counterattack — all units exposed; hiding units have reduced threat weight
+    // Counterattack — every Person present is exposed (unit members and standalone callers
+    // alike), weighted by effectiveThreatMod's Location×Activity exposure multiplier
     const dangerRatio   = d.zombies / (d.humans + d.zombies)
     const counterChance = dangerRatio * 0.40
     const numStrikes    = persons.length
@@ -1559,7 +1665,6 @@ function tick() {
   director.tick()
   processNarrativeCallers()
   checkCallEvent()
-  checkCallerSurvival()
   render()
   checkLose()
   checkWin()
@@ -1573,6 +1678,7 @@ function render() {
   renderDistrictDetail()
   renderUnitsPanel()
   renderUnitDots()
+  renderTravelingPanel()
   renderContactsPanel()
   renderGodPanel()
   renderRadio()
@@ -1613,6 +1719,7 @@ function renderUnitsPanel() {
   const layout = document.getElementById('units-panel').dataset.cardLayout || 'cards'
   const byDistrict = {}
   for (const unit of units) {
+    if (!unit.districtId) continue  // in transit — shown only in the TRAVELING panel
     if (!byDistrict[unit.districtId]) byDistrict[unit.districtId] = []
     byDistrict[unit.districtId].push(unit)
   }
@@ -1700,6 +1807,62 @@ function renderUnitDots() {
     })
   }
 }
+
+// Wall-clock ETA, refreshed on its own 1s interval (see startCountdownClock below) — kept
+// separate from ticksRemaining (which drives actual arrival in resolveTransits) so the displayed
+// countdown ticks down smoothly every second instead of jumping by TICK_MS-sized chunks.
+function formatCountdown(etaMs) {
+  const secs = Math.max(0, Math.round((etaMs - Date.now()) / 1000))
+  const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
+function renderTravelingPanel() {
+  const panel = document.getElementById('traveling-panel')
+  if (!panel) return
+
+  if (state.transits.length === 0) {
+    panel.innerHTML = ''
+    panel.style.display = 'none'
+    return
+  }
+  panel.style.display = 'block'
+
+  const sorted = [...state.transits].sort((a, b) => a.ticksRemaining - b.ticksRemaining)
+  const rows = sorted.map(t => {
+    const srcCode  = DISTRICT_CODE[t.srcId]  ?? '??'
+    const destCode = DISTRICT_CODE[t.destId] ?? '??'
+    const countdown = formatCountdown(t.etaMs)
+
+    if (t.kind === 'unit') {
+      const unit   = state.units[t.refId]
+      const leader = unit && state.people[unit.leaderPersonId]
+      if (!leader) return ''
+      return `<div class="traveling-row" data-unit-id="${unit.id}">
+        <span class="traveling-dot traveling-dot--${leader.role} traveling-dot--siren"></span>
+        <span class="traveling-name">${leader.name}</span>
+        <span class="traveling-route">[${srcCode}→${destCode}]</span>
+        <span class="traveling-time">${countdown}</span>
+      </div>`
+    }
+
+    const person = state.people[t.refId]
+    if (!person) return ''
+    return `<div class="traveling-row">
+      <span class="traveling-name traveling-name--bare">${person.name}</span>
+      <span class="traveling-route">[${srcCode}→${destCode}]</span>
+      <span class="traveling-time">${countdown}</span>
+    </div>`
+  }).join('')
+
+  panel.innerHTML = `<div class="traveling-header">TRAVELING</div><div class="traveling-list">${rows}</div>`
+}
+
+document.getElementById('traveling-panel').addEventListener('click', e => {
+  const row = e.target.closest('[data-unit-id]')
+  if (!row) return
+  showUnitDetail(row.dataset.unitId)
+})
 
 function renderGodPanel() {
   const table = document.getElementById('god-table')

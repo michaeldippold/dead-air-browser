@@ -1,6 +1,6 @@
 // Deputy Director Holt — Office of Emergency Management
 // A government official who doesn't believe the player and won't act without proper channels.
-// Trigger: game time reaches 11:00 AM (tick 8), fires regardless of district state.
+// Trigger: game time reaches 21:00, fires regardless of district state.
 // Arc: he calls to question your authority, not to ask for help.
 //      Player can push back, warn him directly, or get caught in his skepticism.
 //      If convinced, he becomes cooperative. If not, he goes through "proper channels"
@@ -12,7 +12,7 @@ export default {
   callerRole:  'civilian',
   callerItems: [],
   district:    null,   // not tied to a district — he calls from wherever he is
-  trigger:     { type: 'game-time', hour: 11 },
+  trigger:     { type: 'game-time', hour: 21 },
   once:        true,
 
   nodes: {
