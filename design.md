@@ -30,10 +30,12 @@ This identity does real work:
 **The town:** Lexington, Kentucky — picked as the real-world setting. The game's title is
 **Dead Air** (topbar shows this, not the city or "Dispatch"); the desktop background is a
 Lexington-Fayette Urban County Police badge, recolored to match whatever theme is active. District
-labels are now real Lexington-flavored names (Joyce Park, Winburn, Castlewood, Auburn Grande, LPD
-HQ, Station No. 1, LFUCG Govt Center, Good Samaritan Hospital, Old Iron Works, Kendrick Ave, Market
-St, Newtown Commerce, Harrodsburg Road, Lexington Quarry) — internal district IDs are unchanged,
-only the `label` field and map text. Still open: deciding what the city's declining industry was
+labels are now real Lexington-flavored names (Joyce Park, Winburn, Castlewood, University of
+Kentucky, LPD HQ, Station No. 1, LFUCG Govt Center, Good Samaritan Hospital, Old Iron Works,
+Kendrick Ave, Market St, Newtown Commerce, The Red Mile, Lexington Quarry) — internal district IDs
+are unchanged, only the `label` field and map text. University of Kentucky and The Red Mile are
+classified `government` and `retail` respectively (not `residential`), which feeds their loot
+table and COMMS flavor. Still open: deciding what the city's declining industry was
 (steel, auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
 not just the skyline.
 
