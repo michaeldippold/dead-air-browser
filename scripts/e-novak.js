@@ -92,7 +92,7 @@ export default {
     // ── Run paths ─────────────────────────────────────────────────────────────
 
     'run': {
-      text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Joyce Park. My sister. Tell her I tried.",
+      text: "Okay. There's a side door through the loading bay. If you don't hear from me — there's a Theresa Novak in Joyland. My sister. Tell her I tried.",
       choices: null,
       timer: 6, timerNext: 'run-lost',
     },

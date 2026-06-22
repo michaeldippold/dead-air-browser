@@ -1,6 +1,6 @@
-// Danny — Joyce Park (last name unknown)
+// Danny — Joyland (last name unknown)
 // A child on a landline. Parents went to get grandma and haven't come back.
-// Trigger: zombies reach Joyce Park.
+// Trigger: zombies reach Joyland.
 // Arc: he followed his dad's instructions to the letter. He's scared but not panicking.
 //      Player can keep him in place, send him to Mrs. Kowalski down the hall, or ignore him.
 //      Ignoring him is the worst outcome. Sending him to the neighbor is the best.

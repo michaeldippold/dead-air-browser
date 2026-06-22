@@ -543,7 +543,7 @@ const state = {
   units:           {},
   transits:        [],
   districts: {
-    'northgate':    { label: 'Joyce Park',              category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
+    'northgate':    { label: 'Joyland',                 category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
     'millbrook':    { label: 'Winburn',                 category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
     'eastridge':    { label: 'Castlewood',              category: 'residential', humans: 1200, zombies: 0, unitIds: [], loot: rollLoot('eastridge',    'residential', 2) },
     'westgate':     { label: 'University of Kentucky',  category: 'government',  humans: 900,  zombies: 0, unitIds: [], loot: rollLoot('westgate',     'government', 1) },
@@ -649,7 +649,7 @@ const hopsBetween = (a, b) => HOP_DISTANCE[a]?.[b] ?? 1
 let _transitCounter = 0
 
 const DISTRICT_CODE = {
-  'northgate': 'JP', 'millbrook': 'WB', 'eastridge': 'CW', 'westgate': 'UK',
+  'northgate': 'JL', 'millbrook': 'WB', 'eastridge': 'CW', 'westgate': 'UK',
   'police-hq': 'PD', 'fire-station': 'S1', 'city-hall': 'GC', 'memorial': 'GS',
   'ironworks': 'IW', 'riverside': 'KA', 'market': 'MK', 'commerce': 'NC',
   'southend': 'RM', 'industrial': 'LQ',
