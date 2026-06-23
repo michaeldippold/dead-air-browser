@@ -1449,6 +1449,14 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   background: var(--accent);
 }
 
+/* Unit-thread dots: ring colored by leader role, filled when there's an unread report. */
+.contact-dot--role-police   { border-color: var(--unit-police); }
+.contact-dot--role-fire     { border-color: var(--unit-fire); }
+.contact-dot--role-civilian { border-color: var(--unit-civilian); }
+.contact-dot--role-police.contact-dot--unread   { background: var(--unit-police); }
+.contact-dot--role-fire.contact-dot--unread     { background: var(--unit-fire); }
+.contact-dot--role-civilian.contact-dot--unread { background: var(--unit-civilian); }
+
 .contact-card .cdv-phone-icon {
   width: 14px;
   height: 14px;
@@ -1591,6 +1599,59 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   border-color: var(--accent);
   color: var(--bg);
   animation-play-state: paused;
+}
+
+/* ── Dispatch-to-caller control (inside the open call thread) ── */
+#cdv-dispatch {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.cdv-dispatch-label {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.cdv-dispatch-row {
+  display: flex;
+  gap: 8px;
+}
+
+.cdv-dispatch-row .game-select {
+  flex: 1;
+  min-width: 0;
+}
+
+#cdv-dispatch-send {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--bg);
+  background: var(--accent);
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+
+#cdv-dispatch-send:hover {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+/* Activity slot when a unit is tied up on a call — no retask buttons, just the busy state. */
+.udv-responding {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-align: center;
+  padding: 7px;
+  color: var(--bg);
+  background: var(--accent);
+  animation: pulse-crit 1.4s infinite;
 }
 
 /* ── Left panel: unit detail view ── */
@@ -2093,6 +2154,9 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 .unit-map-dot--fire     { fill: var(--unit-fire); }
 .unit-map-dot--civilian { fill: var(--unit-civilian); }
 
+/* On a call — dashed gold ring marks a unit that's present but tied up (RESPONDING). */
+.unit-map-dot--responding { stroke: var(--leader-star); stroke-width: 2; stroke-dasharray: 3 2; }
+
 /* ── Drag-and-drop ── */
 
 polygon.drop-target {
@@ -2201,6 +2265,15 @@ polygon.contact-district {
   color: var(--chip-bno-color);
   border-color: var(--chip-bno-border);
   background: rgba(72,136,216,0.08);
+}
+
+/* RESPONDING reads as actively busy — filled accent + pulse, distinct from the outlined idle
+   activity badges. The unit is tied up on a call, not free to retask. */
+.roster-activity--responding {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  animation: pulse-crit 1.4s infinite;
 }
 
 /* ── BADGES layout — condensed horizontal card with role stripe ── */

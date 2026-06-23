@@ -80,7 +80,7 @@ function makePerson(name, role, items = [], opts = {}) {
 }
 
 function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
-  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage' }
+  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage', respondTimer: null }
 }
 
 const makeContact = (name, districtId = null) => ({
@@ -93,6 +93,7 @@ const makeContact = (name, districtId = null) => ({
   timer:       null,
   scriptId:    null,
   personId:    null,   // set for scripted callers — links to the Person in state.people
+  unitId:      null,   // set for unit contacts (type 'unit') — links to the dispatched unit
   pendingNext: null,
   replyDelay:  0,
   lastActivityTick: 0,
@@ -104,6 +105,104 @@ const makeContact = (name, districtId = null) => ({
 function pushMessage(contact, msg) {
   contact.messages.push(msg)
   contact.lastActivityTick = state.tick
+}
+
+// ── UNIT CONTACTS ──
+// A unit becomes a Contact the first time it's dispatched — a one-way field-to-dispatch radio
+// channel (en route / on scene / reports). No 911 opener, no reply UI: the unit is calling us,
+// not the other way around. Name reads "UNIT 2" (uppercased) so it's distinct at a glance from a
+// civilian caller; the contacts-list dot is colored by the leader's role (see renderContactsPanel).
+function ensureUnitContact(unit) {
+  let contact = state.contacts.find(c => c.type === 'unit' && c.unitId === unit.id)
+  if (!contact) {
+    contact = makeContact(unit.label.toUpperCase())
+    contact.type   = 'unit'
+    contact.unitId = unit.id
+    contact.status = null
+    state.contacts.push(contact)
+  }
+  return contact
+}
+
+// One field-to-dispatch radio line on the unit's thread (always the 'npc' side — it's them).
+function unitReport(unit, text) {
+  const contact = ensureUnitContact(unit)
+  pushMessage(contact, { text, time: gameTime(), sender: 'npc' })
+  contact.unread = true
+  if (state.selectedContact === contact.id) renderContactMessages(contact)
+  renderContactsPanel()
+  return contact
+}
+
+// A unit member is insulated from the sim while their unit is RESPONDING to a call — see the
+// combat loop and getEffectiveSpreadRate. "Dispatch to a caller is a story move": the unit is
+// tied up with that person, neither killing zombies nor killable, until the call resolves.
+function isRespondingMember(person) {
+  const u = state.units[person.unitId]
+  return !!u && u.activity === 'responding'
+}
+
+// Arrival at a targeted caller: drop into RESPONDING, then hand off to authored content if the
+// caller's script defines onArrive (which can branch on the unit and its composition), otherwise
+// run a generic outcome. The unit stays tied up until completeResponse(unit) — called by the
+// script for an authored beat, or by the responding timer for the generic path.
+function arriveOnCall(unit, contactId) {
+  unit.activity = 'responding'
+  const caller = state.contacts.find(c => c.id === contactId)
+  const dest   = state.districts[unit.districtId]
+  unitReport(unit, `On scene at ${dest?.label ?? 'location'}.`)
+
+  const script = caller?.type === 'narrative' ? NARRATIVE_SCRIPTS[caller.scriptId] : null
+  if (script?.onArrive) {
+    script.onArrive(state, SCRIPT_ACTIONS, {
+      contact: caller,
+      unit,
+      roles:   personsInUnit(unit.id).map(p => p.role),
+      hasRole: role => personsInUnit(unit.id).some(p => p.role === role),
+    })
+    return
+  }
+  genericArrivalOutcome(unit, caller)
+}
+
+// Fallback for any caller without an authored onArrive (plain tutorial callers, short Incidents):
+// an outcome bucket read off the responding district's danger, voiced on both the unit thread and
+// the caller's, then auto-completion after a short window. Authored scripts override all of this.
+function genericArrivalOutcome(unit, caller) {
+  const d     = state.districts[unit.districtId]
+  const ratio = d ? d.zombies / Math.max(1, d.humans + d.zombies) : 0
+  let unitLine, callerLine
+  if (!d || d.zombies === 0) {
+    unitLine   = `Area's quiet. We've got the subject — they're safe.`
+    callerLine = `Oh thank god. Thank you.`
+  } else if (ratio < 0.25) {
+    unitLine   = `On scene — a few hostiles around. We have the subject, holding position.`
+    callerLine = `You're here. Okay. Okay.`
+  } else {
+    unitLine   = `It's heavy out here — contact all around the structure. Getting them out now.`
+    callerLine = `Please hurry, I can hear them—`
+  }
+  unitReport(unit, unitLine)
+  if (caller?.alive && caller.personId) {
+    pushMessage(caller, { text: callerLine, time: gameTime(), sender: 'npc' })
+    caller.unread = true
+    if (state.selectedContact === caller.id) renderContactMessages(caller)
+  }
+  unit.respondTimer = 4   // ticks until auto-completion (see the responding interval)
+}
+
+// Mark a call done and return the unit to ENGAGE. The mechanical home for "task complete" — called
+// by a script's resolution beat (SCRIPT_ACTIONS.completeResponse) or by the responding timer.
+function completeResponse(unit) {
+  if (!unit || unit.activity !== 'responding') return
+  unit.activity     = 'engage'
+  unit.respondTimer = null
+  unitReport(unit, `Task complete. Back in service.`)
+  renderUnitsPanel()
+  renderUnitDots()
+  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit?.unitId === unit.id) {
+    renderUnitDetail(unit)
+  }
 }
 
 const CALLER_POOL = [
@@ -338,6 +437,7 @@ function spawnScript(scriptId) {
 // Guarded on pendingNext too, not just messages.length, so backing out before the delay
 // resolves and reopening doesn't re-fire a second opener on top of the one already queued.
 function maybeFireFirstOpen(contact) {
+  if (contact.type === 'unit') return   // units open with their own outbound report, no 911 line
   if (contact.type === 'narrative' && contact.scriptId === 'tutorial') return
   if (contact.messages.length > 0 || contact.pendingNext !== null) return
 
@@ -488,6 +588,14 @@ function disbandUnit(unitId, districtId) {
   const d = state.districts[districtId]
   if (d) d.unitIds = d.unitIds.filter(id => id !== unitId)
   state.unitsLost++
+  // The unit's contact thread goes dead air — disconnected glyph, no more reports.
+  const contact = state.contacts.find(c => c.type === 'unit' && c.unitId === unitId)
+  if (contact) {
+    contact.alive = false
+    pushMessage(contact, { text: '[unit lost]', time: gameTime(), sender: 'system' })
+    if (state.selectedContact === contact.id) { renderContactMessages(contact); updatePhoneIcon(contact) }
+    renderContactsPanel()
+  }
   director.emit('unit-disbanded', { unitId, districtId })
   delete state.units[unitId]
 }
@@ -496,7 +604,7 @@ function disbandUnit(unitId, districtId) {
 
 const THREAT_MOD    = { police: 3, fire: 2, civilian: 1 }
 const LOCATION_MOD  = { outside: 1.5, business: 1.0, residence: 0.5 }
-const ACTIVITY_MOD  = { engage: 1.0, default: 1.0, hide: 0.3, scavenge: 1.3 }
+const ACTIVITY_MOD  = { engage: 1.0, default: 1.0, hide: 0.3, scavenge: 1.3, responding: 0 }
 
 function getHitChance(person) {
   const base = person.items.includes('gun')      ? 0.50
@@ -544,7 +652,10 @@ function districtHasBinoView(districtId) {
 
 // Local growth rate reduced by units present (each unit -12%, cap 80%)
 function getEffectiveSpreadRate(d) {
-  const suppression = Math.min(0.80, (d.unitIds?.length ?? 0) * 0.12)
+  // RESPONDING units are tied up with a caller and don't suppress spread — only units actively
+  // working the district count toward suppression.
+  const active = (d.unitIds ?? []).filter(id => state.units[id]?.activity !== 'responding').length
+  const suppression = Math.min(0.80, active * 0.12)
   return SPREAD_RATE * (1 - suppression)
 }
 
@@ -1043,7 +1154,7 @@ function clearSpotlight() {
 // and game-flow functions without a cross-module import.
 const SCRIPT_ACTIONS = {
   closeWindow, minimizeWindow, maximizeWindow, revealWindow, setWindowPosition, setWindowOpacity,
-  spotlightWindow, clearSpotlight, bringToFront, showAlert, startGame,
+  spotlightWindow, clearSpotlight, bringToFront, showAlert, startGame, completeResponse,
 }
 
 function syncTaskbar() {
@@ -1316,8 +1427,9 @@ function renderUnitDetail(unit) {
     udvLocation.textContent = d?.label ?? '—'
   }
 
-  udvActivity.innerHTML = `
-    <div class="activity-btns">
+  udvActivity.innerHTML = unit.activity === 'responding'
+    ? `<div class="udv-responding">RESPONDING — on a call</div>`
+    : `<div class="activity-btns">
       ${['engage', 'hide', 'scavenge'].map(a =>
         `<button class="activity-btn${unit.activity === a ? ' activity-btn--active' : ''}" data-activity="${a}">${a.toUpperCase()}</button>`
       ).join('')}
@@ -1401,8 +1513,10 @@ function showContactDetail(contactId) {
   renderContactsPanel()
   cdvName.textContent = contact.name
   updatePhoneIcon(contact)
+  btnCdvCallback.style.display = contact.type === 'unit' ? 'none' : ''
   renderContactMeta(contact)
   renderContactMessages(contact)
+  renderDispatchControl(contact)
   setContactsView('contact-detail')
   _clearContactDistrictPulse()
   if (contact.location) {
@@ -1415,6 +1529,36 @@ function hideContactDetail() {
   state.selectedContact = null
   setContactsView(null)
   _clearContactDistrictPulse()
+}
+
+// The game's core verb, surfaced inside the open call thread: pick an available unit and send it
+// to this caller. Only for live callers with a known location (not unit threads, not the tutorial
+// handoff). Dispatching here is a *story* move — the unit travels, arrives, drops into RESPONDING,
+// and is tied up with this caller until the beat resolves (see arriveOnCall). Tactical district
+// moves still live in the DISPATCH window. Units already RESPONDING or in transit aren't eligible.
+function renderDispatchControl(contact) {
+  const el = document.getElementById('cdv-dispatch')
+  if (!el) return
+  const isCaller = contact.type === 'narrative' || contact.type === 'ambient' || contact.type === 'incident'
+  const eligible = Object.values(state.units).filter(u => u.districtId && u.activity !== 'responding')
+  if (!isCaller || !contact.alive || !contact.location || contact.scriptId === 'tutorial' || eligible.length === 0) {
+    el.style.display = 'none'
+    el.innerHTML = ''
+    return
+  }
+  const dest = state.districts[contact.location]
+  const options = eligible.map(u => {
+    const role = state.people[u.leaderPersonId]?.role ?? 'civilian'
+    const loc  = state.districts[u.districtId]?.label ?? '—'
+    return `<option value="${u.id}">${u.label.toUpperCase()} · ${role.toUpperCase()} · ${loc}</option>`
+  }).join('')
+  el.innerHTML = `
+    <div class="cdv-dispatch-label">DISPATCH UNIT → ${dest?.label?.toUpperCase() ?? ''}</div>
+    <div class="cdv-dispatch-row">
+      <select id="cdv-dispatch-select" class="game-select">${options}</select>
+      <button id="cdv-dispatch-send">SEND</button>
+    </div>`
+  el.style.display = ''
 }
 
 function showItemDescription(key) {
@@ -1570,8 +1714,16 @@ function renderContactsPanel() {
         const flagged    = needsAttention(c)
         const flagClass  = flagged ? ' has-unread' : ''
         const dotClass   = flagged ? ' contact-dot--unread' : ''
+        // Unit threads get a dot colored by their leader's role (fire = red, etc.) so they read
+        // distinct from a civilian/story thread at a glance.
+        let roleClass = ''
+        if (c.type === 'unit') {
+          const u      = state.units[c.unitId]
+          const leader = u && state.people[u.leaderPersonId]
+          roleClass = ` contact-dot--role-${leader?.role ?? 'civilian'}`
+        }
         return `<div class="contact-card${flagClass}" data-contact-id="${c.id}">
-          <span class="contact-dot${dotClass}"></span>
+          <span class="contact-dot${dotClass}${roleClass}"></span>
           <span class="contact-name">${c.name}</span>
           ${phoneIconHTML(c.alive)}
         </div>`
@@ -1608,6 +1760,15 @@ document.getElementById('contacts-list').addEventListener('click', e => {
   showContactDetail(card.dataset.contactId)
 })
 
+document.getElementById('cdv-dispatch').addEventListener('click', e => {
+  if (!e.target.closest('#cdv-dispatch-send')) return
+  const sel     = document.getElementById('cdv-dispatch-select')
+  const contact = state.contacts.find(c => c.id === state.selectedContact)
+  if (!sel || !contact || !contact.location) return
+  dispatchUnit(sel.value, contact.location, { contactId: contact.id })
+  renderDispatchControl(contact)
+})
+
 document.getElementById('contact-detail-view').addEventListener('click', e => {
   const btn = e.target.closest('.choice-btn')
   if (!btn) return
@@ -1629,13 +1790,28 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   renderContactsPanel()
 })
 
-function dispatchUnit(unitId, destId) {
+function dispatchUnit(unitId, destId, opts = {}) {
   const unit = state.units[unitId]
-  const src  = state.districts[unit?.districtId]
   const dest = state.districts[destId]
-  if (!unit || !src || !dest || unit.districtId === destId) return
+  if (!unit || !dest) return
+  const { contactId = null } = opts
+
+  // Same-district caller response — no travel, respond in place. (A plain same-district tactical
+  // dispatch is still a no-op, as before.)
+  if (unit.districtId === destId) {
+    if (contactId) {
+      unitReport(unit, `Dispatch, we're already on location — moving to assist.`)
+      arriveOnCall(unit, contactId)
+      renderUnitsPanel()
+      renderUnitDots()
+    }
+    return
+  }
 
   const srcId = unit.districtId
+  const src   = state.districts[srcId]
+  if (!src) return
+
   src.unitIds = src.unitIds.filter(id => id !== unitId)
   unit.districtId = null
   if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = null
@@ -1645,10 +1821,12 @@ function dispatchUnit(unitId, destId) {
     id: `t${++_transitCounter}`, kind: 'unit', refId: unitId,
     srcId, destId, ticksRemaining: ticks, totalTicks: ticks,
     etaMs: Date.now() + ticks * TICK_MS,
+    respondContactId: contactId,   // set => caller dispatch: arrive into RESPONDING + fire arrival
   })
 
   director.emit('unit-departs', { unitId, srcId, destId })
   broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
+  unitReport(unit, `10-4 dispatch, en route to ${dest.label}.`)
   renderUnitsPanel()
   renderUnitDots()
   renderTravelingPanel()
@@ -1669,6 +1847,11 @@ function resolveTransits() {
         if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = t.destId
         director.emit('unit-enters', { unitId: t.refId, destId: t.destId, srcId: t.srcId })
         broadcastEvent(`[${dest.label.toUpperCase()}] Unit arrived from ${state.districts[t.srcId]?.label ?? t.srcId}.`)
+        if (t.respondContactId) {
+          arriveOnCall(unit, t.respondContactId)
+        } else {
+          unitReport(unit, `On scene at ${dest.label}.`)
+        }
       }
     } else if (t.kind === 'person') {
       const person = state.people[t.refId]
@@ -1688,6 +1871,18 @@ function resolveTransits() {
   }
 }
 setInterval(resolveTransits, TICK_MS)
+
+// Generic-path responses auto-complete after a fixed window; authored scripts that manage their
+// own completion never set respondTimer, so they're untouched. Unconditional like resolveTransits,
+// so tutorial practice dispatches (pre-game, tick loop idle) still resolve.
+setInterval(() => {
+  for (const unit of Object.values(state.units)) {
+    if (unit.activity === 'responding' && typeof unit.respondTimer === 'number') {
+      unit.respondTimer--
+      if (unit.respondTimer <= 0) completeResponse(unit)
+    }
+  }
+}, TICK_MS)
 
 // Unconditional, like resolveTransits above — narrative scripts (timers AND choice reply-delays)
 // need to advance before state.started is ever true, so the tutorial can use completely normal
@@ -1889,12 +2084,16 @@ function tick() {
 
     // Counterattack — every Person present is exposed (unit members and standalone callers
     // alike), weighted by effectiveThreatMod's Location×Activity exposure multiplier
+    // RESPONDING units are insulated — tied up with a caller, neither killing nor killable. Their
+    // members are excluded from the counterattack exposure (and they never enter the engage attack
+    // phase above, which is engage-only).
     const dangerRatio   = d.zombies / (d.humans + d.zombies)
     const counterChance = dangerRatio * 0.40
-    const numStrikes    = persons.length
+    const exposed       = persons.filter(p => !isRespondingMember(p))
+    const numStrikes    = exposed.length
 
     for (let i = 0; i < numStrikes; i++) {
-      const alive = personsInDistrict(districtId)
+      const alive = personsInDistrict(districtId).filter(p => !isRespondingMember(p))
       if (alive.length === 0) break
       if (Math.random() < counterChance) {
         const target = pickCounterTarget(alive)
@@ -2072,6 +2271,7 @@ function renderUnitDots() {
       circle.setAttribute('r', dotR)
       circle.dataset.unitId = unit.id
       circle.classList.add('unit-map-dot', `unit-map-dot--${leader.role}`)
+      if (unit.activity === 'responding') circle.classList.add('unit-map-dot--responding')
       dotsGroup.appendChild(circle)
     })
   }
