@@ -186,12 +186,16 @@ items, and can die through the same mechanism, whether or not anyone authored th
 caller at all; that filler moved to COMMS as police chatter. See Content System.)
 
 **COMMS carries identity now, but it is still not an inbox.** (The old "COMMS broadcasts have no
-identity" rule is retired — it made COMMS read like perfect status text from nobody.) COMMS is the
-overheard scanner: the player's own dispatched units echo status here, and off-duty / quick-
-response police officers who aren't in any dispatchable unit radio in district reports. What keeps
-it distinct from CONTACTS is not anonymity but direction — COMMS is half-listened-to broadcast,
-never a thread the player replies to. A unit's repliable channel is its CONTACT entry; its COMMS
-lines are the version everyone else overhears.
+identity" rule is retired — it made COMMS read like perfect status text from nobody.) Today COMMS is
+exactly one thing: the overheard police scanner — off-duty / quick-response officers who aren't in
+any dispatchable unit, radioing district status by badge number. The impersonal system lines
+(movement detected, area clear, units en route) were *removed* so that every entry is a human voice,
+not a status readout. What keeps COMMS distinct from CONTACTS is direction, not anonymity — it's
+half-listened-to broadcast, never a thread the player replies to. A unit's repliable channel is its
+CONTACT entry, where its own en-route / on-scene reports live; whether any of that unit-and-event
+traffic should *also* surface in COMMS later, retooled into scanner voice, is an open question
+(tracked in todo.md). For now the feed is purely ambient chatter — and that turned out to be the
+right flavor.
 
 ---
 
@@ -305,7 +309,10 @@ keeps replays varied without compounding into an accidentally brutal or trivial 
 This content lives in **COMMS, not CONTACTS**. CONTACTS is the active surface — stories, Incidents,
 and unit threads, things with back-and-forth and stakes. Ambient reports are passive info-income,
 which is what the scanner is for. Moving them here is also what humanizes COMMS: instead of perfect
-status text from nobody, the player overhears specific officers in specific districts.
+status text from nobody, the player overhears specific officers in specific districts. Each officer
+is identified by a stable **badge number** (one per district — a placeholder for a fuller identity
+later), and lines read `[Badge #NNN]: …` with the district named *inside* the message body rather
+than in a variable-width prefix, so the fixed-width prefix keeps the feed skimmable. (Built and live.)
 
 **Degradation is the fog of war.** Each scanner line garbles as the *reporting district's* zombie
 ratio climbs — per-district, not a global clock, so a calm district still sounds calm while an

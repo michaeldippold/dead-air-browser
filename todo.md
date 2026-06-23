@@ -43,6 +43,8 @@ The core loop is operational. Key systems in place:
 - **Onboarding flow (Barbara West)** — required login (`showLoginBox`, name → `sessionStorage`, `{{name}}` interpolation via `resolveText`) gates `spawnScript('tutorial')`. The SKIP TUTORIAL button and the seeded LFUCG Govt Center starter contact are both gone — Barbara West is the only contact that exists at game start, and her in-fiction Yes/No RESPOND choice is the only skip path; both branches converge on `startGame()` → `resetLayout()`. All windows (`WIN_IDS`) start minimized via `initWindowManager()` — bare desktop, badge + icons only — and a new `revealWindow(id)` action in `SCRIPT_ACTIONS` lets scripts, not main.js, decide when each window appears; her "No" path reveals everything at once, her "Yes" path currently walks through DISPATCH only (see Tutorial Content below for what's left). RESPOND choices got a visual overhaul — 2px accent border, raised background, slow pulse, full color-invert on hover — so a live decision reads as urgent instead of blending into the panel. New CALL BACK button lets the player call back any contact, including resolved ones, appending a deduped "No response." system note and emitting a `player-callback` director event for future scripts to hook.
 - **Universal call-answering mechanic** — every call except Barbara's (dialing 911 to onboard the player would be strange — see design.md, "On answering") opens with the dispatcher's own "911, what is your emergency?" line, a beat of three-dot typing delay (`chat-waiting-bounce`, staggered 0/0.15/0.3s), then the caller's actual first line — and none of it fires until the player opens that contact's thread for the first time (`maybeFireFirstOpen`, called from `showContactDetail`), not the moment the contact is created. An unopened caller carries no information at all until clicked — the literal mechanical expression of "nobody should be able to triage the call list at a glance." Ambient callers go through the identical `pendingNext`/`replyDelay` mechanism narrative scripts already used for choice replies; a `reportDistrictId` snapshot lets an unnamed "Unknown Caller" still report on the district that triggered them, resolved fresh against current zombie counts at open time rather than whatever was true when they first called. Generic non-response death spirals (a no-answer-at-all chain ending in `resolve: 'lost'`) were removed from Danny, E. Novak, and Holt's opening nodes as part of the same push — see design.md's "On silence and timers."
 - **Contacts-list indicators: one "needs attention" dot, a shared connection icon, recency sort** — replaced three overlapping animated signals (whole-card opacity dimming for the dead, a flashing border for a pending choice, a dot trying to mean unread/lost/pending all at once) with two static ones. A small dot before the name is solid when `needsAttention(contact)` (unread, or a RESPOND choice still waiting) and hollow otherwise; the same connected/disconnected phone-and-arcs glyph from the contact-detail header (`phoneIconHTML()`) sits where the old dot used to — green while alive, red once not, no blink, in both places. Every message push now routes through one `pushMessage()` helper that stamps `contact.lastActivityTick`, so the list sorts flagged-first and by actual recency within each group instead of creation order.
+- **Dispatch-to-caller — the core verb** — built and verified this session; the action the game is named after, which literally did not exist before. A unit can be sent to a *specific caller* from inside their open call thread (`renderDispatchControl` in the contact-detail view), not just to a district — the transit carries the caller's `personId` so arrival resolves scoped to that person. A dispatched unit becomes a one-way Contact (`UNIT n`, dot colored by leader role) that radios `en route` → `on scene` → outcome → `Task complete`; no 911 opener, no reply UI, no CALL BACK. On arrival it enters the new **`RESPONDING`** activity: present in the district but **fully insulated from the sim** — excluded from the counterattack exposure *and* spread suppression, so a unit on a call is not a multitasking zombie-killer — until the call resolves, then it reverts to ENGAGE. Arrival fires an authored `onArrive(state, actions, { contact, unit, roles, hasRole })` if the caller's script defines one (the first time authored content ever touches a specific unit), else a generic placeholder outcome with a timer-driven `completeResponse` (exposed to scripts via `SCRIPT_ACTIONS`; script-driven and clockless for authored callers). Multiple units may answer: the first to arrive owns the resolution, later arrivals are insulated backup ("Supporting unit on scene") that don't re-fire the caller's beat; same-tick arrivals resolve by sequential ownership; a caller who died en route is found "too late." Anchor (design.md): dispatch to a *district* is a win-the-sim move, to a *caller* a story move. The full **call-resolution model** (the `sim`-flag dividing line, the deferred `sim:true` save/lose-and-extract roll, the closure-message requirement) is settled and recorded in design.md + v0.9.0 below, but the roll itself is deferred to its first `sim:true` caller. Commits d5b2c7e / 775fe39.
+- **Ambient callers → unit-voiced COMMS police chatter** — the old ambient caller pool, pulled out of CONTACTS and reborn in COMMS as off-duty / quick-response **police officers** (not dispatchable) radioing district status. `emitPoliceChatter` (replacing the parked `checkCallEvent`) emits a tier-selected line from new police-voiced `POLICE_CHATTER` (5 tiers; `getCallTier` carries over, the civilian `CALL_TEMPLATES`/`CALLER_POOL` were *replaced* not reused) for a still-reporting infected district each tick. Each district has one stable badge (`districtBadge` → `Badge #NNN`). `degradeChatter` does per-district word-level static replacement (reusing `STATIC_TAGS`) scaling with the reporting district's zombie ratio — clean below 0.20, fraying as it climbs; at/above `SILENT_RATIO` (0.75) the district emits one final broken line + `[no response]` and goes dark (recovers if pulled back below). Lines render `[Badge #NNN]: message` with the location substituted into the body via `$location` (after degradation, so the place name stays legible) — a fixed-width badge prefix for skimmability. The impersonal system broadcasts (movement detected, area clear, signal lost, unit en route/arrived, unit down, scavenge recovery) were **removed**, so COMMS is now exclusively the human scanner — every entry a district status update disguised as radio chatter. Commits d79f032 / fd566b7 / d50306e. Verified live including a district climbing clean → static → silence. (Dead civilian-ambient code left inert for a cleanup pass — see v0.9.0.)
 
 ---
 
@@ -57,49 +59,18 @@ The core loop is operational. Key systems in place:
 > universal call-answering mechanic are both built and shipped, see "What's Shipped" above.
 > Tutorial Content below now only tracks what's left of the walkthrough itself.
 
-### Dispatch-to-Caller & Unit Comms — the core verb *(Up Next, priority)*
+### Dispatch-to-Caller & Unit Comms — the core verb *(core shipped; remaining = the resolution layer)*
 
-> The keystone build for 0.9.0, and it unblocks tutorial Incidents. Today a dispatch is "send unit
-> to district, watch it passively engage/hide/scavenge" — none of which is "help the specific
-> caller I'm on the line with." Dispatch is the title of the game; it can't be an afterthought.
-> This makes it the central verb: read a call → send someone → live with what they find. Most of
-> the plumbing already exists (`state.transits` supports `kind:'person'`, the `unit-enters` event,
-> the script `onEnter` hook, `effectiveThreatMod()` exposure math) — this is mostly wiring, not new
-> systems.
->
-> **Core verb shipped & verified (commits d5b2c7e / 775fe39).** The `sim`-flag resolution model
-> below is settled (see design.md, People → Persons and Content System → "On resolving a call"),
-> with the `sim:true` save/lose roll deferred to its first caller. Checked items are live; unchecked
-> items are the real resolution layer on top of the shipped scaffold.
+> The keystone build for 0.9.0 — dispatch as the central verb (read a call → send someone → live
+> with what they find), not a passive "send a unit to a district." **Core shipped & verified this
+> session (commits d5b2c7e / 775fe39); full description in "What's Shipped" above.** What remains is
+> the real *resolution* of a call, governed by the `sim`-flag model below (design.md: People →
+> Persons, Content System → "On resolving a call").
 
-- [x] **Targeted dispatch from inside the call thread.** *(shipped & verified — commit d5b2c7e.)* A
-  "dispatch unit" control in an *opened* contact's detail view; picking a unit sends it via the
-  transit system tagged with the caller's `districtId` + `personId`, scoped to that exact caller.
-  The DISPATCH-window district move stays a separate tactical action (no caller, no busy state).
-  Busy units aren't re-dispatchable until their call resolves; multiple units may target one caller.
-- [x] **`RESPONDING` activity (busy state).** *(shipped & verified — insulation confirmed live:
-  units survived responding in a 12-zombie district, then died only after returning to ENGAGE.)* A
-  unit dispatched to a caller is **fully insulated from the sim** — excluded from the counterattack
-  exposure *and* from spread suppression. It neither kills nor is killed while on a call. Anchor:
-  **dispatch to a district is a win-the-sim move; dispatch to a caller is a story move.**
-- [x] **Units become Contacts.** *(shipped & verified.)* First dispatch (either path) creates a
-  `UNIT n` contact that opens with an outbound line (`10-4 dispatch, en route to {location}`) — no
-  911 opener, no reply UI, no CALL BACK. Subsequent dispatches append to the same thread.
-- [x] **Unit-contact indicators.** *(shipped & verified.)* Attention dot colored by leader role
-  (police-blue confirmed live); filled = unread report, hollow ring = read.
-- [x] **Arrival radio chrome + `onArrive` scaffold.** *(shipped.)* Automatic `en route` / `On scene`
-  chrome on every dispatch. The arrival hook calls `script.onArrive(state, actions, { contact, unit,
-  roles, hasRole })` if the caller's script defines one — no script does yet, so all current callers
-  hit the generic placeholder below. This hook is the primitive the old "Rescue beat" and
-  "Co-location detection" items build on.
-- [x] **`completeResponse(unit)` script action.** *(shipped.)* In `SCRIPT_ACTIONS`; returns a unit
-  to ENGAGE. For authored callers this is **script-driven, no timer** — the script calls it when its
-  beat resolves. Only the generic path uses a timer (the response window, below).
-- [x] **Multi-unit: first responder owns, backups support.** *(shipped & verified — commit 775fe39.)*
-  First unit to arrive owns the caller's narrative resolution (reacts / fires `onArrive` once); later
-  arrivals go RESPONDING and check in on their own thread ("Supporting unit on scene") without
-  re-touching the caller or re-running the script. Same-tick arrivals resolve by sequential
-  ownership. Caller-gone-on-arrival (died en route) yields a "too late" outcome, not a safe one.
+- [x] **Dispatch verb scaffold** *(shipped & verified — full detail in "What's Shipped" above; commits
+  d5b2c7e / 775fe39):* targeted dispatch from the call thread, units-as-contacts, `RESPONDING` with
+  full sim-insulation, the `onArrive` arrival hook, `completeResponse`, and first-responder-owns
+  multi-unit handling.
 
 > **The resolution model — settled this session; the `sim` flag is the dividing line.** How a call
 > *ends* is governed entirely by the caller Person's `sim` flag (full treatment in design.md, People
@@ -141,35 +112,19 @@ The core loop is operational. Key systems in place:
   (Win/Lose) as a candidate; needs a definition of "too many" and which calls count, and depends on
   the resolution model above (so answered/resolved can be told apart from ignored).
 
-### Ambient callers → unit-voiced COMMS *(Up Next, lands with the above)*
+### Ambient callers → unit-voiced COMMS *(shipped; dead-code cleanup remaining)*
 
-> Settled this session. It resolves three previously-scattered items at once — the old v1.0.0
-> "Ambient-caller / COMMS unification," the v1.0.0 "COMMS retool — police-scanner framing," and the
-> backlog "COMMS Tonal Degradation" — by making them one build. The dictum "COMMS broadcasts have
-> no identity" is **dead** (design.md updated): COMMS today reads like perfect information out of
-> thin air; this humanizes it and makes it imperfect.
+> Settled and built this session. It resolved three previously-scattered items at once — the old
+> v1.0.0 "Ambient-caller / COMMS unification," the v1.0.0 "COMMS retool — police-scanner framing,"
+> and the backlog "COMMS Tonal Degradation." The dictum "COMMS broadcasts have no identity" is
+> **dead** (design.md updated): COMMS no longer reads like perfect information out of thin air.
 
-- [x] **(Interim) Pull ambient callers out of the CONTACTS panel without deleting the system.**
-  *(shipped — commit d79f032.)* Parked the sole `checkCallEvent()` call site so no ambient contacts
-  spawn, clearing CONTACTS for the dispatch verb while leaving the machinery intact.
-- [x] **Retheme the ambient pool as police chatter, and move it from CONTACTS to COMMS.** *(shipped
-  & verified — `emitPoliceChatter` / `POLICE_CHATTER` / `districtBadge`.)* Off-duty / quick-response
-  **officers** (not in your dispatchable units, not dispatchable) radio district status into COMMS
-  via `broadcastEvent`, formatted `[DISTRICT] Badge #182: <line>`. CONTACTS is now exclusively
-  stories / Incidents / units. **`getCallTier` carries over unchanged** (still selects line dirtiness
-  by hidden zombie count); **the content did not** — the civilian `CALL_TEMPLATES` / `CALLER_POOL`
-  were *replaced* by new police-voiced `POLICE_CHATTER` (5 tiers, test content for now) and badge
-  numbers, not reused. Verified live: badge-numbered, tier-appropriate, one stable badge per district,
-  coexisting with the existing system broadcasts.
-- [x] **Per-district COMMS degradation = the fog of war.** *(shipped & verified — `degradeChatter`.)*
-  Word-level static replacement (reusing `STATIC_TAGS`) scaling with the *reporting district's*
-  zombie ratio: clean below 0.20, fraying as it climbs. At/above `SILENT_RATIO` (0.75) the district
-  emits one final broken transmission + `[no response]`, sets `_wentDark`, and goes silent (recovers
-  if pulled back below the line). Per-district, not a global clock. Verified live: caught a district
-  climb from clean → `[szzt] please— is [wzzt] still—` → `[no response]` as it crossed 0.75.
-  - **Resolved (naming):** ambient officers are labeled by **badge number** (`Badge #NNN`), pinned
-    one-per-district (`districtBadge` stores `d._badge`) so a badge is never reporting from six
-    places at once. `UNIT n` stays unambiguously the dispatchable units.
+- [x] **Ambient → COMMS police chatter** *(shipped & verified — full detail in "What's Shipped" above;
+  commits d79f032 / fd566b7 / d50306e):* interim removal from CONTACTS, retheme to badge-numbered
+  officer chatter (`emitPoliceChatter` / `POLICE_CHATTER` / `districtBadge`), per-district static
+  degradation and going-dark silence (`degradeChatter` / `SILENT_RATIO`), `[Badge #NNN]: …` format
+  with `$location` in the body, and removal of the impersonal system broadcasts. Naming resolved:
+  `Badge #NNN`, one stable badge per district.
 - [ ] **Dead-code cleanup pass (do before COMMS gets more work).** The old civilian-ambient path is
   fully superseded and never runs: remove `checkCallEvent`, `CALLER_POOL`, `CALL_TEMPLATES`, and the
   `type:'ambient'` branches threaded through `makeContact` / `maybeFireFirstOpen` / `showContactDetail`
@@ -245,9 +200,11 @@ The core loop is operational. Key systems in place:
   per-district static degradation) — the impersonal system broadcasts (`Movement detected`, `area
   clear`, `SIGNAL LOST`, `Unit en route`/`arrived`, `UNIT DOWN`/`CONTACT LOST`, scavenge recovery)
   were **removed** from the feed, not retooled, so the scanner reads human end-to-end. What's left
-  for v1.0.0, *if wanted*: decide whether any of that removed event info should come *back* as
-  scanner-voiced chatter (e.g. a unit's own callsign confirming arrival), rather than the bare
-  status lines. Not required — the feed is clean as-is.
+  for v1.0.0, *if wanted*: come back and decide whether any of that removed event info should return
+  to COMMS **retooled as human speak** (e.g. a unit's own callsign confirming arrival, an officer
+  noting a district went quiet), rather than the bare status lines. Explicitly *not* required —
+  the current chatter-only flavor (every entry a district status update disguised as radio chatter)
+  is the liked state; revisit only if the feed ever feels too sparse, never to re-add bare logs.
 
 ### Systems
 
