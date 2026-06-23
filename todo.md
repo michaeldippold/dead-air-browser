@@ -66,52 +66,80 @@ The core loop is operational. Key systems in place:
 > the plumbing already exists (`state.transits` supports `kind:'person'`, the `unit-enters` event,
 > the script `onEnter` hook, `effectiveThreatMod()` exposure math) — this is mostly wiring, not new
 > systems.
+>
+> **Core verb shipped & verified (commits d5b2c7e / 775fe39).** The `sim`-flag resolution model
+> below is settled (see design.md, People → Persons and Content System → "On resolving a call"),
+> with the `sim:true` save/lose roll deferred to its first caller. Checked items are live; unchecked
+> items are the real resolution layer on top of the shipped scaffold.
 
-- [ ] **Targeted dispatch from inside the call thread.** A "dispatch unit" control in an *opened*
-  contact's detail view (consistent with "On answering" — you can't act on a call you haven't
-  read). Picking a unit sends it via the existing transit system, tagged with the caller's
-  `districtId` **and** their `personId`, so arrival resolves scoped to that exact caller. The old
-  DISPATCH-window district move stays as a separate action (tactical reposition — no caller, no
-  busy state). Busy units aren't eligible for re-dispatch until their call resolves; multiple units
-  *may* target one caller (sending backup to a unit in trouble is good drama).
-- [ ] **`RESPONDING` activity (busy state).** A unit dispatched to a caller enters RESPONDING: it
-  sits in the caller's district, on the map, but is **fully insulated from the sim combat loop** —
-  it neither kills zombies nor can be killed by the ambient counterattack. (Decision: a unit on a
-  call is not also a multitasking zombie-killing machine; that's the cost of answering.) Its only
-  stakes are authored, or the generic fallback. New activity alongside ENGAGE/HIDE/SCAVENGE; tied up
-  until the call resolves, then reverts to `engage`. Conceptual anchor: **dispatch to a district is
-  a win-the-sim move; dispatch to a caller is a story move** — they stay mechanically distinct. This
-  is the mechanism the Incidents "opportunity cost" line was always describing.
-- [ ] **Units become Contacts.** First time a unit is dispatched (either path), create its Contact
-  named `UNIT 2` / `UNIT 3`. Unlike callers it opens with an *outbound* line — no "911, what's your
-  emergency"; the unit is calling you (`10-4, en route to {location}`). One-way reports for now, no
-  reply UI. Subsequent dispatches append to the same thread.
-- [ ] **Unit-contact indicators.** The existing filled/hollow attention dot, colored by the
-  leader's **role** (fire = red, etc., reusing the role-color map already driving map dots and
-  dispatch stars): filled = unread report waiting, hollow ring = read. Makes a unit thread read as
-  distinct from a civilian/story thread at a glance, no extra chrome.
-- [ ] **Arrival — generic chrome vs authored content.** Two layers, so authoring stays cheap:
-  - **Automatic (main.js, every dispatch):** the unit Contact + `10-4 dispatch, en route to
-    {location}` on dispatch and a bare `On scene.` on arrival — radio procedure, identical for every
-    unit, never hand-authored.
-  - **Authored (script `onArrive(state, actions, { contact, unit })`, optional):** what the unit
-    *finds*, any mid-beats while it's there, and a prescribed resolution. The arriving `unit` is
-    handed in, so a script can branch on unit composition — did a fire crew or a police unit show
-    up? This needs a small `unitHasRole(unit, 'fire')`-style helper, because this is the **first
-    time authored content touches a specific unit at all** (confirmed: scripts today only use
-    `onEnter(state, actions)` and `when.*` triggers — never a unit handle). The unit's report lands
-    in the **unit's** thread; the caller's own thread reacts when authored. Sometimes more story in
-    the middle, sometimes not — `onArrive` is optional.
-- [ ] **`completeResponse(unit)` script action.** Completion lives in the script (the prescribed
-  resolution beat), so `SCRIPT_ACTIONS` gains the capability to mark the call done and flip the unit
-  back to `engage`. The mechanical home for "when they've completed the task."
-- [ ] **Generic fallback for unauthored callers.** A caller with no `onArrive` (the tutorial's plain
-  reused content, short Incidents) still produces something: generic `On scene.`, an outcome bucket
-  read off the caller's current `effectiveThreatMod()` exposure (fine / gone /
-  besieged-triggers-combat), and a timer-based completion that auto-reverts to `engage`. Authored
-  scripts override this; unauthored ones lean on it, so the verb works without hand-writing every
-  caller. This arrival path is the same primitive the old "Rescue beat" and "Co-location detection"
-  items wanted — built once here, those become content on top of it.
+- [x] **Targeted dispatch from inside the call thread.** *(shipped & verified — commit d5b2c7e.)* A
+  "dispatch unit" control in an *opened* contact's detail view; picking a unit sends it via the
+  transit system tagged with the caller's `districtId` + `personId`, scoped to that exact caller.
+  The DISPATCH-window district move stays a separate tactical action (no caller, no busy state).
+  Busy units aren't re-dispatchable until their call resolves; multiple units may target one caller.
+- [x] **`RESPONDING` activity (busy state).** *(shipped & verified — insulation confirmed live:
+  units survived responding in a 12-zombie district, then died only after returning to ENGAGE.)* A
+  unit dispatched to a caller is **fully insulated from the sim** — excluded from the counterattack
+  exposure *and* from spread suppression. It neither kills nor is killed while on a call. Anchor:
+  **dispatch to a district is a win-the-sim move; dispatch to a caller is a story move.**
+- [x] **Units become Contacts.** *(shipped & verified.)* First dispatch (either path) creates a
+  `UNIT n` contact that opens with an outbound line (`10-4 dispatch, en route to {location}`) — no
+  911 opener, no reply UI, no CALL BACK. Subsequent dispatches append to the same thread.
+- [x] **Unit-contact indicators.** *(shipped & verified.)* Attention dot colored by leader role
+  (police-blue confirmed live); filled = unread report, hollow ring = read.
+- [x] **Arrival radio chrome + `onArrive` scaffold.** *(shipped.)* Automatic `en route` / `On scene`
+  chrome on every dispatch. The arrival hook calls `script.onArrive(state, actions, { contact, unit,
+  roles, hasRole })` if the caller's script defines one — no script does yet, so all current callers
+  hit the generic placeholder below. This hook is the primitive the old "Rescue beat" and
+  "Co-location detection" items build on.
+- [x] **`completeResponse(unit)` script action.** *(shipped.)* In `SCRIPT_ACTIONS`; returns a unit
+  to ENGAGE. For authored callers this is **script-driven, no timer** — the script calls it when its
+  beat resolves. Only the generic path uses a timer (the response window, below).
+- [x] **Multi-unit: first responder owns, backups support.** *(shipped & verified — commit 775fe39.)*
+  First unit to arrive owns the caller's narrative resolution (reacts / fires `onArrive` once); later
+  arrivals go RESPONDING and check in on their own thread ("Supporting unit on scene") without
+  re-touching the caller or re-running the script. Same-tick arrivals resolve by sequential
+  ownership. Caller-gone-on-arrival (died en route) yields a "too late" outcome, not a safe one.
+
+> **The resolution model — settled this session; the `sim` flag is the dividing line.** How a call
+> *ends* is governed entirely by the caller Person's `sim` flag (full treatment in design.md, People
+> → Persons and Content System → "On resolving a call"). `sim:true` = lightweight filler the sim
+> resolves by roll; `sim:false` = heavyweight spine character resolved only by their script. The
+> items below build the real resolution on top of the shipped scaffold. Note: **there are currently
+> zero `sim:true` callers** (ambient pulled from CONTACTS; the four scripted callers are all
+> `sim:false` with no `onArrive`), so the generic roll is deferred until its first consumer exists —
+> the tutorial practice callers / Incidents.
+
+- [ ] **Pass force/composition to `onArrive`.** Extend the payload to `{ contact, unit, unitCount,
+  roles, hasRole }` so authored content can react to *how many* and *which* units showed up (the
+  scaffold already passes `unit`/`roles`/`hasRole` — add the count). Cheap; do with the next dispatch
+  touch.
+- [ ] **`sim:true` generic resolution — the save/lose roll *(DEFERRED to first `sim:true` caller).***
+  Replace the placeholder flavor with a real, terminal outcome: at the end of the response window,
+  **one** roll weighted by responding force (more units → better odds, diminishing returns) + district
+  danger. **Saved = extracted:** the Person is evacuated *off the board* — removed from the district
+  and the sim, permanently safe (the guarantee that a saved caller can't die after the unit leaves —
+  saving them *is* removing them from danger). **Lost = the Person dies.** Sealed at that one moment.
+  This is what makes under-committing a bad call a genuine failure — and blobbing still a mistake,
+  since the responding units are off the sim the whole time.
+- [ ] **Resolution closure messages.** Because there's no scoreboard, every resolution must leave the
+  player closure. **On a save: both the caller and the unit sign off** — the caller's final message
+  is the player's only "you did good" feedback ("you got us out, thank you — we're clear"), a
+  character confirming they're safe and leaving the call log for good. **On a loss: the caller and/or
+  the unit report it** (a last transmission / a unit confirming what they found). Without these, a
+  `sim:true` caller would silently vanish and the player would never know how they did. The sign-off
+  *is* the score.
+- [ ] **`sim:false` = script-only; soften the current placeholder.** A `sim:false` caller never gets
+  the roll — outcome is 100% authored (arrival beat + choice/timer flow; send no help → the script's
+  own beat handles it). Until real `onArrive` content is authored, the four scripted callers fall
+  through to the generic placeholder, which currently prints "subject safe" without resolving
+  anything. Soften that to a neutral "holding with the caller" line so it doesn't *imply* an outcome
+  that didn't happen.
+- [ ] **(Candidate lose condition — later, not 0.9.0)** *Failing the job itself:* too many calls left
+  unanswered / unresolved over the night = you failed as a dispatcher. The purest dispatcher-failure
+  loss — you didn't have to lose the city, you just stopped doing the work. Recorded in design.md
+  (Win/Lose) as a candidate; needs a definition of "too many" and which calls count, and depends on
+  the resolution model above (so answered/resolved can be told apart from ignored).
 
 ### Ambient callers → unit-voiced COMMS *(Up Next, lands with the above)*
 

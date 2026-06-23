@@ -145,10 +145,23 @@ eventually reaches everyone. Location only changes how long it takes.
 
 ### Persons
 
-The core identity type: name, role, health, items, a location, and a `sim` flag. `sim` controls
-**combat participation only** — whether the counterattack system can target them, whether they
-roll attacks. It never touches the crowd numbers. A Person with `sim: false` is protected from
-random combat death; their fate (if any) is authored.
+The core identity type: name, role, health, items, a location, and a `sim` flag. `sim` governs the
+single most important question about a person: **is the simulation allowed to decide their fate, or
+only the script?** It controls combat participation (whether the counterattack can target them,
+whether they roll attacks) *and* call resolution (whether a dispatched unit's arrival can save or
+lose them by the generic roll — see Content System, "On resolving a call"). It never touches the
+crowd numbers.
+
+- A **`sim: true`** Person is fully in the sim's hands — killable in combat, and resolvable (saved
+  or lost) by the generic call roll. This is the **lightweight filler caller**: a random call about
+  zombies that just needs handling or it doesn't, with no hand-authored ending.
+- A **`sim: false`** Person is protected from the sim entirely — no random combat death, and no
+  generic call roll. Their fate is *only ever* authored, through their script. This is the
+  **heavyweight spine character**: the calls that carry the main mission, whose outcome is decided
+  by the player's choices in the script flow, never by a background dice roll.
+
+That one flag is the clean line between the two kinds of caller content — heavyweight authored
+arcs versus the filler the player simply deals with or doesn't.
 
 ### Units
 
@@ -203,17 +216,50 @@ actually speaks. This is "nobody should be able to triage the call list at a gla
 literal: there is nothing to triage on a call that hasn't been answered yet. The one exception is
 the tutorial handoff — Barbara doesn't dial 911 to onboard the player.
 
-**On arrival.** When a dispatched unit reaches a caller, the caller's script can react to *which*
-unit arrived — a fire crew, a police unit, a civilian squad — because the arriving unit is handed
-to the script's arrival hook. The character can respond to the unit type, a beat can branch on it,
-or the call can simply resolve. This is the first point where authored content touches a specific
-unit at all: everything before reacts to time, place, and zombie state, never to the player's own
-roster. Two layers keep authoring cheap — the radio chrome ("en route," "on scene") is generated
-automatically for every dispatch, while the story (what the unit finds, mid-beats, the resolution)
-is authored per caller and optional. Callers with nothing authored fall back to a generic outcome
-read off their current exposure. If several units answer the same call, the first to arrive owns
-its resolution — the caller reacts once, not once per unit — and the rest are backup: present and
-insulated, checking in on their own threads but not re-triggering the caller's beat.
+**On arrival.** When a dispatched unit reaches a caller, the arrival is handed to the caller's
+script hook along with *who showed up* — the unit, how many units, and their roles (a fire crew vs
+a police unit vs a civilian squad). Authored content can branch on any of it: the character reacts
+to the unit type, a beat forks on whether enough force arrived, or the call simply resolves. This
+is the first point where authored content touches a specific unit at all — everything before reacts
+to time, place, and zombie state, never to the player's own roster. Two layers keep authoring
+cheap: the radio chrome ("en route," "on scene") is generated automatically for every dispatch,
+while the story (what the unit finds, mid-beats, the resolution) is authored per caller and
+optional. If several units answer the same call, the first to arrive owns its resolution — the
+caller reacts once, not once per unit — and the rest are backup: present and insulated, checking in
+on their own threads but not re-triggering the caller's beat. Backups still *matter*, though (see
+below): more force improves a filler caller's odds, and the count and roles are handed to an
+authored script to use however it likes.
+
+**On resolving a call.** How a call *ends* is governed entirely by the caller's `sim` flag (see
+People → Persons) — this is the whole reason that flag exists:
+
+- **`sim: true` (filler):** the call resolves with a single, terminal **save/lose roll**, weighted
+  by the responding force (more units → better odds, with diminishing returns) and the district's
+  danger. It fires *once*, at the end of the response window — not as continuous exposure. **Saved
+  means extracted:** the person comes *off the board* — evacuated out of the district, removed from
+  the sim, permanently safe. That is the deliberate guarantee that a saved caller cannot quietly die
+  five minutes later once the unit leaves: saving them *is* removing them from danger. **Lost means
+  they die** at that moment. Either way the outcome is sealed. This is why sending too little to a
+  bad call is a real failure — and why blobbing every unit at one call is still a mistake, since the
+  responding units are off the sim the whole time (see Design Philosophy, "Dispatch is two verbs").
+- **`sim: false` (spine):** *no roll, ever.* The outcome is 100% the script's — the arrival fires a
+  beat, the player's choices and the script's flow decide save vs lose, and the script ends the call
+  itself. Send no help and the script handles that with its own authored beat. The danger-weighted
+  roll never touches a spine character.
+
+**Every resolution leaves the player closure, because there is no scoreboard.** On a save, *both*
+the caller and the responding unit sign off — the caller's final message is the one piece of
+feedback the player gets that they did well ("you got us out, thank you — we're clear"), a character
+telling them, in effect, how they did, before leaving the call log for good. On a loss, the caller
+and/or the unit report it — a last transmission, a unit confirming what they found. Without these, a
+`sim: true` caller would simply vanish from the list and the player would never know whether they
+were saved or not. The sign-off *is* the score.
+
+**On completion and timers.** A unit is dismissed from a call back into the general pool by
+`completeResponse`, and *when* that happens is the script's call for authored content — the script
+runs it when its beat resolves, with no clock on a spine character. The only timer is the generic
+path's response window, after which the `sim: true` roll lands; it is a per-call window, never a
+global "you've had an hour, succeed or fail" clock.
 
 ### Spine — the Scenario
 
@@ -315,6 +361,12 @@ doesn't telegraph which. Reading the name is the only way to know.
 
 All four conditions are about the player's situation, not a score. There is no partial credit
 and no replay-to-optimize loop — a finished run, win or lose, is the experience.
+
+**Candidate (not yet adopted):** a further lose condition — *failing the job itself*: letting too
+many calls go unanswered or unresolved over the night. It's the purest dispatcher failure — you
+didn't have to lose the city, you just stopped doing the work — and it pairs directly with the
+dispatch-to-caller verb. Needs a definition of "too many" and which calls count (it depends on the
+call-resolution model above being able to tell answered/resolved from ignored). Tracked in todo.md.
 
 ---
 
