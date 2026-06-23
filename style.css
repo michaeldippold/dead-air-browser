@@ -1151,7 +1151,6 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
   letter-spacing: 0.06em;
   color: var(--radio-t0);
   white-space: nowrap;
-  margin-right: 5px;
   vertical-align: baseline;
 }
 

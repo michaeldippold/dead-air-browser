@@ -240,7 +240,14 @@ The core loop is operational. Key systems in place:
 - [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
 - [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
 - [ ] **Sound Tier 3 — event-triggered.** Wire Director hooks to stings: `person-death`, `unit-disbanded`. Script nodes get an optional `sound` field played on node entry. `broadcastEvent` accepts an optional sound param.
-- [ ] **COMMS retool — police scanner framing.** Current format (`[time][LOCATION] STATUS TEXT`) reads like a structured log line, not overheard radio. Retool toward how an actual scanner sounds — callsigns, "go ahead," cross-talk, garbled fragments — same underlying event data, more human delivery. *The ambient-report half of this is promoted to 0.9.0 — see "Ambient callers → unit-voiced COMMS" (Up Next). This v1.0.0 entry now covers the remaining non-ambient COMMS lines (event broadcasts, dispatcher acks, unit-thread echoes) so they share the same scanner voice.*
+- [ ] **COMMS retool — police scanner framing.** *Mostly done in 0.9.0.* COMMS is now exclusively
+  badge-numbered police chatter (`[Badge #NNN]: message`, `$location` substituted into the body,
+  per-district static degradation) — the impersonal system broadcasts (`Movement detected`, `area
+  clear`, `SIGNAL LOST`, `Unit en route`/`arrived`, `UNIT DOWN`/`CONTACT LOST`, scavenge recovery)
+  were **removed** from the feed, not retooled, so the scanner reads human end-to-end. What's left
+  for v1.0.0, *if wanted*: decide whether any of that removed event info should come *back* as
+  scanner-voiced chatter (e.g. a unit's own callsign confirming arrival), rather than the bare
+  status lines. Not required — the feed is clean as-is.
 
 ### Systems
 

@@ -600,9 +600,6 @@ function handlePersonDeath(person, districtId) {
   }
   director.emit('person-death', { person, districtId })
   delete state.people[person.id]
-  broadcastEvent(unit
-    ? `[${d.label.toUpperCase()}] UNIT DOWN — no further contact.`
-    : `[${d.label.toUpperCase()}] CONTACT LOST — no further transmission.`)
 }
 
 function disbandUnit(unitId, districtId) {
@@ -1114,51 +1111,55 @@ function renderRadio() {
 const CHATTER_CHANCE = 0.18   // per-tick odds an officer keys up from some still-reporting district
 const SILENT_RATIO   = 0.75   // at/above this a district stops reporting — silence as information
 
+// Each line carries a $location token, swapped for the district label when it hits COMMS (after
+// degradation, so the place name stays legible even as the rest garbles). The COMMS line renders as
+// [Badge #NNN]: <text> — a fixed-width badge prefix so the feed stays skimmable (variable-length
+// district names in the prefix made the eye hunt for where each message started).
 const POLICE_CHATTER = [
   // Tier 0 (1–3): uncertain, routine — could be nothing
   [
-    `Be advised, got a report of someone acting erratic. Checking it out.`,
-    `Dispatch, one individual not responding to commands. Keeping eyes on.`,
-    `Probably nothing — 10-91, uncooperative subject. Will advise.`,
-    `Responding to a disturbance. Nothing confirmed yet.`,
-    `Got one down on the sidewalk, not moving. Approaching now.`,
-    `Quiet over here. One report of erratic behavior, investigating.`,
+    `Be advised, report of someone acting erratic near $location. Checking it out.`,
+    `$location — one individual not responding to commands. Keeping eyes on.`,
+    `Probably nothing — 10-91 at $location, uncooperative subject. Will advise.`,
+    `Responding to a disturbance over at $location. Nothing confirmed yet.`,
+    `Got one down on the sidewalk at $location, not moving. Approaching now.`,
+    `$location's quiet. One report of erratic behavior, investigating.`,
   ],
   // Tier 1 (4–10): confirmed, contained
   [
-    `Dispatch, be advised — multiple subjects, combative. Requesting backup.`,
-    `Confirmed several hostiles. Holding the line for now.`,
-    `Got a handful of them. Containing it, but send units.`,
-    `Shots fired, shots fired. They're not going down easy. Need support.`,
-    `Be advised, treat as combative regardless of injury. Several here.`,
-    `Subjects cornered. Could use a second unit.`,
+    `Be advised — multiple combative subjects at $location. Requesting backup.`,
+    `Confirmed several hostiles at $location. Holding the line for now.`,
+    `$location — got a handful of them. Containing it, but send units.`,
+    `Shots fired at $location. They're not going down easy. Need support.`,
+    `Treat as combative regardless of injury — several at $location.`,
+    `Subjects cornered at $location. Could use a second unit.`,
   ],
   // Tier 2 (11–25): many, deteriorating
   [
-    `Dispatch, this is getting away from us. Too many to count. Requesting all available.`,
-    `We're falling back. Repeat, falling back. Sector is not secure.`,
-    `Officer down, officer down. I need EMS now.`,
-    `They're coming from everywhere. We can't hold this position.`,
-    `Every street out is blocked. We're pinned.`,
-    `Lost contact with my partner. Whole sector's hostile.`,
+    `$location is getting away from us. Too many to count. Requesting all available.`,
+    `Falling back from $location. Repeat, falling back. Not secure.`,
+    `Officer down at $location. I need EMS now.`,
+    `They're coming from everywhere in $location. We can't hold.`,
+    `Every street out of $location is blocked. We're pinned.`,
+    `Lost contact with my partner. $location's gone hostile.`,
   ],
   // Tier 3 (26–50): desperate, collapsing
   [
-    `Dispatch — do NOT send units in here. Repeat, do not. It's gone.`,
-    `Anyone copy? I think I'm the only one left on this channel.`,
-    `We have a crowd. Not individuals — a CROWD. Get everyone out.`,
-    `Position compromised. Trying to find a way out—`,
-    `They don't stop. They don't stop—`,
-    `Mayday, mayday, officer needs assistance, anyone—`,
+    `Do NOT send units into $location. Repeat, do not. It's gone.`,
+    `Anyone copy? Think I'm the only one left in $location.`,
+    `We have a crowd at $location. Not individuals — a CROWD. Get everyone out.`,
+    `$location's compromised. Trying to find a way out—`,
+    `They don't stop. $location, they don't stop—`,
+    `Mayday, mayday, officer needs assistance at $location—`,
   ],
   // Tier 4 (51+): overwhelmed, near silence
   [
-    `—can't— not gonna make it out of—`,
-    `Tell them it was already too late when we got here—`,
-    `—get back, get BACK—`,
-    `—anybody— please— is anybody still—`,
-    `It's over. It's all over down here.`,
-    `—hold the— [unintelligible] —`,
+    `—can't— not gonna make it out of $location—`,
+    `Tell them $location was already gone when we got here—`,
+    `$location— get back, get BACK—`,
+    `—anybody— $location— is anybody still—`,
+    `It's over. $location's all over down here.`,
+    `—hold the— $location— [unintelligible] —`,
   ],
 ]
 
@@ -1197,8 +1198,8 @@ function emitPoliceChatter() {
       if (!d._wentDark) {
         d._wentDark = true
         const badge = districtBadge(d)
-        broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: ${degradeChatter(pickOne(POLICE_CHATTER[4]), 0.95)}`)
-        broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: [no response]`)
+        broadcastEvent(`[Badge #${badge}]: ${degradeChatter(pickOne(POLICE_CHATTER[4]), 0.95).replace(/\$location/g, d.label)}`)
+        broadcastEvent(`[Badge #${badge}]: [no response]`)
       }
     } else {
       d._wentDark = false
@@ -1213,7 +1214,7 @@ function emitPoliceChatter() {
   const d     = pickOne(live)
   const ratio = d.zombies / (d.humans + d.zombies)
   const badge = districtBadge(d)
-  broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: ${degradeChatter(pickOne(POLICE_CHATTER[getCallTier(d.zombies)]), ratio)}`)
+  broadcastEvent(`[Badge #${badge}]: ${degradeChatter(pickOne(POLICE_CHATTER[getCallTier(d.zombies)]), ratio).replace(/\$location/g, d.label)}`)
 }
 
 function toggleMaximize(id) {
@@ -1959,7 +1960,6 @@ function dispatchUnit(unitId, destId, opts = {}) {
   })
 
   director.emit('unit-departs', { unitId, srcId, destId })
-  broadcastEvent(`[${dest.label.toUpperCase()}] Unit en route from ${src.label}.`)
   unitReport(unit, `10-4 dispatch, en route to ${dest.label}.`)
   renderUnitsPanel()
   renderUnitDots()
@@ -1980,7 +1980,6 @@ function resolveTransits() {
         dest.unitIds.push(t.refId)
         if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = t.destId
         director.emit('unit-enters', { unitId: t.refId, destId: t.destId, srcId: t.srcId })
-        broadcastEvent(`[${dest.label.toUpperCase()}] Unit arrived from ${state.districts[t.srcId]?.label ?? t.srcId}.`)
         if (t.respondContactId) {
           arriveOnCall(unit, t.respondContactId)
         } else {
@@ -2139,10 +2138,6 @@ function checkWin() {
 function tick() {
   state.tick++
 
-  // Snapshot humans before spread — needed to detect newly-overrun districts
-  const prevHumans = {}
-  for (const [id, d] of Object.entries(state.districts)) prevHumans[id] = d.humans
-
   // Local spread — SIR interaction term: β × (zombies × humans) / total
   // Peaks at 50/50, tapers naturally when either population is rare.
   // This makes early infection slow, mid-game fast, and the last survivors hard to eliminate.
@@ -2154,13 +2149,6 @@ function tick() {
     if (n > 0) {
       d.zombies += n
       d.humans   = Math.max(0, d.humans - n)
-    }
-  }
-
-  // Detect newly-overrun districts
-  for (const [id, d] of Object.entries(state.districts)) {
-    if (d.humans === 0 && prevHumans[id] > 0) {
-      broadcastEvent(`[${d.label.toUpperCase()}] SIGNAL LOST — district fallen.`)
     }
   }
 
@@ -2176,7 +2164,6 @@ function tick() {
         if (neighbors.length) {
           const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
           state.districts[spreadDest].zombies += 1
-          broadcastEvent(`[${state.districts[spreadDest].label.toUpperCase()}] Movement detected — infected advancing.`)
         }
       }
     }
@@ -2194,7 +2181,6 @@ function tick() {
         if (Math.random() < 0.40) {
           const found = d.loot.pop()
           person.items.push(found)
-          broadcastEvent(`[${d.label.toUpperCase()}] ${person.name} — recovered ${ITEMS[found]?.name ?? found}.`)
         }
       }
     }
@@ -2246,10 +2232,6 @@ function tick() {
       const patient = needHeal.shift()
       patient.health = Math.min(100, patient.health + 20)
       medic.items.splice(medic.items.indexOf('first-aid'), 1)
-    }
-
-    if (d.zombies === 0) {
-      broadcastEvent(`[${d.label.toUpperCase()}] — area clear. All contacts neutralized.`)
     }
   }
 
