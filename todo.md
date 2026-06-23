@@ -149,37 +149,33 @@ The core loop is operational. Key systems in place:
 > no identity" is **dead** (design.md updated): COMMS today reads like perfect information out of
 > thin air; this humanizes it and makes it imperfect.
 
-- [ ] **(Interim — do first, before the dispatch build) Pull ambient callers out of the CONTACTS
-  panel without deleting the system.** Just stop them spawning/rendering into CONTACTS to clear
-  panel space ahead of the dispatch verb; leave `CALLER_POOL` / `CALL_TEMPLATES` / `getCallTier()`
-  and the spawn logic intact and dormant, to be repurposed into the COMMS police-chatter version
-  below rather than rewritten from scratch.
-- [ ] **Retheme the ambient pool as police chatter, and move it from CONTACTS to COMMS.** The
-  ambient caller pool stops being civilians-in-CONTACTS and becomes off-duty / quick-response
-  **police officers** radioing district status over the scanner. The player's ~6 starting officers
-  are the ready quick-response teams, not every cop in the city — others exist, report in, and
-  aren't dispatchable. (Minor accepted immersion cost: "why can't I send them?") This empties
-  CONTACTS of identity-less filler — every CONTACTS entry is now a story, an Incident, or a unit,
-  so every call is a real shot at a story. The tier/escalation system (`getCallTier`, `CALLER_POOL`,
-  `CALL_TEMPLATES`, keyed off real zombie count) carries over unchanged — it now selects which
-  scanner line an officer in that district radios. The named-vs-unknown *civilian* distinction is
-  dropped (deliberate reversal of the old "keep it" note — it's officers now). COMMS should read
-  like the dispatch-log example: officers in districts calling in, dispatcher acknowledging.
-- [ ] **Per-district COMMS degradation = the fog of war.** The same scanner lines garble as the
-  *reporting district's* zombie ratio climbs — per-district, not a global clock, so a calm district
-  still sounds calm while an overrun one sounds like hell at the same moment. Structured radio
-  discipline ("be advised, 10-96…") corrupts over time into static, fragments, panic, screams — the
-  officer is fighting to survive, not filing a clean report. A fully overrun district can go
-  **silent** on the air (no more officers reporting) — silence as information, a small pocket of
-  real fog. This is the early-warning radar *and* the fog of war in one mechanism: not blind, but
-  the information decays exactly when the player most needs it clean. Implementation is word-level
-  static replacement on the existing message strings, gated by district state — no new content
-  pool needed.
-  - **Resolved (naming):** ambient officers are labeled by **badge number** — a stand-in for the
-    current ambient-caller name, revisitable later since it's purely a label. The player's
-    dispatchable units stay `UNIT 2/3`, so "UNIT n" remains unambiguously the things you can send.
-    One constraint to honor: a given badge number shouldn't be radioing in from six different
-    districts within a few minutes — keep a badge tied to a plausible single location for a while.
+- [x] **(Interim) Pull ambient callers out of the CONTACTS panel without deleting the system.**
+  *(shipped — commit d79f032.)* Parked the sole `checkCallEvent()` call site so no ambient contacts
+  spawn, clearing CONTACTS for the dispatch verb while leaving the machinery intact.
+- [x] **Retheme the ambient pool as police chatter, and move it from CONTACTS to COMMS.** *(shipped
+  & verified — `emitPoliceChatter` / `POLICE_CHATTER` / `districtBadge`.)* Off-duty / quick-response
+  **officers** (not in your dispatchable units, not dispatchable) radio district status into COMMS
+  via `broadcastEvent`, formatted `[DISTRICT] Badge #182: <line>`. CONTACTS is now exclusively
+  stories / Incidents / units. **`getCallTier` carries over unchanged** (still selects line dirtiness
+  by hidden zombie count); **the content did not** — the civilian `CALL_TEMPLATES` / `CALLER_POOL`
+  were *replaced* by new police-voiced `POLICE_CHATTER` (5 tiers, test content for now) and badge
+  numbers, not reused. Verified live: badge-numbered, tier-appropriate, one stable badge per district,
+  coexisting with the existing system broadcasts.
+- [x] **Per-district COMMS degradation = the fog of war.** *(shipped & verified — `degradeChatter`.)*
+  Word-level static replacement (reusing `STATIC_TAGS`) scaling with the *reporting district's*
+  zombie ratio: clean below 0.20, fraying as it climbs. At/above `SILENT_RATIO` (0.75) the district
+  emits one final broken transmission + `[no response]`, sets `_wentDark`, and goes silent (recovers
+  if pulled back below the line). Per-district, not a global clock. Verified live: caught a district
+  climb from clean → `[szzt] please— is [wzzt] still—` → `[no response]` as it crossed 0.75.
+  - **Resolved (naming):** ambient officers are labeled by **badge number** (`Badge #NNN`), pinned
+    one-per-district (`districtBadge` stores `d._badge`) so a badge is never reporting from six
+    places at once. `UNIT n` stays unambiguously the dispatchable units.
+- [ ] **Dead-code cleanup pass (do before COMMS gets more work).** The old civilian-ambient path is
+  fully superseded and never runs: remove `checkCallEvent`, `CALLER_POOL`, `CALL_TEMPLATES`, and the
+  `type:'ambient'` branches threaded through `makeContact` / `maybeFireFirstOpen` / `showContactDetail`
+  / `processNarrativeCallers`. Keep `getCallTier` (reused by `emitPoliceChatter`). Left in place this
+  session to keep the chatter build low-risk; it's inert but it's two parallel systems, so clear it
+  out before it confuses the next COMMS change.
 
 ### Tutorial Content
 

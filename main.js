@@ -1103,6 +1103,119 @@ function renderRadio() {
   }).join('')
 }
 
+// ── AMBIENT POLICE CHATTER (COMMS) ──
+// The old ambient caller pool, rethemed: officers who AREN'T in your dispatchable units radio in
+// district status over the scanner. They're identity-light (a badge number, pinned one-per-district)
+// and not dispatchable — just the texture of a city full of cops you don't command. Lines escalate
+// by the same hidden zombie-count tier (getCallTier) the old caller pool used, and degrade into
+// static as a district worsens, until past SILENT_RATIO the district goes dark and stops reporting.
+// See design.md, "Ambient police chatter," and todo.md, "Ambient callers → unit-voiced COMMS."
+
+const CHATTER_CHANCE = 0.18   // per-tick odds an officer keys up from some still-reporting district
+const SILENT_RATIO   = 0.75   // at/above this a district stops reporting — silence as information
+
+const POLICE_CHATTER = [
+  // Tier 0 (1–3): uncertain, routine — could be nothing
+  [
+    `Be advised, got a report of someone acting erratic. Checking it out.`,
+    `Dispatch, one individual not responding to commands. Keeping eyes on.`,
+    `Probably nothing — 10-91, uncooperative subject. Will advise.`,
+    `Responding to a disturbance. Nothing confirmed yet.`,
+    `Got one down on the sidewalk, not moving. Approaching now.`,
+    `Quiet over here. One report of erratic behavior, investigating.`,
+  ],
+  // Tier 1 (4–10): confirmed, contained
+  [
+    `Dispatch, be advised — multiple subjects, combative. Requesting backup.`,
+    `Confirmed several hostiles. Holding the line for now.`,
+    `Got a handful of them. Containing it, but send units.`,
+    `Shots fired, shots fired. They're not going down easy. Need support.`,
+    `Be advised, treat as combative regardless of injury. Several here.`,
+    `Subjects cornered. Could use a second unit.`,
+  ],
+  // Tier 2 (11–25): many, deteriorating
+  [
+    `Dispatch, this is getting away from us. Too many to count. Requesting all available.`,
+    `We're falling back. Repeat, falling back. Sector is not secure.`,
+    `Officer down, officer down. I need EMS now.`,
+    `They're coming from everywhere. We can't hold this position.`,
+    `Every street out is blocked. We're pinned.`,
+    `Lost contact with my partner. Whole sector's hostile.`,
+  ],
+  // Tier 3 (26–50): desperate, collapsing
+  [
+    `Dispatch — do NOT send units in here. Repeat, do not. It's gone.`,
+    `Anyone copy? I think I'm the only one left on this channel.`,
+    `We have a crowd. Not individuals — a CROWD. Get everyone out.`,
+    `Position compromised. Trying to find a way out—`,
+    `They don't stop. They don't stop—`,
+    `Mayday, mayday, officer needs assistance, anyone—`,
+  ],
+  // Tier 4 (51+): overwhelmed, near silence
+  [
+    `—can't— not gonna make it out of—`,
+    `Tell them it was already too late when we got here—`,
+    `—get back, get BACK—`,
+    `—anybody— please— is anybody still—`,
+    `It's over. It's all over down here.`,
+    `—hold the— [unintelligible] —`,
+  ],
+]
+
+const pickOne = arr => arr[Math.floor(Math.random() * arr.length)]
+
+let _usedBadges = new Set()
+
+// One badge per district — the officer working that area. Stable while the district persists, so
+// "Badge #182" reads as a consistent person, never the same number reporting from six places at once.
+function districtBadge(d) {
+  if (d._badge) return d._badge
+  let b
+  do { b = 100 + Math.floor(Math.random() * 900) } while (_usedBadges.has(b))
+  _usedBadges.add(b)
+  d._badge = b
+  return b
+}
+
+// Word-level static: clean while a district is calm, fraying as its zombie ratio climbs. Reuses the
+// same STATIC_TAGS as the rest of the feed so it reads as one degrading radio, not a separate effect.
+function degradeChatter(line, ratio) {
+  if (ratio < 0.20) return line
+  const p = Math.min(0.5, (ratio - 0.20) * 0.9)
+  return line.split(' ').map(w => Math.random() < p ? pickOne(STATIC_TAGS) : w).join(' ')
+}
+
+function emitPoliceChatter() {
+  if (!state.started) return
+
+  // Going-dark transitions: a district crossing SILENT_RATIO gets one last broken transmission, then
+  // stops reporting. A district pulled back below the line can report again.
+  for (const d of Object.values(state.districts)) {
+    if (d.zombies === 0) { d._wentDark = false; continue }
+    const ratio = d.zombies / (d.humans + d.zombies)
+    if (ratio >= SILENT_RATIO) {
+      if (!d._wentDark) {
+        d._wentDark = true
+        const badge = districtBadge(d)
+        broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: ${degradeChatter(pickOne(POLICE_CHATTER[4]), 0.95)}`)
+        broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: [no response]`)
+      }
+    } else {
+      d._wentDark = false
+    }
+  }
+
+  // Routine chatter: one officer from a still-reporting infected district keys up.
+  if (Math.random() > CHATTER_CHANCE) return
+  const live = Object.values(state.districts).filter(d =>
+    d.zombies > 0 && d.zombies / (d.humans + d.zombies) < SILENT_RATIO)
+  if (!live.length) return
+  const d     = pickOne(live)
+  const ratio = d.zombies / (d.humans + d.zombies)
+  const badge = districtBadge(d)
+  broadcastEvent(`[${d.label.toUpperCase()}] Badge #${badge}: ${degradeChatter(pickOne(POLICE_CHATTER[getCallTier(d.zombies)]), ratio)}`)
+}
+
 function toggleMaximize(id) {
   const ws = winState[id]
   const desktop = document.getElementById('desktop')
@@ -2148,12 +2261,12 @@ function tick() {
   }
 
   director.tick()
-  // checkCallEvent() is parked — ambient callers are pulled out of CONTACTS to make room for the
-  // dispatch-to-caller build, then repurposed into COMMS police chatter. The function and its
-  // CALLER_POOL / CALL_TEMPLATES / getCallTier machinery stay intact for that; this is the only
-  // call site, so commenting it out empties ambient callers from CONTACTS without deleting them.
-  // See todo.md, "Ambient callers → unit-voiced COMMS".
-  // checkCallEvent()
+  emitPoliceChatter()   // ambient reports now radio into COMMS as badge-numbered police chatter
+                        // (was checkCallEvent → CONTACTS). The old civilian ambient path —
+                        // checkCallEvent / CALLER_POOL / CALL_TEMPLATES and the `type:'ambient'`
+                        // contact branches in makeContact / maybeFireFirstOpen / showContactDetail /
+                        // processNarrativeCallers — is fully superseded now and never spawns; flagged
+                        // for a dead-code cleanup pass in todo.md.
   render()
   checkLose()
   checkWin()
