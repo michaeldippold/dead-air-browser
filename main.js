@@ -1928,7 +1928,12 @@ function tick() {
   }
 
   director.tick()
-  checkCallEvent()
+  // checkCallEvent() is parked — ambient callers are pulled out of CONTACTS to make room for the
+  // dispatch-to-caller build, then repurposed into COMMS police chatter. The function and its
+  // CALLER_POOL / CALL_TEMPLATES / getCallTier machinery stay intact for that; this is the only
+  // call site, so commenting it out empties ambient callers from CONTACTS without deleting them.
+  // See todo.md, "Ambient callers → unit-voiced COMMS".
+  // checkCallEvent()
   render()
   checkLose()
   checkWin()
