@@ -74,10 +74,14 @@ The core loop is operational. Key systems in place:
   DISPATCH-window district move stays as a separate action (tactical reposition — no caller, no
   busy state). Busy units aren't eligible for re-dispatch until their call resolves; multiple units
   *may* target one caller (sending backup to a unit in trouble is good drama).
-- [ ] **`RESPONDING` activity (busy state).** A unit handling a call doesn't passively engage
-  zombies — that's the trade-off cost of answering a specific call, and what forces real triage.
-  New activity alongside ENGAGE/HIDE/SCAVENGE; reverts to `engage` on resolution. This is the
-  mechanism the Incidents "opportunity cost" line was always describing.
+- [ ] **`RESPONDING` activity (busy state).** A unit dispatched to a caller enters RESPONDING: it
+  sits in the caller's district, on the map, but is **fully insulated from the sim combat loop** —
+  it neither kills zombies nor can be killed by the ambient counterattack. (Decision: a unit on a
+  call is not also a multitasking zombie-killing machine; that's the cost of answering.) Its only
+  stakes are authored, or the generic fallback. New activity alongside ENGAGE/HIDE/SCAVENGE; tied up
+  until the call resolves, then reverts to `engage`. Conceptual anchor: **dispatch to a district is
+  a win-the-sim move; dispatch to a caller is a story move** — they stay mechanically distinct. This
+  is the mechanism the Incidents "opportunity cost" line was always describing.
 - [ ] **Units become Contacts.** First time a unit is dispatched (either path), create its Contact
   named `UNIT 2` / `UNIT 3`. Unlike callers it opens with an *outbound* line — no "911, what's your
   emergency"; the unit is calling you (`10-4, en route to {location}`). One-way reports for now, no
@@ -86,14 +90,28 @@ The core loop is operational. Key systems in place:
   leader's **role** (fire = red, etc., reusing the role-color map already driving map dots and
   dispatch stars): filled = unread report waiting, hollow ring = read. Makes a unit thread read as
   distinct from a civilian/story thread at a glance, no extra chrome.
-- [ ] **Arrival hook — the payoff.** On arrival at a targeted caller, fire an authored
-  `onArrive(state, actions, { contact, unit })`-style hook (the targeted sibling of the unused
-  `unit-enters` event). Scripted callers get authored outcomes; the report lands in the **unit's**
-  contact thread (empty house / mob outside / caller safe), and the caller's own thread reacts when
-  authored. Procedural fallback for non-scripted callers reads the caller's current
-  `effectiveThreatMod()` exposure → outcome bucket (fine / gone / besieged-triggers-combat). This
-  is the same primitive the old "Rescue beat" and "Co-location detection" items wanted — built once
-  here, those become content on top of it.
+- [ ] **Arrival — generic chrome vs authored content.** Two layers, so authoring stays cheap:
+  - **Automatic (main.js, every dispatch):** the unit Contact + `10-4 dispatch, en route to
+    {location}` on dispatch and a bare `On scene.` on arrival — radio procedure, identical for every
+    unit, never hand-authored.
+  - **Authored (script `onArrive(state, actions, { contact, unit })`, optional):** what the unit
+    *finds*, any mid-beats while it's there, and a prescribed resolution. The arriving `unit` is
+    handed in, so a script can branch on unit composition — did a fire crew or a police unit show
+    up? This needs a small `unitHasRole(unit, 'fire')`-style helper, because this is the **first
+    time authored content touches a specific unit at all** (confirmed: scripts today only use
+    `onEnter(state, actions)` and `when.*` triggers — never a unit handle). The unit's report lands
+    in the **unit's** thread; the caller's own thread reacts when authored. Sometimes more story in
+    the middle, sometimes not — `onArrive` is optional.
+- [ ] **`completeResponse(unit)` script action.** Completion lives in the script (the prescribed
+  resolution beat), so `SCRIPT_ACTIONS` gains the capability to mark the call done and flip the unit
+  back to `engage`. The mechanical home for "when they've completed the task."
+- [ ] **Generic fallback for unauthored callers.** A caller with no `onArrive` (the tutorial's plain
+  reused content, short Incidents) still produces something: generic `On scene.`, an outcome bucket
+  read off the caller's current `effectiveThreatMod()` exposure (fine / gone /
+  besieged-triggers-combat), and a timer-based completion that auto-reverts to `engage`. Authored
+  scripts override this; unauthored ones lean on it, so the verb works without hand-writing every
+  caller. This arrival path is the same primitive the old "Rescue beat" and "Co-location detection"
+  items wanted — built once here, those become content on top of it.
 
 ### Ambient callers → unit-voiced COMMS *(Up Next, lands with the above)*
 

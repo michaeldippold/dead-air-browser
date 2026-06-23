@@ -77,6 +77,14 @@ System — so the call list is now exclusively things worth reading closely.)
 **Player advice should carry real weight.** Telling a caller to run, telling a unit to redeploy
 — both should cost something. See Movement & Risk, below.
 
+**Dispatch is two verbs, not one.** Sending a unit to a *district* is a sim move — suppress a hot
+zone, reposition for what's coming, try to win the simulation under fog. Sending a unit to a
+*caller* is a story move — you're answering a specific person, and the unit is tied up with them
+until the beat resolves, doing nothing else. The first is optimization; the second is a narrative
+commitment with real opportunity cost. Keeping them mechanically distinct — a district move runs
+ENGAGE, a caller dispatch enters RESPONDING and waits, insulated from the sim — is what makes
+triage a genuine decision instead of a free action.
+
 **The district map is a strategic abstraction, not a literal one.** Districts don't represent
 "X zombies standing in a field" — they represent how bad an area's situation is right now. The
 map tells the player *where* to look. Callers tell them *what's actually happening there*.
@@ -144,9 +152,14 @@ random combat death; their fate (if any) is authored.
 
 ### Units
 
-Containers of Persons, dispatched by the player, with an activity (ENGAGE / HIDE / SCAVENGE).
-Units are mobile and active across a whole district — they do not occupy a specific location
-within it the way a caller does. That's the distinguishing trait of a unit versus a caller: a
+Containers of Persons, dispatched by the player, with an activity (ENGAGE / HIDE / SCAVENGE /
+RESPONDING). RESPONDING is the busy state a unit enters when dispatched to a specific caller: it
+sits in the caller's district, visible on the map, but is **insulated from the sim's combat loop
+entirely** — it neither kills zombies nor can be killed by the ambient counterattack. A unit on a
+call is not also a multitasking zombie-killing machine; answering a person costs you that unit's
+sim presence until the call resolves, at which point it reverts to ENGAGE. Its only stakes are the
+caller's authored content (or a generic fallback). Units are mobile and active across a whole
+district — they do not occupy a specific location within it the way a caller does. That's the distinguishing trait of a unit versus a caller: a
 unit is doing something across the district; a caller is somewhere specific, staying there
 until told otherwise.
 
@@ -189,6 +202,16 @@ line ("911, what is your emergency?") fire, followed by a beat of silence before
 actually speaks. This is "nobody should be able to triage the call list at a glance," made
 literal: there is nothing to triage on a call that hasn't been answered yet. The one exception is
 the tutorial handoff — Barbara doesn't dial 911 to onboard the player.
+
+**On arrival.** When a dispatched unit reaches a caller, the caller's script can react to *which*
+unit arrived — a fire crew, a police unit, a civilian squad — because the arriving unit is handed
+to the script's arrival hook. The character can respond to the unit type, a beat can branch on it,
+or the call can simply resolve. This is the first point where authored content touches a specific
+unit at all: everything before reacts to time, place, and zombie state, never to the player's own
+roster. Two layers keep authoring cheap — the radio chrome ("en route," "on scene") is generated
+automatically for every dispatch, while the story (what the unit finds, mid-beats, the resolution)
+is authored per caller and optional. Callers with nothing authored fall back to a generic outcome
+read off their current exposure.
 
 ### Spine — the Scenario
 
