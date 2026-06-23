@@ -211,7 +211,9 @@ unit at all: everything before reacts to time, place, and zombie state, never to
 roster. Two layers keep authoring cheap — the radio chrome ("en route," "on scene") is generated
 automatically for every dispatch, while the story (what the unit finds, mid-beats, the resolution)
 is authored per caller and optional. Callers with nothing authored fall back to a generic outcome
-read off their current exposure.
+read off their current exposure. If several units answer the same call, the first to arrive owns
+its resolution — the caller reacts once, not once per unit — and the rest are backup: present and
+insulated, checking in on their own threads but not re-triggering the caller's beat.
 
 ### Spine — the Scenario
 
