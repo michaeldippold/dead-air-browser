@@ -94,6 +94,7 @@ const makeContact = (name, districtId = null) => ({
   scriptId:    null,
   personId:    null,   // set for scripted callers — links to the Person in state.people
   unitId:      null,   // set for unit contacts (type 'unit') — links to the dispatched unit
+  callOwnerUnitId: null, // first unit to respond to this caller — owns the narrative resolution
   pendingNext: null,
   replyDelay:  0,
   lastActivityTick: 0,
@@ -152,27 +153,47 @@ function arriveOnCall(unit, contactId) {
   const dest   = state.districts[unit.districtId]
   unitReport(unit, `On scene at ${dest?.label ?? 'location'}.`)
 
+  // First unit to reach a caller owns the call's narrative resolution; any later units are backup —
+  // they go RESPONDING and check in on their own thread, but don't re-fire the caller's reaction or
+  // re-run onArrive. This keeps "multiple units may respond" without spamming the caller thread (or
+  // re-entering a script node six times if you blob every unit at one call).
+  const firstResponder = !caller || !caller.callOwnerUnitId
+  if (caller) caller.callOwnerUnitId ??= unit.id
+
   const script = caller?.type === 'narrative' ? NARRATIVE_SCRIPTS[caller.scriptId] : null
-  if (script?.onArrive) {
+  if (firstResponder && script?.onArrive) {
     script.onArrive(state, SCRIPT_ACTIONS, {
       contact: caller,
       unit,
       roles:   personsInUnit(unit.id).map(p => p.role),
       hasRole: role => personsInUnit(unit.id).some(p => p.role === role),
     })
-    return
+    return   // authored path owns this (owner) unit's completion via completeResponse
   }
-  genericArrivalOutcome(unit, caller)
+  genericArrivalOutcome(unit, caller, firstResponder)
 }
 
 // Fallback for any caller without an authored onArrive (plain tutorial callers, short Incidents):
 // an outcome bucket read off the responding district's danger, voiced on both the unit thread and
 // the caller's, then auto-completion after a short window. Authored scripts override all of this.
-function genericArrivalOutcome(unit, caller) {
+function genericArrivalOutcome(unit, caller, firstResponder) {
+  // Backup units just check in on their own thread and auto-complete — the caller's narrative was
+  // already handled by the first responder.
+  if (!firstResponder) {
+    unitReport(unit, `Supporting unit on scene.`)
+    unit.respondTimer = 4
+    return
+  }
+
+  // The situation can change between dispatch and arrival — if the caller died or their contact
+  // closed while the unit was en route, they arrive too late rather than to a magically-safe scene.
+  const callerGone = !caller || !caller.alive || !caller.personId
   const d     = state.districts[unit.districtId]
   const ratio = d ? d.zombies / Math.max(1, d.humans + d.zombies) : 0
-  let unitLine, callerLine
-  if (!d || d.zombies === 0) {
+  let unitLine, callerLine = null
+  if (callerGone) {
+    unitLine   = `No sign of the caller. We're too late.`
+  } else if (!d || d.zombies === 0) {
     unitLine   = `Area's quiet. We've got the subject — they're safe.`
     callerLine = `Oh thank god. Thank you.`
   } else if (ratio < 0.25) {
@@ -183,7 +204,7 @@ function genericArrivalOutcome(unit, caller) {
     callerLine = `Please hurry, I can hear them—`
   }
   unitReport(unit, unitLine)
-  if (caller?.alive && caller.personId) {
+  if (callerLine && caller?.alive && caller.personId) {
     pushMessage(caller, { text: callerLine, time: gameTime(), sender: 'npc' })
     caller.unread = true
     if (state.selectedContact === caller.id) renderContactMessages(caller)
