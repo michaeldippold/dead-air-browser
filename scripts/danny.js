@@ -2,9 +2,10 @@
 // A child on a landline. Parents went to get grandma and haven't come back.
 // Trigger: zombies reach Joyland.
 // Arc: he followed his dad's instructions to the letter. He's scared but not panicking.
-//      Player can keep him in place, send him to Mrs. Kowalski down the hall, or ignore him.
-//      Ignoring him is the worst outcome. Sending him to the neighbor is the best.
-//      The no-answer path is designed to be haunting — he goes quiet methodically.
+//      Player can keep him in place or send him to Mrs. Kowalski down the hall.
+//      Pure call-and-response, no auto-resolution for not answering (see design.md, Content
+//      System — timer/timerNext is never a generic non-response ending). 'danny-quiet' and
+//      'danny-dark' are known-weak filler, to be re-authored later, not deleted yet.
 
 export default {
   id:          'danny',
@@ -23,7 +24,6 @@ export default {
         { label: 'You did exactly right. Stay locked in.',  next: 'danny-stay'     },
         { label: 'Is there a neighbor you can go to?',      next: 'danny-neighbor' },
       ],
-      timer: 10, timerNext: 'danny-no-answer',
     },
 
     'danny-stay': {
@@ -73,21 +73,5 @@ export default {
       choices: null,
       resolve: 'waiting',
     },
-
-    // ── Ignored path ──────────────────────────────────────────────────────────
-
-    'danny-no-answer': {
-      text: "Hello? Is anyone — okay. I'll just wait.",
-      choices: null,
-      timer: 20, timerNext: 'danny-no-answer-final',
-    },
-
-    'danny-no-answer-final': {
-      text: "...someone's at the front door. They're knocking but it doesn't sound like my dad. I put the chair against it like in the movies. I'm going to stay quiet now.",
-      choices: null,
-      timer: 6, timerNext: 'danny-no-answer-lost',
-    },
-
-    'danny-no-answer-lost': { text: null, resolve: 'lost' },
   },
 }

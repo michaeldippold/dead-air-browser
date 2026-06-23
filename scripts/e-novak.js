@@ -1,9 +1,10 @@
 // E. Novak — Good Samaritan Hospital
 // Pharmacist sheltering in the hospital dispensary during the outbreak.
 // Trigger: zombies reach Good Samaritan Hospital.
-// Arc: she calls for help. Player can keep her in place, tell her to run, or ignore her.
-//      Ignoring her is survivable but haunting. Running is fast and probably fatal.
-//      Staying is slow, detailed, and ends with her attempting to move at dawn.
+// Arc: she calls for help. Player can keep her in place or tell her to run.
+//      Running is fast and probably fatal. Staying is slow, detailed, and ends with
+//      her attempting to move at dawn. Pure call-and-response, no auto-resolution for
+//      not answering (see design.md, Content System).
 
 export default {
   id:          'e-novak',
@@ -24,7 +25,6 @@ export default {
         { label: 'Stay put. We have the situation.',  next: 'stay-ack' },
         { label: 'Get out now — use a back exit.',    next: 'run'      },
       ],
-      timer: 14, timerNext: 'no-answer',
     },
 
     // ── Stay path ─────────────────────────────────────────────────────────────
@@ -104,20 +104,5 @@ export default {
     },
 
     'run-lost': { text: null, resolve: 'lost' },
-
-    // ── Ignored path ──────────────────────────────────────────────────────────
-
-    'no-answer': {
-      text: null,
-      timer: 18, timerNext: 'no-answer-final',
-    },
-
-    'no-answer-final': {
-      text: "...they found the loading bay door. I can hear them on the other side. Room B2 — refrigerated cabinet. The antibiotics. For whoever gets there after.",
-      choices: null,
-      timer: 6, timerNext: 'no-answer-lost',
-    },
-
-    'no-answer-lost': { text: null, resolve: 'lost' },
   },
 }

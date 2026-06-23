@@ -18,13 +18,21 @@ const GAME_START_HOUR = 20  // game world begins at 20:00 (night shift) Day 1
 const GAME_START_DAY  = 1
 const MINS_PER_TICK   = 1   // each tick advances game clock by 1 minute
 
-const SCENARIOS = {
+const DIFFICULTIES = {
   standard: {
     numDistricts: 3,
     totalZombies: 12,
     distribution: 'even',   // 'even' | 'linear' | 'all-in-one'
     spreadChance: 0.35,
     delay:        0,        // reserved: ticks before first zombie placement
+  },
+  apocalypse: {
+    // TODO: tune harder once the rest of the game is built out — mirrors standard for now
+    numDistricts: 3,
+    totalZombies: 12,
+    distribution: 'even',
+    spreadChance: 0.35,
+    delay:        0,
   },
 }
 
@@ -87,7 +95,16 @@ const makeContact = (name, districtId = null) => ({
   personId:    null,   // set for scripted callers — links to the Person in state.people
   pendingNext: null,
   replyDelay:  0,
+  lastActivityTick: 0,
 })
+
+// Every message push goes through here so "most recent activity" (used to sort the contacts
+// list) has one source of truth instead of relying on parsing the display-formatted `time`
+// string, which can't be compared across a day rollover.
+function pushMessage(contact, msg) {
+  contact.messages.push(msg)
+  contact.lastActivityTick = state.tick
+}
 
 const CALLER_POOL = [
   'Unknown Caller',
@@ -206,6 +223,9 @@ const director = (() => {
     // Events: 'person-death'  { person, districtId }
     //         'unit-disbanded' { unitId, districtId }
     //         'unit-enters'   { unitId, destId, srcId }
+    //         'player-callback' { contactId, tick } — fired by the CALL BACK button; no
+    //                             handler is wired by default, so nothing happens beyond the
+    //                             "No response." message main.js always appends itself.
     on(event, handler) {
       ;(_handlers[event] ??= []).push(handler)
     },
@@ -224,11 +244,12 @@ director.on('person-death', (s, { person }) => {
   if (!contact || !contact.alive) return
   contact.alive  = false
   contact.status = 'dead'
-  contact.messages.push({ text: '[contact lost]', time: gameTime() })
+  pushMessage(contact, { text: '[contact lost]', time: gameTime() })
   contact.unread = true
   if (s.selectedContact === contact.id) {
     renderContactMessages(contact)
     renderContactMeta(contact)
+    updatePhoneIcon(contact)
   }
 })
 
@@ -277,6 +298,14 @@ Object.values(NARRATIVE_SCRIPTS).forEach(script => {
   })
 })
 
+// Every call but Barbara's opens with the dispatcher's own line first, then a beat of
+// "..." before the caller answers — same reply-delay mechanic as a chosen response. This
+// only fires the first time the player actually opens a contact's thread (see
+// maybeFireFirstOpen, called from showContactDetail) — not at creation, so a caller sitting
+// unopened in the list hasn't "spoken" yet and the player can't drop in mid-exchange. Existing
+// contacts calling back skip straight to their line (see checkCallEvent's isNewContact branch).
+const DISPATCH_OPENER = '911, what is your emergency?'
+
 function spawnScript(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
@@ -297,8 +326,36 @@ function spawnScript(scriptId) {
   contact.personId = person.id
   state.contacts.push(contact)
 
-  advanceNarrativeCaller(contact, 0)
+  if (scriptId === 'tutorial') {
+    advanceNarrativeCaller(contact, 0)
+  }
+  // Everyone else waits for the player to open the thread — see maybeFireFirstOpen.
   renderContactsPanel()
+}
+
+// Fires the dispatcher's opener + reply-delay the first time (and only the first time) a
+// contact's thread is opened — before this, the contact has no messages and hasn't "spoken."
+// Guarded on pendingNext too, not just messages.length, so backing out before the delay
+// resolves and reopening doesn't re-fire a second opener on top of the one already queued.
+function maybeFireFirstOpen(contact) {
+  if (contact.type === 'narrative' && contact.scriptId === 'tutorial') return
+  if (contact.messages.length > 0 || contact.pendingNext !== null) return
+
+  pushMessage(contact, { text: DISPATCH_OPENER, time: gameTime(), sender: 'player' })
+  contact.replyDelay = 2 + Math.floor(Math.random() * 3)
+
+  if (contact.type === 'narrative') {
+    contact.pendingNext = 0
+    return
+  }
+
+  // Ambient: resolve the report fresh, against current district state rather than whatever
+  // was true back when checkCallEvent first spawned this contact — could be many ticks ago.
+  const reportDist = (contact.location && state.districts[contact.location])
+    ? state.districts[contact.location]
+    : state.districts[contact.reportDistrictId] ?? Object.values(state.districts).find(d => d.zombies > 0)
+  const pool = CALL_TEMPLATES[getCallTier(reportDist?.zombies ?? 0)]
+  contact.pendingNext = pool[Math.floor(Math.random() * pool.length)](reportDist ?? { label: 'the area' })
 }
 
 function advanceNarrativeCaller(contact, nodeId) {
@@ -311,7 +368,7 @@ function advanceNarrativeCaller(contact, nodeId) {
   contact.timer = node.timer ?? null
 
   if (node.text) {
-    contact.messages.push({ text: node.text, time: gameTime(), sender: 'npc' })
+    pushMessage(contact, { text: resolveText(node.text), time: gameTime(), sender: 'npc' })
     contact.unread = true
   }
 
@@ -325,7 +382,7 @@ function advanceNarrativeCaller(contact, nodeId) {
       delete state.people[contact.personId]
       contact.personId = null
     }
-    contact.messages.push({ text: '[contact lost]', time: gameTime() })
+    pushMessage(contact, { text: '[contact lost]', time: gameTime() })
     contact.unread = true
   } else if (node.resolve === 'waiting') {
     contact.status = 'waiting'
@@ -335,26 +392,33 @@ function advanceNarrativeCaller(contact, nodeId) {
   if (state.selectedContact === contact.id) {
     renderContactMessages(contact)
     renderContactMeta(contact)
+    updatePhoneIcon(contact)
   }
 }
 
 function processNarrativeCallers() {
   let advanced = false
   for (const contact of state.contacts) {
-    if (contact.type !== 'narrative') continue
-
-    // Pending reply: player chose, waiting for NPC to "type back"
+    // Pending reply: either the player chose (narrative) or this is a fresh call's opening
+    // beat (any contact type) — waiting for the other end to "type back".
     if (contact.pendingNext !== null) {
       contact.replyDelay--
       if (contact.replyDelay <= 0) {
         const next = contact.pendingNext
         contact.pendingNext = null
-        advanceNarrativeCaller(contact, next)
+        if (contact.type === 'narrative') {
+          advanceNarrativeCaller(contact, next)
+        } else {
+          pushMessage(contact, { text: next, time: gameTime(), sender: 'npc' })
+          contact.unread = true
+          if (state.selectedContact === contact.id) renderContactMessages(contact)
+        }
         advanced = true
       }
       continue
     }
 
+    if (contact.type !== 'narrative') continue
     if (contact.timer === null) continue
     contact.timer--
     if (contact.timer <= 0) {
@@ -538,7 +602,7 @@ const state = {
   selected:        null,
   selectedUnit:    null,
   selectedContact: null,
-  contacts:        [ makeContact('LFUCG Govt Center') ],
+  contacts:        [],
   people:          {},
   units:           {},
   transits:        [],
@@ -679,6 +743,7 @@ const cdvName     = document.getElementById('cdv-name')
 const cdvMeta     = document.getElementById('cdv-meta')
 const cdvMessages = document.getElementById('cdv-messages')
 const btnCdvBack  = document.getElementById('btn-cdv-back')
+const btnCdvCallback = document.getElementById('btn-cdv-callback')
 const idvName     = document.getElementById('idv-name')
 const idvDesc     = document.getElementById('idv-description')
 const btnIdvBack  = document.getElementById('btn-idv-back')
@@ -741,7 +806,7 @@ function initWindowManager() {
       document.addEventListener('mouseup', onUp)
     })
 
-    titlebar.addEventListener('dblclick', e => { if (!e.target.closest('.win-btn')) toggleMaximize(id) })
+    titlebar.addEventListener('dblclick', e => { if (id !== 'alert' && !e.target.closest('.win-btn')) toggleMaximize(id) })
 
     // Remove old single-corner resize, add full 8-edge resize handles
     const oldResize = winEl.querySelector('.win-resize')
@@ -753,7 +818,10 @@ function initWindowManager() {
       winEl.appendChild(edge)
     }
 
-    // Generate window controls — order: PIN | MIN | MAX | CLOSE
+    // Generate window controls — order: PIN | MIN | MAX | CLOSE.
+    // The InfoBox (alert window) is the one exception — it gets a minimal,
+    // state-driven header instead (see renderAlertControls), not this set.
+    if (id === 'alert') continue
     const controls = winEl.querySelector('.win-controls')
     controls.innerHTML = `
       <button class="win-btn win-pin-btn">PIN</button>
@@ -779,18 +847,19 @@ function initWindowManager() {
     btn.addEventListener('click', () => focusOrToggleWindow(btn.dataset.win))
   })
 
-  // These panels start minimized — not part of the default tiled layout
-  for (const id of ['sitrep', 'items', 'alert']) {
+  // Every window starts minimized — bare desktop (badge + icons) is the first thing the player
+  // sees. The tutorial script reveals panels one at a time; skipping it reveals them all at once
+  // via resetLayout() inside startGame(). Nothing is "default focused" until something is shown.
+  for (const id of WIN_IDS) {
     winState[id].minimized = true
     document.getElementById(`win-${id}`).classList.add('win-minimized')
   }
 
   // Alert starts pinned so it can't be accidentally dragged
   winState.alert.pinned = true
-  document.getElementById('win-alert').querySelector('.win-pin-btn').textContent = 'UNPIN'
-  document.getElementById('win-alert').querySelector('.win-pin-btn').classList.add('win-btn-active')
+  winState.alert.required = false
+  renderAlertControls()
 
-  bringToFront('dispatch')
   syncTaskbar()
 }
 
@@ -925,6 +994,13 @@ function closeWindow(id)    { toggleMinimize(id) }
 function minimizeWindow(id) { toggleMinimize(id) }
 function maximizeWindow(id) { toggleMaximize(id) }
 
+// Guaranteed-visible, unlike the toggle-based three above — every window now starts minimized,
+// so the tutorial (or skipping it) is what reveals them. Safe to call on an already-visible window.
+function revealWindow(id) {
+  if (winState[id].minimized) toggleMinimize(id)
+  else bringToFront(id)
+}
+
 function setWindowPosition(id, x, y) {
   const ws = winState[id]
   if (!ws) return
@@ -966,7 +1042,7 @@ function clearSpotlight() {
 // modules with no import access to main.js internals, so this is how they reach window-manager
 // and game-flow functions without a cross-module import.
 const SCRIPT_ACTIONS = {
-  closeWindow, minimizeWindow, maximizeWindow, setWindowPosition, setWindowOpacity,
+  closeWindow, minimizeWindow, maximizeWindow, revealWindow, setWindowPosition, setWindowOpacity,
   spotlightWindow, clearSpotlight, bringToFront, showAlert, startGame,
 }
 
@@ -976,19 +1052,42 @@ function syncTaskbar() {
   })
 }
 
-// ── ALERT SYSTEM ──
+// ── ALERT / INFOBOX SYSTEM ──
+// The alert window doubles as a generic InfoBox: showAlert(title, body) covers the simple
+// one-off case (LEADER DOWN, UNIT DISBANDED — title text, dismissible by X/click-outside/Escape).
+// Passing { required: true } turns it into a blocking box with no X and no outside-dismiss —
+// the only way out is for something inside `body`'s own markup to call dismissAlert() itself
+// once its action completes (see the login box). dismissAlert() always works when called
+// directly; it's only the three *external* dismiss triggers that respect `required`.
 
-const alertMessage = document.getElementById('alert-message')
+const alertWinTitle = document.getElementById('alert-win-title')
+const alertMessage  = document.getElementById('alert-message')
+
+function renderAlertControls() {
+  const controls = document.getElementById('win-alert').querySelector('.win-controls')
+  if (winState.alert.required) {
+    controls.innerHTML = ''
+  } else {
+    controls.innerHTML = `<button class="win-btn win-close-btn">×</button>`
+    controls.querySelector('.win-close-btn').addEventListener('click', dismissAlert)
+  }
+}
 
 function _onAlertClickOutside(e) {
+  if (winState.alert?.required) return
   if (!document.getElementById('win-alert').contains(e.target)) dismissAlert()
 }
 
-function showAlert(title, body) {
-  alertMessage.innerHTML = `<div class="alert-title">${title}</div><div class="alert-body">${body}</div>`
+function showAlert(title, body, opts = {}) {
+  const { required = false } = opts
+  alertWinTitle.textContent = title
+  alertMessage.innerHTML = `<div class="alert-body">${body}</div>`
+  winState.alert.required = required
+  renderAlertControls()
   if (winState.alert?.minimized) toggleMinimize('alert')
   bringToFront('alert')
-  setTimeout(() => document.addEventListener('click', _onAlertClickOutside, true), 0)
+  document.removeEventListener('click', _onAlertClickOutside, true)
+  if (!required) setTimeout(() => document.addEventListener('click', _onAlertClickOutside, true), 0)
 }
 
 function dismissAlert() {
@@ -997,8 +1096,47 @@ function dismissAlert() {
 }
 
 document.addEventListener('keydown', e => {
+  if (winState.alert?.required) return
   if (e.key === 'Escape' && !winState.alert?.minimized) dismissAlert()
 })
+
+// ── LOGIN ──
+// First required InfoBox the player ever sees — appears the instant the desktop is revealed,
+// before CONTACTS, before any script. Stores the name to sessionStorage and hands off via
+// onDone once submitted; nothing else is wired to this name yet (see todo.md's name-interpolation
+// item — that's a separate piece, this just captures and stores it).
+
+function getPlayerName() {
+  return sessionStorage.getItem('playerName') ?? ''
+}
+
+// Generic token substitution for script node text — {{name}} today, more tokens can join
+// later without touching call sites.
+function resolveText(text) {
+  return text.replace(/\{\{name\}\}/g, getPlayerName() || 'Dispatcher')
+}
+
+function showLoginBox(onDone) {
+  showAlert('LOG IN', `
+    <div class="login-prompt-text">Sign in to start your shift.</div>
+    <div class="login-row">
+      <input type="text" id="login-name-input" class="login-name-input" autocomplete="off" maxlength="40" placeholder="Your name">
+      <button class="choice-btn" id="login-submit-btn">LOG IN</button>
+    </div>
+  `, { required: true })
+
+  const input = document.getElementById('login-name-input')
+  const submit = () => {
+    const name = input.value.trim()
+    if (!name) return
+    sessionStorage.setItem('playerName', name)
+    dismissAlert()
+    onDone()
+  }
+  document.getElementById('login-submit-btn').addEventListener('click', submit)
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit() })
+  input.focus()
+}
 
 director.on('unit-disbanded', ({ unitId, districtId }) => {
   const d = state.districts[districtId]
@@ -1238,13 +1376,31 @@ function _clearContactDistrictPulse() {
   document.querySelectorAll('#districts polygon.contact-district').forEach(p => p.classList.remove('contact-district'))
 }
 
+// Green arcs = on the line, can still be called back. Red = disconnected for good — dead air
+// on their end. No blinking either way — same connection glyph used in the contact-detail
+// header and the contacts-list row (see renderContactsPanel), markup built once here so both
+// places stay identical.
+function phoneIconHTML(alive) {
+  return `<svg class="cdv-phone-icon${alive ? '' : ' cdv-phone-icon--disconnected'}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="cdv-phone-body" d="M5.13641 12.764L8.15456 9.08664C8.46255 8.69065 8.61655 8.49264 8.69726 8.27058C8.76867 8.07409 8.79821 7.86484 8.784 7.65625C8.76793 7.42053 8.67477 7.18763 8.48846 6.72184L7.77776 4.9451C7.50204 4.25579 7.36417 3.91113 7.12635 3.68522C6.91678 3.48615 6.65417 3.35188 6.37009 3.29854C6.0477 3.238 5.68758 3.32804 4.96733 3.5081L3 4C3 14 9.99969 21 20 21L20.4916 19.0324C20.6717 18.3121 20.7617 17.952 20.7012 17.6296C20.6478 17.3456 20.5136 17.0829 20.3145 16.8734C20.0886 16.6355 19.7439 16.4977 19.0546 16.222L17.4691 15.5877C16.9377 15.3752 16.672 15.2689 16.4071 15.2608C16.1729 15.2536 15.9404 15.3013 15.728 15.4001C15.4877 15.512 15.2854 15.7143 14.8807 16.119L11.8274 19.1733" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path class="cdv-phone-arc cdv-phone-arc--inner" d="M12.9997 7C13.9765 7.19057 14.8741 7.66826 15.5778 8.37194C16.2815 9.07561 16.7592 9.97326 16.9497 10.95" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path class="cdv-phone-arc cdv-phone-arc--outer" d="M12.9997 3C15.029 3.22544 16.9213 4.13417 18.366 5.57701C19.8106 7.01984 20.7217 8.91101 20.9497 10.94" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`
+}
+
+function updatePhoneIcon(contact) {
+  document.getElementById('cdv-phone-icon')?.classList.toggle('cdv-phone-icon--disconnected', !contact.alive)
+}
+
 function showContactDetail(contactId) {
   const contact = state.contacts.find(c => c.id === contactId)
   if (!contact) return
+  maybeFireFirstOpen(contact)
   state.selectedContact = contactId
   contact.unread = false
   renderContactsPanel()
   cdvName.textContent = contact.name
+  updatePhoneIcon(contact)
   renderContactMeta(contact)
   renderContactMessages(contact)
   setContactsView('contact-detail')
@@ -1273,16 +1429,32 @@ function hideItemDescription() {
   setUnitsView('unit-detail')
 }
 
+// Always available, even on a resolved/lost contact — calling back is a player-initiated
+// action, not a reply, so it renders as a system note (see chat-bubble--system), never as
+// something the caller said. Default behavior is just the emit + a flat "No response." — a
+// script can wire director.on('player-callback', ...) later to make a specific contact's
+// callback mean something more (an answer, a clue, anything) without changing this function.
+// Spamming the button never stacks duplicates: any existing no-response note is dropped first,
+// so the fresh one always lands as the single, most-recent entry at the end of the thread.
+function callBackContact(contactId) {
+  const contact = state.contacts.find(c => c.id === contactId)
+  if (!contact) return
+  director.emit('player-callback', { contactId, tick: state.tick })
+  contact.messages = contact.messages.filter(m => m.kind !== 'no-response')
+  pushMessage(contact, { text: 'No response.', time: gameTime(), sender: 'system', kind: 'no-response' })
+  renderContactMessages(contact)
+}
+
 function renderContactMessages(contact) {
   if (contact.messages.length === 0) {
     cdvMessages.innerHTML = '<div class="no-messages">No messages yet.</div>'
   } else {
     let lastTime = null
     const parts = contact.messages.map(m => {
-      const isLost   = m.text === '[contact lost]'
+      const isSystem = m.sender === 'system' || m.text === '[contact lost]'
       const isPlayer = m.sender === 'player'
-      if (isLost) {
-        return `<div class="chat-bubble chat-bubble--lost"><div class="chat-text">${m.text}</div></div>`
+      if (isSystem) {
+        return `<div class="chat-bubble chat-bubble--system"><div class="chat-text">${m.text}</div></div>`
       }
       const stamp = m.time !== lastTime
         ? `<div class="chat-timestamp">${m.time}</div>` : ''
@@ -1294,14 +1466,16 @@ function renderContactMessages(contact) {
 
   // Show a "typing..." indicator while waiting for NPC reply
   if (contact.pendingNext !== null) {
-    cdvMessages.innerHTML += '<div class="chat-waiting">...</div>'
+    cdvMessages.innerHTML += '<div class="chat-bubble chat-bubble--npc chat-waiting">' +
+      '<span class="chat-waiting-dot"></span><span class="chat-waiting-dot"></span><span class="chat-waiting-dot"></span>' +
+      '</div>'
   }
 
   cdvMessages.scrollTop = cdvMessages.scrollHeight
 
   const choicesEl = document.getElementById('cdv-choices')
   if (!choicesEl) return
-  if (contact.type === 'narrative' && contact.alive && !contact.pendingNext) {
+  if (contact.type === 'narrative' && contact.alive && contact.pendingNext === null) {
     const node = NARRATIVE_SCRIPTS[contact.scriptId]?.nodes[contact.phase]
     if (node?.choices?.length) {
       choicesEl.innerHTML = `<div class="cdv-choices-label">RESPOND:</div>` +
@@ -1325,13 +1499,14 @@ function checkCallEvent() {
 
   const [triggerId, triggerDist] = infected[Math.floor(Math.random() * infected.length)]
 
-  let contact
+  let contact, isNewContact
   const useExisting = state.contacts.length > 0 && (Math.random() < 0.5 || _callerIdx >= CALLER_POOL.length)
   if (useExisting) {
     // Only reuse alive ambient contacts — narrative callers run on their own schedule
     const candidates = state.contacts.filter(c => c.alive && c.type === 'ambient')
     if (!candidates.length) return
     contact = candidates[Math.floor(Math.random() * candidates.length)]
+    isNewContact = false
   } else {
     const name = CALLER_POOL[_callerIdx++]
     const isNamed = name !== 'Unknown Caller'
@@ -1341,8 +1516,18 @@ function checkCallEvent() {
     })
     state.people[person.id] = person
     contact = makeContact(name, districtId)
-    contact.personId = person.id
+    contact.personId       = person.id
+    contact.reportDistrictId = triggerId  // unnamed callers have no fixed location — remembers
+                                           // why they're calling until the player opens the thread
     state.contacts.push(contact)
+    isNewContact = true
+  }
+
+  if (isNewContact) {
+    // First call ever — the contact now exists in the list, but hasn't "spoken" yet. The
+    // opener + their actual line fire on first open instead (see maybeFireFirstOpen).
+    contact.unread = true
+    return
   }
 
   // Named callers report from their fixed location; unknowns from the triggered district
@@ -1353,12 +1538,20 @@ function checkCallEvent() {
   // Named callers in safe zones go quiet
   if (contact.location && reportDist.zombies === 0) return
 
-  const timeStr = gameTime()
   const pool = CALL_TEMPLATES[getCallTier(reportDist.zombies)]
   const text = pool[Math.floor(Math.random() * pool.length)](reportDist)
 
-  contact.messages.push({ text, time: timeStr, sender: 'npc' })
+  pushMessage(contact, { text, time: gameTime(), sender: 'npc' })
   contact.unread = true
+}
+
+// "Hey look here" — unread message or a RESPOND decision still waiting on the player.
+// One universal flag, not two separate signals; more states can feed into this later.
+function needsAttention(c) {
+  if (c.unread) return true
+  return c.type === 'narrative' && c.alive && c.pendingNext === null &&
+    c.messages.length > 0 &&
+    NARRATIVE_SCRIPTS[c.scriptId]?.nodes[c.phase]?.choices?.length > 0
 }
 
 function renderContactsPanel() {
@@ -1366,29 +1559,21 @@ function renderContactsPanel() {
   if (!list) return
 
   const sorted = state.contacts.slice().sort((a, b) => {
-    if (b.unread !== a.unread) return (b.unread ? 1 : 0) - (a.unread ? 1 : 0)
-    if (b.alive !== a.alive)   return (b.alive  ? 1 : 0) - (a.alive  ? 1 : 0)
-    return 0
+    const aFlag = needsAttention(a), bFlag = needsAttention(b)
+    if (bFlag !== aFlag) return (bFlag ? 1 : 0) - (aFlag ? 1 : 0)
+    return b.lastActivityTick - a.lastActivityTick
   })
 
   list.innerHTML = sorted.length === 0
     ? '<div class="no-contacts">No contacts yet.</div>'
     : sorted.map(c => {
-        const deadClass   = !c.alive ? ' contact-dead' : ''
-        const unreadClass = c.unread ? ' has-unread' : ''
-        const hasPendingChoice = c.type === 'narrative' && c.alive &&
-          NARRATIVE_SCRIPTS[c.scriptId]?.nodes[c.phase]?.choices?.length > 0
-        const pendingClass = hasPendingChoice ? ' has-pending' : ''
-        const dot = !c.alive && c.unread
-          ? '<span class="unread-dot unread-dot--lost"></span>'
-          : hasPendingChoice
-          ? '<span class="unread-dot unread-dot--pending"></span>'
-          : c.unread
-          ? '<span class="unread-dot"></span>'
-          : ''
-        return `<div class="contact-card${unreadClass}${deadClass}${pendingClass}" data-contact-id="${c.id}">
-          <span>${c.name}</span>
-          ${dot}
+        const flagged    = needsAttention(c)
+        const flagClass  = flagged ? ' has-unread' : ''
+        const dotClass   = flagged ? ' contact-dot--unread' : ''
+        return `<div class="contact-card${flagClass}" data-contact-id="${c.id}">
+          <span class="contact-dot${dotClass}"></span>
+          <span class="contact-name">${c.name}</span>
+          ${phoneIconHTML(c.alive)}
         </div>`
       }).join('')
 }
@@ -1398,6 +1583,9 @@ function renderContactsPanel() {
 btnUdvBack.addEventListener('click', hideUnitDetail)
 btnCdvBack.addEventListener('click', hideContactDetail)
 btnIdvBack.addEventListener('click', hideItemDescription)
+btnCdvCallback.addEventListener('click', () => {
+  if (state.selectedContact) callBackContact(state.selectedContact)
+})
 
 document.getElementById('unit-detail-view').addEventListener('click', e => {
   const btn = e.target.closest('.activity-btn')
@@ -1430,7 +1618,7 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   if (!choice) return
 
   // Log player's reply as an outgoing message
-  contact.messages.push({ text: choice.label, time: gameTime(), sender: 'player' })
+  pushMessage(contact, { text: choice.label, time: gameTime(), sender: 'player' })
 
   // Stop the choice timer, queue NPC reply with a short random delay
   contact.timer       = null
@@ -2042,9 +2230,9 @@ document.getElementById('btn-test-alert').addEventListener('click', () => {
 
 // ── START SCREEN ──
 
-function seedFromScenario(scenario) {
-  const { numDistricts, totalZombies, distribution } = scenario
-  spreadChance = scenario.spreadChance
+function seedFromDifficulty(difficulty) {
+  const { numDistricts, totalZombies, distribution } = difficulty
+  spreadChance = difficulty.spreadChance
 
   const candidates = Object.entries(state.districts)
     .filter(([, d]) => d.category !== 'government')
@@ -2073,9 +2261,10 @@ function seedFromScenario(scenario) {
 const customCounts      = {}
 Object.keys(state.districts).forEach(id => customCounts[id] = 0)
 
-const presetSelect       = document.getElementById('preset-select')
+const scenarioSelect     = document.getElementById('scenario-select')
+const difficultySelect   = document.getElementById('difficulty-select')
 const customZoneGrid     = document.getElementById('custom-zone-grid')
-const developerControls  = document.getElementById('developer-controls')
+const customControls     = document.getElementById('custom-controls')
 
 function renderCustomGrid() {
   customZoneGrid.innerHTML = Object.entries(state.districts)
@@ -2102,8 +2291,8 @@ customZoneGrid.addEventListener('click', e => {
   document.getElementById(`zc-${id}`).textContent = customCounts[id]
 })
 
-presetSelect.addEventListener('change', () => {
-  developerControls.classList.toggle('visible', presetSelect.value === 'developer')
+difficultySelect.addEventListener('change', () => {
+  customControls.classList.toggle('visible', difficultySelect.value === 'custom')
 })
 
 document.getElementById('spread-dec').addEventListener('click', () => {
@@ -2118,27 +2307,31 @@ document.getElementById('spread-inc').addEventListener('click', () => {
 
 function startGame() {
   state.started = true
-  if (presetSelect.value === 'developer') {
+  state.scenarioId = scenarioSelect.value
+  if (difficultySelect.value === 'custom') {
     Object.entries(customCounts).forEach(([id, n]) => {
       if (n > 0) state.districts[id].zombies = n
     })
   } else {
-    seedFromScenario(SCENARIOS[presetSelect.value] ?? SCENARIOS.standard)
+    seedFromDifficulty(DIFFICULTIES[difficultySelect.value] ?? DIFFICULTIES.standard)
   }
   document.getElementById('start-screen').classList.remove('visible')
+  resetLayout()
   tickInterval = setInterval(tick, TICK_MS)
 }
 
 document.getElementById('btn-start').addEventListener('click', () => {
-  if (NARRATIVE_SCRIPTS.tutorial) {
-    document.getElementById('start-screen').classList.remove('visible')
-    spawnScript('tutorial')
-  } else {
-    startGame()
-  }
+  document.getElementById('start-screen').classList.remove('visible')
+  showLoginBox(() => {
+    // Window reveals from here on are the script's call, not main.js's — see Barbara's
+    // first node, which reveals CONTACTS itself before her greeting renders.
+    if (NARRATIVE_SCRIPTS.tutorial) {
+      spawnScript('tutorial')
+    } else {
+      startGame()
+    }
+  })
 })
-
-document.getElementById('btn-skip-tutorial').addEventListener('click', startGame)
 
 // ── UI Theme system ──
 // setGlobalTheme(id) applies all CSS vars onto document.documentElement, which
@@ -2412,4 +2605,4 @@ applyMapLabelOverride(document.getElementById('theme-select').value)
 render()
 
 // Dev: expose internals to window for console/preview debugging
-Object.assign(window, { state, tick, director, gameTime, gameDay, NARRATIVE_SCRIPTS, when, triggerToCondition, dispatchUnit, handlePersonDeath, disbandUnit, setGlobalTheme, GLOBAL_THEMES })
+Object.assign(window, { state, tick, director, gameTime, gameDay, NARRATIVE_SCRIPTS, when, triggerToCondition, dispatchUnit, handlePersonDeath, disbandUnit, setGlobalTheme, GLOBAL_THEMES, showAlert, dismissAlert, winState })

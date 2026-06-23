@@ -4,7 +4,8 @@
 // Arc: he calls to question your authority, not to ask for help.
 //      Player can push back, warn him directly, or get caught in his skepticism.
 //      If convinced, he becomes cooperative. If not, he goes through "proper channels"
-//      while his building goes quiet around him.
+//      while his building goes quiet around him. Pure call-and-response, no auto-resolution
+//      for not answering (see design.md, Content System).
 
 export default {
   id:          'holt',
@@ -23,7 +24,6 @@ export default {
         { label: 'We are the only response on the ground right now.',  next: 'holt-pushback' },
         { label: 'Director, you need to evacuate your building now.',  next: 'holt-warn'     },
       ],
-      timer: 10, timerNext: 'holt-no-answer',
     },
 
     'holt-pushback': {
@@ -59,20 +59,6 @@ export default {
       text: "I need to go through proper channels on this. I'll have someone call you back.",
       choices: null,
       timer: 15, timerNext: 'holt-lost',
-    },
-
-    // ── Ignored path ──────────────────────────────────────────────────────────
-
-    'holt-no-answer': {
-      text: "I see. Well. We'll handle this through the appropriate office.",
-      choices: null,
-      timer: 15, timerNext: 'holt-no-answer-final',
-    },
-
-    'holt-no-answer-final': {
-      text: "I've been unable to reach anyone in the chain of command. The building has gone very quiet. I want it on record — for whatever record still exists — that I followed procedure.",
-      choices: null,
-      timer: 8, timerNext: 'holt-lost',
     },
 
     'holt-lost': { text: null, resolve: 'lost' },
