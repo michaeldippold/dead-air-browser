@@ -167,6 +167,23 @@ listening to, not a third inbox to manage.
 
 Story content comes in three tiers, each with different rules about randomness and stakes.
 
+**On silence and timers.** Every scripted node's `timer`/`timerNext` pair is optional, not a
+default inclusion — most nodes should have none at all, and wait indefinitely for the player to
+choose. There is no visible countdown anywhere in the UI, and there won't be one; a hidden clock
+is the right amount of pressure, a literal one would feel like an RTS objective marker. When a
+node *does* carry a timer, the `timerNext` outcome must be a specific, deliberately authored beat
+that earns its place in that character's story — never a generic "the player didn't answer"
+filler or a blanket death for not picking up the phone fast enough. Silence is not nothing, but
+it has to mean something specific to be worth writing.
+
+**On answering.** Picking up a call is a deliberate act, not a passive notification. An unopened
+caller sits in the list with nothing knowable about them — no preview, no severity, not even an
+unread flag — until the player actually opens the thread. Only then does the dispatcher's own
+line ("911, what is your emergency?") fire, followed by a beat of silence before the caller
+actually speaks. This is "nobody should be able to triage the call list at a glance," made
+literal: there is nothing to triage on a call that hasn't been answered yet. The one exception is
+the tutorial handoff — Barbara doesn't dial 911 to onboard the player.
+
 ### Spine — the Scenario
 
 One to three named characters, fully authored, the best writing in the game. Anchored to
@@ -199,10 +216,20 @@ before they've read them.
 
 ### Ambient zone reports — the filler
 
-The existing tiered caller pool, reporting district danger level in flavor language rather than
-numbers. This is where replay randomness lives — pools tagged by difficulty band and rough time-
-of-night appropriateness, drawn randomly within those bounds, so a replay feels different without
-compounding into an accidentally brutal or accidentally trivial run.
+The existing tiered caller pool — named and unknown civilians reporting district danger level in
+flavor language rather than numbers, escalating by an actual zombie-count tier the player never
+sees directly. This is where replay randomness lives — pools tagged by difficulty band and rough
+time-of-night appropriateness, drawn randomly within those bounds, so a replay feels different
+without compounding into an accidentally brutal or accidentally trivial run.
+
+**Settled, not yet built: this content belongs in COMMS, not CONTACTS.** CONTACTS should be the
+*active* surface — real back-and-forth, choices, stakes. Ambient reports are pure passive
+info-income, which is what COMMS is for. The named/unknown caller distinction and the tier system
+both carry over unchanged — this is a relocation and presentation problem, not a mechanics
+rewrite (see todo.md). Unresolved tension this creates: "COMMS broadcasts are not callers" (see
+Callers, above) currently assumes COMMS content has no identity and no Person behind it, which
+won't be true anymore once a real named caller's report can land there. Worth resolving before
+that move actually happens, not now.
 
 ---
 
@@ -258,13 +285,18 @@ and no replay-to-optimize loop — a finished run, win or lose, is the experienc
 
 The tutorial is in-fiction: the last stretch of the day shift, handed off by a colleague before
 the real situation starts. It runs before the game clock starts at all — the clock does not
-begin until the handoff ends or the player skips it. Skipping lands the player at the same
-starting state with a one-line summary instead of a walkthrough; it does not change the actual
-game state.
+begin until the handoff ends or the player answers no to a refresher. There is no separate skip
+button; declining is itself the first RESPOND choice the player ever makes, and it lands them at
+the same starting state with a one-line summary instead of a walkthrough — it does not change the
+actual game state.
 
 The handoff is taught by doing real (if mundane) dispatcher work — an Incident or two, a routine
-dispatch — rather than by explaining the UI directly. The colleague disappears once the real
-situation starts; their identity and fate are not yet decided.
+dispatch — rather than by explaining the UI directly. The colleague is **Barbara West**. She
+doesn't vanish once the real situation starts: she hands off the board, then travels off-screen
+to a residential district through the same transit system units use, landing as a normal Person
+exposed to the simulation like anyone else from that point on. Her fate beyond that point is not
+authored. She's also the one exception to "On answering" (Content System, above) — she doesn't
+open with a 911 line, since it would be strange for a colleague handing off the shift to dial it.
 
 ---
 
