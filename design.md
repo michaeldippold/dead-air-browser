@@ -67,10 +67,12 @@ end. Don't design features to be optimized — design them to be *survived*, onc
 with consequences that can't be undone.
 
 **Nobody should be able to triage the call list at a glance.** A pending-response indicator, a
-named vs. unknown caller, a story arc vs. an ambient report — none of it should be guessable
-before the player actually reads the line. Mixing real tactical intel into story calls (and vice
-versa), and making some routine-sounding calls secretly significant, keeps the player reading
-instead of pattern-matching.
+named recurring character vs. a one-off Incident, a routine-sounding call vs. a secretly
+significant one — none of it should be guessable before the player actually reads the line. Mixing
+real tactical intel into story calls (and vice versa), and making some routine-sounding calls
+secretly significant, keeps the player reading instead of pattern-matching. (Anonymous zone
+reports used to sit in this list too; they've moved to COMMS as police chatter — see Content
+System — so the call list is now exclusively things worth reading closely.)
 
 **Player advice should carry real weight.** Telling a caller to run, telling a unit to redeploy
 — both should cost something. See Movement & Risk, below.
@@ -100,8 +102,8 @@ Most people in a disaster are statistics; that's the city the player is failing 
 aggregate.
 
 Separately, **named Persons** exist alongside the crowd, not as a subset of it. Unit members,
-scripted callers, ambient callers with names — these have health, items, a location, and can
-die individually through the combat system. Killing a zombie in combat decrements the same
+scripted story callers, the people behind Incident calls — these have health, items, a location,
+and can die individually through the combat system. Killing a zombie in combat decrements the same
 `district.zombies` number the crowd formula reads — the two systems are connected, just at
 different resolutions. A named Person dying does not move the crowd numbers; a crowd conversion
 does not touch named Persons.
@@ -150,16 +152,20 @@ until told otherwise.
 
 ### Callers
 
-Every caller — named, scripted, or anonymous — has a real Person behind them. There is no
-caller that exists only as a phone thread with no identity. A **Contact** is the phone thread
-itself; the Person is who's on the other end. This unifies what used to be two different systems
-(scripted callers with Persons, ambient callers without) into one: any caller can have a
-location, can have items, and can die through the same mechanism, whether or not anyone
-authored their specific fate.
+Every caller in CONTACTS — named story character or one-off Incident — has a real Person behind
+them. There is no caller that exists only as a phone thread with no identity. A **Contact** is the
+phone thread itself; the Person is who's on the other end: any caller can have a location, can have
+items, and can die through the same mechanism, whether or not anyone authored their specific fate.
+(The old anonymous "ambient caller" — a report with no real person behind it — is no longer a
+caller at all; that filler moved to COMMS as police chatter. See Content System.)
 
-**COMMS broadcasts are not callers.** They're ambient radio chatter — no identity, no inbox, no
-Person. Keeping this distinct matters: COMMS should read like a scanner the player is half-
-listening to, not a third inbox to manage.
+**COMMS carries identity now, but it is still not an inbox.** (The old "COMMS broadcasts have no
+identity" rule is retired — it made COMMS read like perfect status text from nobody.) COMMS is the
+overheard scanner: the player's own dispatched units echo status here, and off-duty / quick-
+response police officers who aren't in any dispatchable unit radio in district reports. What keeps
+it distinct from CONTACTS is not anonymity but direction — COMMS is half-listened-to broadcast,
+never a thread the player replies to. A unit's repliable channel is its CONTACT entry; its COMMS
+lines are the version everyone else overhears.
 
 ---
 
@@ -214,22 +220,28 @@ welfare check for someone "acting erratically" reads as routine and might just b
 ambiguity is a feature: it's one more way to stop the player from sorting calls by importance
 before they've read them.
 
-### Ambient zone reports — the filler
+### Ambient police chatter — the filler
 
-The existing tiered caller pool — named and unknown civilians reporting district danger level in
-flavor language rather than numbers, escalating by an actual zombie-count tier the player never
-sees directly. This is where replay randomness lives — pools tagged by difficulty band and rough
-time-of-night appropriateness, drawn randomly within those bounds, so a replay feels different
-without compounding into an accidentally brutal or accidentally trivial run.
+The tiered ambient pool, rethemed from "civilians calling in" to **off-duty / quick-response
+police officers** radioing district status over the scanner. The player's handful of starting
+officers are the ready quick-response teams, not every cop in the city — so other officers exist,
+report in, and are *not* dispatchable. (A small, accepted immersion cost: if there are more police,
+why can't the player send them? Because these are the ones already on the board.) The danger-tier
+escalation system survives intact — an actual zombie-count tier the player never sees directly
+picks how dire the radioed line sounds — as does the difficulty-band / time-of-night tagging that
+keeps replays varied without compounding into an accidentally brutal or trivial run.
 
-**Settled, not yet built: this content belongs in COMMS, not CONTACTS.** CONTACTS should be the
-*active* surface — real back-and-forth, choices, stakes. Ambient reports are pure passive
-info-income, which is what COMMS is for. The named/unknown caller distinction and the tier system
-both carry over unchanged — this is a relocation and presentation problem, not a mechanics
-rewrite (see todo.md). Unresolved tension this creates: "COMMS broadcasts are not callers" (see
-Callers, above) currently assumes COMMS content has no identity and no Person behind it, which
-won't be true anymore once a real named caller's report can land there. Worth resolving before
-that move actually happens, not now.
+This content lives in **COMMS, not CONTACTS**. CONTACTS is the active surface — stories, Incidents,
+and unit threads, things with back-and-forth and stakes. Ambient reports are passive info-income,
+which is what the scanner is for. Moving them here is also what humanizes COMMS: instead of perfect
+status text from nobody, the player overhears specific officers in specific districts.
+
+**Degradation is the fog of war.** Each scanner line garbles as the *reporting district's* zombie
+ratio climbs — per-district, not a global clock, so a calm district still sounds calm while an
+overrun one sounds like hell at the same moment. Structured radio discipline ("be advised,
+10-96…") corrupts over time into static, fragments, panic, screams; a fully overrun district can
+fall silent on the air entirely. The information is real and useful early, and decays exactly when
+the player most needs it clean — early-warning radar and fog of war in the same mechanism.
 
 ---
 

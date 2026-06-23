@@ -57,6 +57,84 @@ The core loop is operational. Key systems in place:
 > universal call-answering mechanic are both built and shipped, see "What's Shipped" above.
 > Tutorial Content below now only tracks what's left of the walkthrough itself.
 
+### Dispatch-to-Caller & Unit Comms — the core verb *(Up Next, priority)*
+
+> The keystone build for 0.9.0, and it unblocks tutorial Incidents. Today a dispatch is "send unit
+> to district, watch it passively engage/hide/scavenge" — none of which is "help the specific
+> caller I'm on the line with." Dispatch is the title of the game; it can't be an afterthought.
+> This makes it the central verb: read a call → send someone → live with what they find. Most of
+> the plumbing already exists (`state.transits` supports `kind:'person'`, the `unit-enters` event,
+> the script `onEnter` hook, `effectiveThreatMod()` exposure math) — this is mostly wiring, not new
+> systems.
+
+- [ ] **Targeted dispatch from inside the call thread.** A "dispatch unit" control in an *opened*
+  contact's detail view (consistent with "On answering" — you can't act on a call you haven't
+  read). Picking a unit sends it via the existing transit system, tagged with the caller's
+  `districtId` **and** their `personId`, so arrival resolves scoped to that exact caller. The old
+  DISPATCH-window district move stays as a separate action (tactical reposition — no caller, no
+  busy state). Busy units aren't eligible for re-dispatch until their call resolves; multiple units
+  *may* target one caller (sending backup to a unit in trouble is good drama).
+- [ ] **`RESPONDING` activity (busy state).** A unit handling a call doesn't passively engage
+  zombies — that's the trade-off cost of answering a specific call, and what forces real triage.
+  New activity alongside ENGAGE/HIDE/SCAVENGE; reverts to `engage` on resolution. This is the
+  mechanism the Incidents "opportunity cost" line was always describing.
+- [ ] **Units become Contacts.** First time a unit is dispatched (either path), create its Contact
+  named `UNIT 2` / `UNIT 3`. Unlike callers it opens with an *outbound* line — no "911, what's your
+  emergency"; the unit is calling you (`10-4, en route to {location}`). One-way reports for now, no
+  reply UI. Subsequent dispatches append to the same thread.
+- [ ] **Unit-contact indicators.** The existing filled/hollow attention dot, colored by the
+  leader's **role** (fire = red, etc., reusing the role-color map already driving map dots and
+  dispatch stars): filled = unread report waiting, hollow ring = read. Makes a unit thread read as
+  distinct from a civilian/story thread at a glance, no extra chrome.
+- [ ] **Arrival hook — the payoff.** On arrival at a targeted caller, fire an authored
+  `onArrive(state, actions, { contact, unit })`-style hook (the targeted sibling of the unused
+  `unit-enters` event). Scripted callers get authored outcomes; the report lands in the **unit's**
+  contact thread (empty house / mob outside / caller safe), and the caller's own thread reacts when
+  authored. Procedural fallback for non-scripted callers reads the caller's current
+  `effectiveThreatMod()` exposure → outcome bucket (fine / gone / besieged-triggers-combat). This
+  is the same primitive the old "Rescue beat" and "Co-location detection" items wanted — built once
+  here, those become content on top of it.
+
+### Ambient callers → unit-voiced COMMS *(Up Next, lands with the above)*
+
+> Settled this session. It resolves three previously-scattered items at once — the old v1.0.0
+> "Ambient-caller / COMMS unification," the v1.0.0 "COMMS retool — police-scanner framing," and the
+> backlog "COMMS Tonal Degradation" — by making them one build. The dictum "COMMS broadcasts have
+> no identity" is **dead** (design.md updated): COMMS today reads like perfect information out of
+> thin air; this humanizes it and makes it imperfect.
+
+- [ ] **(Interim — do first, before the dispatch build) Pull ambient callers out of the CONTACTS
+  panel without deleting the system.** Just stop them spawning/rendering into CONTACTS to clear
+  panel space ahead of the dispatch verb; leave `CALLER_POOL` / `CALL_TEMPLATES` / `getCallTier()`
+  and the spawn logic intact and dormant, to be repurposed into the COMMS police-chatter version
+  below rather than rewritten from scratch.
+- [ ] **Retheme the ambient pool as police chatter, and move it from CONTACTS to COMMS.** The
+  ambient caller pool stops being civilians-in-CONTACTS and becomes off-duty / quick-response
+  **police officers** radioing district status over the scanner. The player's ~6 starting officers
+  are the ready quick-response teams, not every cop in the city — others exist, report in, and
+  aren't dispatchable. (Minor accepted immersion cost: "why can't I send them?") This empties
+  CONTACTS of identity-less filler — every CONTACTS entry is now a story, an Incident, or a unit,
+  so every call is a real shot at a story. The tier/escalation system (`getCallTier`, `CALLER_POOL`,
+  `CALL_TEMPLATES`, keyed off real zombie count) carries over unchanged — it now selects which
+  scanner line an officer in that district radios. The named-vs-unknown *civilian* distinction is
+  dropped (deliberate reversal of the old "keep it" note — it's officers now). COMMS should read
+  like the dispatch-log example: officers in districts calling in, dispatcher acknowledging.
+- [ ] **Per-district COMMS degradation = the fog of war.** The same scanner lines garble as the
+  *reporting district's* zombie ratio climbs — per-district, not a global clock, so a calm district
+  still sounds calm while an overrun one sounds like hell at the same moment. Structured radio
+  discipline ("be advised, 10-96…") corrupts over time into static, fragments, panic, screams — the
+  officer is fighting to survive, not filing a clean report. A fully overrun district can go
+  **silent** on the air (no more officers reporting) — silence as information, a small pocket of
+  real fog. This is the early-warning radar *and* the fog of war in one mechanism: not blind, but
+  the information decays exactly when the player most needs it clean. Implementation is word-level
+  static replacement on the existing message strings, gated by district state — no new content
+  pool needed.
+  - **Resolved (naming):** ambient officers are labeled by **badge number** — a stand-in for the
+    current ambient-caller name, revisitable later since it's purely a label. The player's
+    dispatchable units stay `UNIT 2/3`, so "UNIT n" remains unambiguously the things you can send.
+    One constraint to honor: a given badge number shouldn't be radioing in from six different
+    districts within a few minutes — keep a badge tied to a plausible single location for a while.
+
 ### Tutorial Content
 
 > Full first-time flow is built and shipping — see "What's Shipped" above (Onboarding flow,
@@ -81,7 +159,7 @@ The core loop is operational. Key systems in place:
 
 - [ ] **Named story locations + contact message labels.** The exposure-multiplier core of the Location system has shipped (see "What's Shipped" below) — what's left is the authoring layer: 2–3 named story locations per district, created only when a script needs one (e.g. "Old Iron Works Loading Dock" for Webb), and surfacing the location as a text label in contact messages (e.g. "Marcus Webb — Old Iron Works, Loading Dock"). Right now every standalone Person's `location` is just `outside`/`business`/`residence` with no name and no display anywhere.
 - [ ] **Outside-as-travel for callers.** Telling a caller to relocate puts them into Outside for a real exposure window — high risk, on foot, much higher per-hop danger than a unit's vehicle travel (see Unit Travel Time, v1.0.0). This is what makes player advice to civilians carry real weight instead of being a free suggestion. Exact tick duration for a transit window is an open tuning question, not urgent.
-- [ ] **Co-location detection.** Director hook that fires when two specific Persons (sent independently to the same named location) are both present — the mechanism that makes long Scenarios with multiple intersecting characters possible without new infrastructure.
+- [ ] **Co-location detection.** Director hook that fires when two specific Persons (sent independently to the same named location) are both present — the mechanism that makes long Scenarios with multiple intersecting characters possible without new infrastructure. Shares the targeted-arrival primitive from Dispatch-to-Caller (Up Next) — build on top of it, don't reinvent.
 
 ### Scenario System
 
@@ -97,10 +175,10 @@ The core loop is operational. Key systems in place:
 - [ ] **Danny rewrite — full call-response-only arc.** Planned for after the tutorial script is finished: a much longer Danny arc where the player's choices actually save or lose him, not the placeholder 3-choice version that exists today. He's already `sim: false` (every `spawnScript`'d character is, by construction) — re-evaluate whether he should flip to `sim: true` as part of the rewrite, same open question already tracked above for Marcus Webb.
 - [ ] **Narrative clock scripts.** Time-based Director beats for: pre-dawn opening context (ambient COMMS), first midnight (tone shift — this should be the one fixed, always-fires structural beat of the night), overnight atmosphere. Infrastructure ready — `{ type: 'game-time', hour: N }` triggers work. Non-interactive beats go directly in `main.js` as `director.register()`; interactive callers go in `scripts/`. Red herring / non-zombie early scripts to break up info density — Incidents, below, covers most of this need already.
 - [ ] **Decide per-scripted-character `sim` flag.** The generic `person-death` → contact-closing handler shipped (see "What's Shipped" below) — what's still open is whether any of the four scripted characters should actually be killable by the sim instead of purely authored. Danny, Novak, and Holt should likely stay `sim: false` since their arcs are built around an authored ending; Marcus Webb is a good candidate for `sim: true` — he's explicitly in a dangerous district and his script already references losing someone, so it would be more honest if the sim could kill him too. Not yet decided or changed.
-- [ ] **Sandra Hill narrative arc.** Already in the ambient caller pool — promote to a full scripted arc. Needs the same Scenario-mapping decision raised above: does she belong to an existing scenario, get her own, or stay scenario-independent? (RESPOND-choice visibility is no longer the blocker for this one — that fix is now promoted into Tutorial Content above, since it's needed much earlier than this arc. No naming collision with the tutorial colleague — she's Barbara West now.)
-- [ ] **Rescue beat** *(renamed from "Rescue scenario" — "Scenario" now means something specific elsewhere, don't reuse the word)*. A story beat that fires when a unit enters a district where a scripted caller is hiding. The `director.on('unit-enters', ...)` hook is already wired and has never been used.
+- [ ] **Sandra Hill narrative arc.** Was a named entry in the old ambient caller pool; once that pool is rethemed as anonymous police chatter (see *Ambient callers → unit-voiced COMMS*, Up Next), she's no longer "in" anything — author her fresh as a full scripted CONTACTS arc. Needs the same Scenario-mapping decision raised above: does she belong to an existing scenario, get her own, or stay scenario-independent? (RESPOND-choice visibility is no longer the blocker for this one — that fix is now promoted into Tutorial Content above, since it's needed much earlier than this arc. No naming collision with the tutorial colleague — she's Barbara West now.)
+- [ ] **Rescue beat** *(renamed from "Rescue scenario" — "Scenario" now means something specific elsewhere, don't reuse the word)*. A story beat that fires when a unit enters a district where a scripted caller is hiding. Now a thin content layer on the targeted arrival hook (see Dispatch-to-Caller, Up Next) — not a new mechanism. The generic `unit-enters` event stays wired for non-targeted arrivals.
 - [ ] **The Oblivious Guy** (levity caller). Calls about something completely unrelated. Does not believe in zombies. Resolves peacefully regardless of game state. No stakes — just tone balance. This is effectively the first instance of the Incidents category below — treat it as the template.
-- [ ] **Incidents — non-zombie scripted events.** Fire calls, crime calls, welfare checks, false alarms — the routine 911 work that makes the world feel real and doubles as tutorial content (see Tutorial Content above). Reuses the existing script node format (text/choices/timer/resolve) exactly, just shorter and without a persistent named identity. Zero simulation overhead by design — no district property, no new tick phase, no item requirement (a fire truck has a hose because it's a fire truck). The real stakes are opportunity cost: a unit tied up on an Incident is unavailable elsewhere. Some Incidents should be deliberately ambiguous about whether they're zombie-related at all (a welfare check that's probably nothing) — reinforces that the player can't sort calls by importance at a glance.
+- [ ] **Incidents — non-zombie scripted events.** Fire calls, crime calls, welfare checks, false alarms — the routine 911 work that makes the world feel real and doubles as tutorial content (see Tutorial Content above). Reuses the existing script node format (text/choices/timer/resolve) exactly, just shorter and without a persistent named identity. Zero simulation overhead by design — no district property, no new tick phase, no item requirement (a fire truck has a hose because it's a fire truck). The real stakes are opportunity cost — a unit on a call enters the `RESPONDING` busy state (see Dispatch-to-Caller, Up Next) and can't engage zombies elsewhere while handling it. Some Incidents should be deliberately ambiguous about whether they're zombie-related at all (a welfare check that's probably nothing) — reinforces that the player can't sort calls by importance at a glance.
 
 ---
 
@@ -112,7 +190,7 @@ The core loop is operational. Key systems in place:
 ### Map & Units
 
 - [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive.
-- [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units.
+- [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units. The "distinct COMMS language" piece here is already most of the way handled by the per-district COMMS degradation in 0.9.0 (an overrun district's scanner chatter is already breaking down) — extend that, don't build a second COMMS path.
 - [ ] **Real-world setting.** **City picked: Lexington, Kentucky** (see "What's Shipped" — the topbar title, desktop badge, and overall chrome already reflect this). What's left is the deeper rename: real, specific place names for districts (e.g. the actual hospital name instead of "Memorial") to ground the world; worth deciding what the city's declining industry was (steel? auto parts? textiles?) since that detail should flavor caller voice, not just signage. Bigger lift than a simple rename: district IDs are referenced throughout `main.js` (state, adjacency, loot pools) and in every script's `district` trigger field. Not needed for v0.9.0, but must land at or before v1.0.0 — changing the name after people have already seen it undercuts the first impression. **The map redraw is explicitly negotiable, not required** — renaming can happen directly on the existing district polygons, geography be damned. A redraw with more regular shapes and consistent corner orientation is a nice-to-have that can slide to v1.1+ without blocking 1.0 if it's not worth the time.
 
 ### Audio / Atmosphere
@@ -120,11 +198,11 @@ The core loop is operational. Key systems in place:
 - [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
 - [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
 - [ ] **Sound Tier 3 — event-triggered.** Wire Director hooks to stings: `person-death`, `unit-disbanded`. Script nodes get an optional `sound` field played on node entry. `broadcastEvent` accepts an optional sound param.
-- [ ] **COMMS retool — police scanner framing.** Current format (`[time][LOCATION] STATUS TEXT`) reads like a structured log line, not overheard radio. Retool toward how an actual scanner sounds — callsigns, "go ahead," cross-talk, garbled fragments — same underlying event data, more human delivery.
+- [ ] **COMMS retool — police scanner framing.** Current format (`[time][LOCATION] STATUS TEXT`) reads like a structured log line, not overheard radio. Retool toward how an actual scanner sounds — callsigns, "go ahead," cross-talk, garbled fragments — same underlying event data, more human delivery. *The ambient-report half of this is promoted to 0.9.0 — see "Ambient callers → unit-voiced COMMS" (Up Next). This v1.0.0 entry now covers the remaining non-ambient COMMS lines (event broadcasts, dispatcher acks, unit-thread echoes) so they share the same scanner voice.*
 
 ### Systems
 
-- [ ] **Ambient-caller / COMMS unification.** Decided: every caller should be a Person — no more split between scripted callers-with-Persons and identity-less ambient ones (this was actually finished in v0.9.0; see "What's Shipped" — Caller/Person unification). What's *not* settled, and is the actual scope of this item: the ambient caller pool (the tiered, randomized "Unknown Caller" / named civilian danger-flavor reports — see `CALLER_POOL`, `CALL_TEMPLATES`, `getCallTier()`) currently lives in CONTACTS, but it shouldn't — CONTACTS should be the *active* surface (real back-and-forth, choices, stakes), and this ambient system is pure *passive* info-income, which is what COMMS is for. Move it there. Explicitly **keep**, don't redesign: the named-vs-unknown caller distinction, and the difficulty-tiered escalation-by-zombie-count system that picks how dire a report sounds — both are liked as-is. This is a relocation + presentation problem (how does a passive ambient report read and feel in a scanner-style COMMS feed instead of a phone thread), not a mechanics rewrite. Should land alongside the COMMS retool (police-scanner framing, above) since they're solving adjacent problems. Open tension to resolve before building this (see design.md, Ambient zone reports): "COMMS broadcasts are not callers" currently assumes no identity/Person behind anything in COMMS, which won't hold once real named-caller reports land there.
+- ~~**Ambient-caller / COMMS unification.**~~ **Promoted into 0.9.0 and resolved as a design** — see *Ambient callers → unit-voiced COMMS* (Up Next). The relocation to COMMS, the tier-system carryover, and the named-vs-unknown question all live there now (with the latter deliberately reversed: it's police officers, not named/unknown civilians). The old "COMMS broadcasts have no identity" tension is gone — that rule was retired, not worked around.
 
 - [ ] **Citizen groups forming mid-game.** As the situation escalates, survivor groups should contact dispatch and become dispatchable units — distinct from the scripted callers, these are emergent. A mid-game Director beat spawns a new civilian unit in a non-overrun residential district and opens a contact. Gives the player late-game roster relief and makes the world feel populated. (Spawned Persons aren't subtracted from the district's crowd count — Persons and the crowd are separate ledgers; see design.md.)
 - [ ] **Search for survivors activity.** New unit action alongside ENGAGE/HIDE/SCAVENGE. Each tick: very low base chance (~1–2%) to find a survivor — spawns them as a new no-item member of the unit, fires an alert notification, emits a director event (`survivor-found`) for story beats. Flashlight in unit inventory boosts the chance slightly (maybe 1.5×). Across a full run this should happen ≤5 times across all units — rare enough to feel like an event. (Same note as above: a found survivor is a new Person, not deducted from the district's crowd count.) Secret sauce: `director.on('survivor-found', ...)` is where scripted arcs can hook in.
@@ -169,7 +247,7 @@ The current SVG map is right-angle polygons with flat fills, which reads well as
 Build none of this until D3 is worth pulling in for other reasons too (e.g. data visualization in the SITREP panel).
 
 ### COMMS Tonal Degradation
-Tabled idea, not urgent: COMMS tone shifts based on how the run is going. Early or winning: full coherent sentences. Late or losing: progressively degrades toward fragments, screams, sobs, pure static — or doesn't, if the player's actually containing things. No mechanism decided yet. Pairs with the COMMS scanner retool (v1.0.0) but is a bigger, separate lift — get the baseline retool right first.
+**Promoted into 0.9.0 with a concrete mechanism** — see *Ambient callers → unit-voiced COMMS* (Up Next), "Per-district COMMS degradation." The old vague "tone shifts based on how the run is going" is now pinned down: per-district zombie ratio drives word-level static replacement on the scanner lines, so degradation is local and legible rather than a global mood dial.
 
 ### Camera Feeds
 Faked CCTV-style windows showing animated loops — a dark street silhouette, rain on pavement, lightning that strobes the scene for a frame. Pure AV flavor, zero gameplay information, but enormous atmosphere payoff at fullscreen. Implementation: a single looping GIF or canvas animation per feed, maybe one or two feeds max. Pairs naturally with ambient rain audio from the sound system. Think how much Project Zomboid wrings out of its isometric camera — the same principle applied to a static feed. Build this last, after the Terminal window, once the rest of the game is solid enough that flavor is the marginal gain.
