@@ -92,7 +92,10 @@ The core loop is operational. Key systems in place:
   and the sim, permanently safe (the guarantee that a saved caller can't die after the unit leaves —
   saving them *is* removing them from danger). **Lost = the Person dies.** Sealed at that one moment.
   This is what makes under-committing a bad call a genuine failure — and blobbing still a mistake,
-  since the responding units are off the sim the whole time.
+  since the responding units are off the sim the whole time. **On a save, also fire the
+  sim-reinforcement effects** (local suppression + intel reveal — see "Sim↔Caller reinforcement"
+  below); a save isn't only an extraction off the board, it's the one moment a caller dispatch gives
+  anything back to the sim.
 - [ ] **Resolution closure messages.** Because there's no scoreboard, every resolution must leave the
   player closure. **On a save: both the caller and the unit sign off** — the caller's final message
   is the player's only "you did good" feedback ("you got us out, thank you — we're clear"), a
@@ -106,11 +109,41 @@ The core loop is operational. Key systems in place:
   through to the generic placeholder, which currently prints "subject safe" without resolving
   anything. Soften that to a neutral "holding with the caller" line so it doesn't *imply* an outcome
   that didn't happen.
-- [ ] **(Candidate lose condition — later, not 0.9.0)** *Failing the job itself:* too many calls left
-  unanswered / unresolved over the night = you failed as a dispatcher. The purest dispatcher-failure
-  loss — you didn't have to lose the city, you just stopped doing the work. Recorded in design.md
-  (Win/Lose) as a candidate; needs a definition of "too many" and which calls count, and depends on
-  the resolution model above (so answered/resolved can be told apart from ignored).
+- [ ] **Lose condition — *failing the job itself* (ADOPTED this session; was a candidate).** Too many
+  calls left unanswered / unresolved over the night = you failed as a dispatcher — the purest
+  dispatcher-failure loss. Now canon in design.md (Win/Lose) as an adopted condition: it's the
+  *stick* half of the sim↔story integration (the *carrot* is the rescue reinforcement below), and the
+  finite roster is what makes it reinforce the other conditions (units on calls aren't holding the
+  city, and vice versa). Still needs a definition of "too many" / which calls count, depends on the
+  resolution model above (so answered/resolved can be told apart from ignored), and needs its
+  in-fiction warning channel — the OEM/supervisor (Holt) voice sharpening as the job slips — or the
+  loss feels arbitrary (design.md, Win/Lose legibility).
+
+#### Sim↔Caller reinforcement — the carrot *(new this session; see design.md, "On resolving a call")*
+
+> The flip side of the job-failure stick: a successful rescue must give bounded value back to the
+> sim, or answering calls stays pure cost and district min-maxing stays the only way to win. Rides on
+> the `sim:true` resolution roll, so deferred to the same first consumer.
+
+- [ ] **No bloodless rescue — local suppression on resolution.** A completed call kills a handful of
+  zombies in the responding district *at the moment of resolution* (the unit shot its way in) — a
+  one-time effect, not combat during the call (RESPONDING stays insulated while waiting; the
+  design.md contradiction on this is already fixed). **Hard invariant:** the suppression must be
+  strictly *less* than what that same unit-time would have killed on ENGAGE, so callers are never the
+  efficient sim play. Tune against the ENGAGE kill-rate, not as an absolute number.
+- [ ] **Information reward on a save — the better lever.** A rescued survivor lifts a sliver of fog: a
+  read on an adjacent district. Self-limiting (intel kills nothing, still need finite units to act),
+  so it can be generous, and it's the most on-theme reward there is — information matters more to the
+  win than a few dead zombies. Likely the *primary* caller-reinforcement. Needs an intel/reveal
+  surface to push into.
+- [ ] **Bounded reinforcement — a saved able-body joins the rescuing unit.** Capped at `MAX_UNIT_SIZE`,
+  and only when the Person actually is an able body (not the frightened kid). Offsets attrition;
+  deliberately does *not* grow the dispatchable roster count, so the finite-roster fulcrum survives.
+  Conditional on Person attributes that don't fully exist yet.
+- [ ] **Breadth is the structural payoff — verify, don't hand-build.** Concentrated ENGAGE play loses
+  on the 10-district breadth condition; scattered caller play covers breadth. This needs no new
+  system — it falls out of the suppression + intel above plus the existing district-count loss. The
+  work is *tuning + playtest verification* that the emergent pressure actually shows up.
 
 ### Ambient callers → unit-voiced COMMS *(shipped; dead-code cleanup remaining)*
 
@@ -190,6 +223,23 @@ The core loop is operational. Key systems in place:
 - [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units. The "distinct COMMS language" piece here is already most of the way handled by the per-district COMMS degradation in 0.9.0 (an overrun district's scanner chatter is already breaking down) — extend that, don't build a second COMMS path.
 - [ ] **Real-world setting.** **City picked: Lexington, Kentucky** (see "What's Shipped" — the topbar title, desktop badge, and overall chrome already reflect this). What's left is the deeper rename: real, specific place names for districts (e.g. the actual hospital name instead of "Memorial") to ground the world; worth deciding what the city's declining industry was (steel? auto parts? textiles?) since that detail should flavor caller voice, not just signage. Bigger lift than a simple rename: district IDs are referenced throughout `main.js` (state, adjacency, loot pools) and in every script's `district` trigger field. Not needed for v0.9.0, but must land at or before v1.0.0 — changing the name after people have already seen it undercuts the first impression. **The map redraw is explicitly negotiable, not required** — renaming can happen directly on the existing district polygons, geography be damned. A redraw with more regular shapes and consistent corner orientation is a nice-to-have that can slide to v1.1+ without blocking 1.0 if it's not worth the time.
 
+### Endgame & Legibility
+
+> New this session (design.md, Win/Lose). "Many ways to lose" only feels *oppressive but winnable*
+> if every loss is both foreseeable and self-explaining — otherwise varied deaths read as cheap.
+
+- [ ] **Loss legibility — every lose condition telegraphs its approach.** Each failure needs a visible
+  approach arc so the player can name what went wrong: districts darkening on the map (breadth —
+  overlaps "Screen reactivity" above), COMMS fraying to static/silence (a district falling — already
+  built via 0.9.0 degradation), the OEM/Holt voice sharpening (the job slipping — needs authoring),
+  unit threads thinning (attrition). Mostly *wiring existing signals to the right failure*, plus the
+  OEM warning content.
+- [ ] **Board-state-checked end-text.** On any loss, read the board at the firing instant (districts
+  still holding, people pulled out, game time) and use it to author a specific epitaph instead of a
+  fixed string. State already exists — this is a read + a template, not new simulation. This is the
+  replay-texture payoff of "many ways to lose," and the substitute for a morale score's graded
+  endings.
+
 ### Audio / Atmosphere
 
 - [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
@@ -213,7 +263,11 @@ The core loop is operational. Key systems in place:
 - [ ] **Citizen groups forming mid-game.** As the situation escalates, survivor groups should contact dispatch and become dispatchable units — distinct from the scripted callers, these are emergent. A mid-game Director beat spawns a new civilian unit in a non-overrun residential district and opens a contact. Gives the player late-game roster relief and makes the world feel populated. (Spawned Persons aren't subtracted from the district's crowd count — Persons and the crowd are separate ledgers; see design.md.)
 - [ ] **Search for survivors activity.** New unit action alongside ENGAGE/HIDE/SCAVENGE. Each tick: very low base chance (~1–2%) to find a survivor — spawns them as a new no-item member of the unit, fires an alert notification, emits a director event (`survivor-found`) for story beats. Flashlight in unit inventory boosts the chance slightly (maybe 1.5×). Across a full run this should happen ≤5 times across all units — rare enough to feel like an event. (Same note as above: a found survivor is a new Person, not deducted from the district's crowd count.) Secret sauce: `director.on('survivor-found', ...)` is where scripted arcs can hook in.
 - [ ] **New items: knife, flashlight.** Knife: 0.15 hit chance, melee-only, added to loot tables (not spawned). Flashlight: no combat value, boosts survivor-search odds, added to loot tables; ~1/3 of starting civilian squad members spawn with one. Expand the **More items** list too: bolt cutters (unlocks certain loot), flare (reveals adjacent districts without binoculars), megaphone (civilian morale / zombie aggro mechanic). (No fire-hose item — Incidents, above, don't need one; a fire truck has a hose because it's a fire truck.)
-- [ ] **Start the pure data removal pass.** Replace unit HP numbers with status words (HEALTHY / WOUNDED / CRITICAL). Single render change, meaningfully shifts the game toward its intended feel. Don't remove zombie counts yet — one step at a time.
+- [ ] **Start the pure data removal pass.** Replace unit HP numbers with status words (HEALTHY / WOUNDED / CRITICAL). Single render change, meaningfully shifts the game toward its intended feel. Don't remove zombie counts yet — one step at a time. **Locked this session:** the exact per-district
+zombie counts (the SITREP / god view) must *never* be player-visible — they stay a dev-only tool,
+because information, not firepower, is the real currency (design.md, Design Philosophy). The "don't
+remove yet" caution is about pacing the *inferred density* the player reads, not about ever exposing
+the raw SITREP.
 
 ---
 
@@ -237,6 +291,8 @@ Fake desktop icons, a desktop background that sells the dispatcher's office. Onc
 
 ### Unit-Scoped Morale
 A morale meter on the Unit (not individual persons). Drops on bad outcomes, rises on success. Affects combat effectiveness or response time. Design after the core loop is tuned.
+
+**Session note (benched, not rejected):** a *global* morale / master-score was considered and explicitly rejected as the lose model (see design.md, Explicitly Out of Scope) — it flattens the distinct, legible lose causes into one illegible number. This *local* form (per-unit, or a per-district "hope" value) survives only as a future mechanic introduced *if and when a specific need calls for it* — e.g. per-district hope feeding emergent survivor-group spawns — never as the thing win/lose hangs on.
 
 ### Terminal Window
 A dedicated TERMINAL window where game actions can be driven by typed commands — for fast typers and keyboard-preferrers. Example: `/dispatch 1 westgate` dispatches Unit 1 to Westgate; returns a success line or an error code if the unit or district isn't found, or the unit is already there. Ideally covers the most common actions first: dispatch, set activity, check district status. The window itself fits the aesthetic perfectly — it's already a game about sitting at a computer. Low priority but high ceiling; build after the core UX is fully stable so the command vocabulary doesn't drift.

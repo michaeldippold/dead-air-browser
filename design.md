@@ -83,13 +83,44 @@ zone, reposition for what's coming, try to win the simulation under fog. Sending
 until the beat resolves, doing nothing else. The first is optimization; the second is a narrative
 commitment with real opportunity cost. Keeping them mechanically distinct — a district move runs
 ENGAGE, a caller dispatch enters RESPONDING and waits, insulated from the sim — is what makes
-triage a genuine decision instead of a free action.
+triage a genuine decision instead of a free action. The two are *coupled* but never equalized: a
+resolved caller does give a little back to the simulation (see "On resolving a call"), but always
+less than engaging would have — so the caller move stays the inferior *pure-sim* play even as it
+stops being pure cost. That gap is the point — it keeps district dispatch the optimization and
+caller dispatch the commitment.
 
 **The district map is a strategic abstraction, not a literal one.** Districts don't represent
 "X zombies standing in a field" — they represent how bad an area's situation is right now. The
 map tells the player *where* to look. Callers tell them *what's actually happening there*.
 Neither tells the whole picture on its own, and that's correct — a building-level map is a
 different game, and explicitly out of scope for what's buildable in a browser.
+
+**The two halves must reinforce each other, or they're two games sharing a screen.** The simulation
+and the story are not a balance to strike — they're one experience, and the work of design is to
+remove the seam between them. The sim exists to be a pitiless, unscriptable antagonist that keeps the
+story from ever running on rails; the story is why the player cares whether the sim is held.
+Concretely, each side must discipline the other: answering callers has to carry real (if bounded)
+weight in the simulation, and neglecting the simulation has to cost the player real ground. When the
+two only touch at a single point — a unit leaving the board to answer a call — and that point is
+pure cost, the player correctly learns to ignore one of them. The fix is never to balance them on a
+scale; it's to make district-work and caller-work feel like the same job seen from two angles. (The
+mechanics that deliver this live in Content System, "On resolving a call.")
+
+**Information is the real currency, more than firepower.** In a game built on being informationally
+crippled, what most changes a player's odds is not three more dead zombies — it's knowing where to
+look. This is why the rewards for good play lean toward *intel* over *force*, and why the exact
+per-district zombie counts (the dev-only SITREP / god view) must never be visible to the player. The
+moment the player can read raw numbers, the machine-in-the-middle is gone and the game is a
+dashboard. The numbers run with full fidelity in the engine; the player only ever receives them
+mediated.
+
+**Every loss must be legible.** If a player loses and has no earthly idea *why*, the game has failed
+them. A loss does not need to over-explain — no post-mortem screen, no breakdown of contributing
+factors — but the player should always be able to name the cause: *I spread myself too thin; I poured
+everyone into a district that was already gone; I stopped answering the phone.* This is the deep
+reason the lose conditions stay specific and distinct rather than collapsing into one hidden number
+(see Win/Lose): a specific cause is a story the player tells about their own night, and that story is
+the entire point of a run that keeps no score.
 
 ---
 
@@ -168,9 +199,13 @@ arcs versus the filler the player simply deals with or doesn't.
 Containers of Persons, dispatched by the player, with an activity (ENGAGE / HIDE / SCAVENGE /
 RESPONDING). RESPONDING is the busy state a unit enters when dispatched to a specific caller: it
 sits in the caller's district, visible on the map, but is **insulated from the sim's combat loop
-entirely** — it neither kills zombies nor can be killed by the ambient counterattack. A unit on a
+entirely** — while it waits it neither kills zombies nor can be killed by the ambient counterattack during the call. A unit on a
 call is not also a multitasking zombie-killing machine; answering a person costs you that unit's
-sim presence until the call resolves, at which point it reverts to ENGAGE. Its only stakes are the
+sim presence until the call resolves. The one exception is the resolution itself: a successful
+rescue is never bloodless — the unit shoots its way in — so completing a call produces a one-time,
+bounded local suppression *at the moment it resolves* (see "On resolving a call"), after which it
+reverts to ENGAGE. The during-call insulation is the cost; that at-resolution suppression is the
+small reward, and the two never overlap. Its only stakes are the
 caller's authored content (or a generic fallback). Units are mobile and active across a whole
 district — they do not occupy a specific location within it the way a caller does. That's the distinguishing trait of a unit versus a caller: a
 unit is doing something across the district; a caller is somewhere specific, staying there
@@ -245,11 +280,32 @@ People → Persons) — this is the whole reason that flag exists:
   five minutes later once the unit leaves: saving them *is* removing them from danger. **Lost means
   they die** at that moment. Either way the outcome is sealed. This is why sending too little to a
   bad call is a real failure — and why blobbing every unit at one call is still a mistake, since the
-  responding units are off the sim the whole time (see Design Philosophy, "Dispatch is two verbs").
+  responding units are off the sim for the entire response window — the at-resolution suppression is a
+single instant, not ongoing presence (see Design Philosophy, "Dispatch is two verbs", and "On what a
+rescue does to the simulation" below).
 - **`sim: false` (spine):** *no roll, ever.* The outcome is 100% the script's — the arrival fires a
   beat, the player's choices and the script's flow decide save vs lose, and the script ends the call
   itself. Send no help and the script handles that with its own authored beat. The danger-weighted
   roll never touches a spine character.
+
+**On what a rescue does to the simulation.** A successful rescue is never bloodless, and that is the
+bridge between the two halves of the game (see Design Philosophy). Completing a call produces a
+bounded, one-time effect on the district *at the moment of resolution* — not continuous combat while
+the unit waits, which stays insulated. The effect comes in two flavors, tuned oppositely. **Force:**
+a few zombies die in the breach, and *occasionally* an able-bodied survivor joins the rescuing unit
+(capped at unit size, and only when the Person actually is one — the frightened child does not pick
+up a fire axe). Force is held under a hard invariant — **a rescue's suppression must always be
+strictly less than what that same unit-time would have killed on ENGAGE** — so callers are never the
+*efficient* way to fight the sim, and "answer every call" can never win. **Information:** the rescued
+survivor saw things on the way out, and a save lifts a sliver of the fog (a read on an adjacent
+district). Information is self-limiting — it kills nothing, and the player still needs finite units
+to act on it — so it can be given generously, and it is the most on-theme reward the game has. The
+reinforcement this creates is *structural*, not a flat bonus: a player who only engages concentrates
+force on the hottest districts and loses on **breadth** as quieter districts creep to the
+critical-district threshold behind them, while answering callers scatters the player across the map,
+thinning crowds and lifting fog exactly where concentrated play is blind. District-work covers depth,
+caller-work covers breadth, and either failure is lethal — the seam collapsing into one coverage
+problem seen from two angles.
 
 **Every resolution leaves the player closure, because there is no scoreboard.** On a save, *both*
 the caller and the responding unit sign off — the caller's final message is the one piece of
@@ -264,6 +320,17 @@ were saved or not. The sign-off *is* the score.
 runs it when its beat resolves, with no clock on a spine character. The only timer is the generic
 path's response window, after which the `sim: true` roll lands; it is a per-call window, never a
 global "you've had an hour, succeed or fail" clock.
+
+**On where grief lives.** The gut-punch — the call you replay in your head, the *please don't die*
+as a unit rolls out — is reserved for the spine. The generic, `sim: true` callers are ordinary
+people you'd pass on the street: their stories are real and worth answering, but they are not grand
+tragedies, and their fate can be a roll, because a roll produces *ambient* grief (the people you
+couldn't get to) which is the right weight for them. The heavy, authored deaths must be `sim: false`,
+because only an authored arc can make a death feel *caused by the player's choice* rather than
+unlucky — a hidden dice roll produces "unlucky," a branching script the player steered produces "I
+did this." If you want a death to wreck someone, you write it; you do not roll it. That writing is
+what the spine is for: multiple characters, real branching pivots with consequences, cohering into a
+single story the player effectively chooses their way through — different every run.
 
 ### Spine — the Scenario
 
@@ -362,18 +429,49 @@ doesn't telegraph which. Reading the name is the only way to know.
 
 ## Win / Lose
 
-- **Win** — survive to dawn, 06:00.
-- **Lose** — all units dead; ten or more districts reach critical infection ratio; too many
-  units disbanded over the course of the night.
+**One way to win, many ways to lose.** This asymmetry is load-bearing, not incidental — borrowed
+deliberately from games like This War of Mine — and it does three jobs at once: it forces balanced
+play without any balance meter, it gives every run its replay variety through the *texture of
+failure*, and it gives each loss a specific cause the player can feel responsible for.
 
-All four conditions are about the player's situation, not a score. There is no partial credit
-and no replay-to-optimize loop — a finished run, win or lose, is the experience.
+- **Win** — survive to dawn, 06:00. The win is **binary and singular** — you made it or you didn't.
+  Its *flavor* may vary with the state of the night, but it is never *graded*: there is no good-win
+  or bad-win, because the moment a win carries a quality score the game has a scoreboard again.
+- **Lose** — several distinct conditions, each anchored to a concrete, legible circumstance so the
+  player can always name what went wrong:
+  - **All units dead** — you spent your people.
+  - **Ten or more districts at critical infection** — the city was physically overrun; this is the
+    *breadth* failure, the price of concentrating force too narrowly.
+  - **Too many units disbanded** — attrition ground you down.
+  - **Failing the job** — too many calls left unanswered or unresolved over the night: the purest
+    dispatcher failure, where you didn't have to lose the city, you just stopped doing the work.
+    **Adopted — no longer a candidate.** It is the *stick* that makes the call list matter, the
+    counterweight to a lose model that otherwise only ever punished losing the simulation. It still
+    depends on the call-resolution model (to tell answered/resolved from ignored), and "too many" /
+    "which calls count" remain to be tuned (todo.md).
 
-**Candidate (not yet adopted):** a further lose condition — *failing the job itself*: letting too
-many calls go unanswered or unresolved over the night. It's the purest dispatcher failure — you
-didn't have to lose the city, you just stopped doing the work — and it pairs directly with the
-dispatch-to-caller verb. Needs a definition of "too many" and which calls count (it depends on the
-call-resolution model above being able to tell answered/resolved from ignored). Tracked in todo.md.
+All of these conditions are about the player's situation, not a score, and **the finite roster is
+what makes them reinforce one another**: a unit on a call is a unit not holding the city, and a unit
+holding the city is a unit not on a call, so the breadth, attrition, and job failures are all
+fighting over the same scarce units. The systems don't need to mechanically interlock — they only
+need to *both be lethal*, with one roster to spend between them. Over-tend the calls and the city
+falls; over-tend the city and you fail the job.
+
+**Every loss is legible, and the loss reads the board to author its own ending.** A loss must never
+feel arbitrary, so each condition telegraphs its approach through its own surface — districts
+darkening on the map, COMMS fraying into static and going silent, the OEM/supervisor's calls
+sharpening as the job slips, unit threads thinning out. The loss should feel *caused and foreseeable
+in hindsight*, never a number springing from nowhere. And at the instant a condition fires, the game
+checks the state of the board — how many districts still held, how many people were pulled out, what
+time it is — and uses it to color the end-text. "CITY FALLEN, 03:14, four districts holding, nine
+people out tonight" is a specific epitaph, not a generic one, and it costs nothing because the state
+already exists. The specific cause *is* the score, in a game that refuses to keep one. There is no
+partial credit and no replay-to-optimize loop — a finished run, win or lose, is the experience.
+
+**"Oppressive but winnable" is a tuning target.** The feeling the difficulty aims for is *I almost
+had it* — which means the common outcome should be losing **late and close**, not early and not
+comfortably. That is a narrow band, and it is where This War of Mine lives: you usually lose someone,
+rarely everyone, and the ending is relief rather than triumph.
 
 ---
 
@@ -396,6 +494,20 @@ open with a 911 line, since it would be strange for a colleague handing off the 
 
 ---
 
+## Touchstones
+
+Two games mark the poles Dead Air sits between. **This War of Mine** is the model for
+survival-sim-as-story-engine — one win, many graded losses, personalized epilogues, and a mechanical
+system (there, mental health) that the moral choices feed. Its lesson is also a warning: that system
+is load-bearing because *that* game's subject is psychological toll, whereas Dead Air's subject is
+informational crippling — which is exactly why a morale scalar is the wrong central mechanic here
+(see Out of Scope). **Papers, Please** is the model for the other axis — the mediated functionary,
+the desk and not the hero, moral weight delivered *through* mundane procedural work rather than
+beside it. Dead Air is the cross of the two: a survival sim experienced entirely from a dispatcher's
+desk.
+
+---
+
 ## Explicitly Out of Scope
 
 - A building-level or street-level map. The district abstraction, backed by named locations
@@ -406,3 +518,12 @@ open with a 911 line, since it would be strange for a colleague handing off the 
   (combat, healing, intel reveal). If something would only ever matter narratively, it doesn't
   need to be a tracked item.
 - An open-ended/endless mode as the primary experience. The night has a beginning and an end.
+- A global "morale" or master score that the lose model hangs on. Flattening every event — callers
+  saved or lost, districts falling, units dying — into one hidden scalar pegged to lose thresholds
+  was considered and rejected. It collapses the distinct, *legible* causes of a loss into a single
+  illegible number (the clean-numbers abstraction the game exists to avoid, even when the number is
+  hidden), it turns the whole game into a hidden-score-optimization problem, and it makes the two
+  dispatch verbs fungible. The one thing it offered — graded endings — is achieved instead by reading
+  board state at the moment of loss (see Win/Lose). Morale is not banned as a future *local* mechanic
+  (a per-district "hope" value feeding emergent events like survivor groups forming), but only where
+  a specific mechanic needs it — never as the master lose condition.
