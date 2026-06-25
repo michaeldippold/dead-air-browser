@@ -282,6 +282,27 @@ These are good ideas that aren't load-bearing for the core experience yet.
 - **The Song Request Guy** — calls repeatedly until answered once. Yells a song request for a song that doesn't exist. Never calls again. Needs a `one-shot-acknowledged` resolve type.
 - Both are good fits for the Incidents category (v0.9.0) — non-zombie, scripted, no/low stakes.
 
+### The Biker Gang (rare rescue → armed unit)
+A rare `sim: true` caller: a biker gang pinned down somewhere. Save them (dispatch + successful
+resolution) and instead of the usual extraction-off-the-board, they **convert into an all-civilian
+unit where every member carries a `gun`** — a hard-hitting squad (gun = 0.50, the top weapon) that
+lands as a genuine capability windfall. The memorable, high-variance instance of "saved →
+capability": rare enough not to dent roster scarcity, earned through a real rescue gamble, a
+one-time swing rather than a farmable economy. Deliberately bends the default "saved = extracted off
+the board" into "saved = recruited" (an authored exception for a special caller). As a unit they're
+then dispatchable *and* losable like any other — capability with ongoing risk, not a free permanent
+win. Gated on the `sim:true` rescue resolution roll existing. The kind of secret a player tells
+someone about.
+
+### Information relay — the player as switchboard
+Long-term, context-TBD possibility: a beat where the player has to **get a piece of information from
+one caller and relay it to a second caller** over the phone — the dispatcher as the literal link
+between two people who can't reach each other directly. No concrete context yet; logged because it's
+provocative. Fits the premise hard (the player is the node everything passes through, and
+information is the currency), and the building blocks mostly exist — a per-run flag set when caller A
+reveals X, gating a choice/route in caller B's thread (conditional routing). The open question is
+the *fiction*: what's worth relaying, and what goes wrong if you carry it wrong.
+
 ### Combat Mechanics
 Does unit damage scale with unit size? Currently each person gets one attack roll per tick regardless. Larger units may feel more powerful through survivability alone, but concentrated firepower scaling is an open question.
 
