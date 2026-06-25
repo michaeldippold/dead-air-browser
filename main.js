@@ -430,12 +430,14 @@ function spawnScript(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
 
-  // Spawn a protected Person in the sim — sim:false means they won't be attacked or randomly killed
+  // Spawn the caller's Person. Default sim:false = protected (only the script decides their fate);
+  // a script can opt into sim:true to expose a self-contained caller to the simulation — killable
+  // by the zombies in their district if the player doesn't reach them in time. See scripting.md.
   const person = makePerson(
     script.name,
     script.callerRole  ?? 'civilian',
     script.callerItems ?? [],
-    { sim: false, districtId: script.district ?? null, scriptId }
+    { sim: script.sim ?? false, districtId: script.district ?? null, scriptId }
   )
   state.people[person.id] = person
 

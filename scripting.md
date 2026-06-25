@@ -17,9 +17,17 @@ they have with the dispatcher. Each caller lives in its own file in `scripts/` (
 `scripts/danny.js`). The game shows the caller in the CONTACTS list; the player opens the thread
 and talks to them by picking replies.
 
-Your character is **protected from the simulation** — the zombies can't randomly kill them. Only
-*your script* decides whether they live, die, or go quiet. That's deliberate: spine characters
-(the authored ones) are never killed by a dice roll, only by the story you write.
+By default your character is **protected from the simulation** (`sim: false`): the zombies can't
+randomly kill them, and only *your script* decides whether they live, die, or go quiet. That's
+right for **spine characters** whose arc has to play out — they're never killed by a dice roll,
+only by the story you write.
+
+But you can flip that. Set **`sim: true`** and the character is **exposed to the simulation like
+anyone else** — the zombies in their district can kill them if the player doesn't reach them in
+time, and their thread closes on its own when they die. This is for **self-contained callers** who
+don't *need* to survive for a later beat: a one-off where, if you miss it, you miss it — better
+luck next game. Rule of thumb: `sim: false` for the characters the night is built around,
+`sim: true` for the disposable ones.
 
 ---
 
@@ -35,6 +43,7 @@ export default {
   callerRole:  'civilian',       // 'civilian' | 'police' | 'fire' — affects their map dot + risk
   callerItems: [],               // items they're carrying (usually none for a civilian)
   district:    'joyland',        // which district they're calling from (or null)
+  sim:         false,            // false = protected (only the script ends their story); true = exposed, can die if unhelped
   trigger:     { type: 'game-time', hour: 23 },  // WHEN they call in (see Triggers). Omit = never auto-fires.
   once:        true,             // fire only once (default true)
 
@@ -183,11 +192,32 @@ Both `onEnter` and `onArrive` receive `state`, the whole game world. You can rea
 - `state.districts['joyland'].zombies` / `.humans` — the crowd in a district.
 - `state.tick` — how far into the night (use the clock, not raw ticks, when you can).
 - `state.units` — the units and where they are.
+- `state.people` — every named person, each carrying their own `districtId`, `name`, `role`,
+  `unitId`, and `scriptId`.
 
-You can *read* all of this freely. **Routing the conversation on it** (e.g. "if Joyland's zombie
-ratio is over half → grim node, else → hopeful node") is **not wired yet** — today only *time*
-deadlines (`timer`/`timerNext`) can branch automatically. If you write a beat that needs to fork
-on district state, flag it; it's a small, known addition (making `next` able to compute itself).
+**Who's where.** There's no `district.roster` list, because people carry their *own* location
+instead. So "is a particular character in this district right now?" is a scan of `state.people`:
+
+```js
+// is the caller from scripts/barbara.js currently in Joyland?
+const here = Object.values(state.people)
+  .some(p => p.scriptId === 'barbara' && p.districtId === 'joyland')
+```
+
+Key them by **`scriptId`** (or a saved person id), *not* by `name` — names aren't guaranteed
+unique or stable. Units work the same way: `state.units[id].districtId` tells you where a unit is,
+and `state.districts[id].unitIds` lists the units in a district.
+
+**Two caveats:**
+- You can *read* all of this freely, but **routing the conversation on it** — "if Barbara is here →
+  node A, else → node B", or "if Joyland's ratio is over half → grim, else → hopeful" — is **not
+  wired yet**. Today only *time* deadlines (`timer`/`timerNext`) branch automatically. Forking on
+  state needs one small, known addition (letting `next` compute itself). Flag any beat that needs
+  it.
+- For the specific case of *two named characters meeting* (sending two people to the same place and
+  reacting when both arrive), there's a purpose-built **co-location Director hook** planned — that's
+  the clean way to do multi-character intersections (and the backbone of a story like the mall).
+  Ask for it when you write the beat that needs it.
 
 ---
 
@@ -213,6 +243,7 @@ on syntax — write the story, name the hooks, and the translation handles the r
 ```
 SCRIPT
   id, name, callerRole, callerItems, district
+  sim                       → false = protected (script-only fate) | true = exposed, can die unhelped
   trigger: { type, … }      → when they call (omit = code-spawned only)
   once                      → fire once (default true)
   nodes: { … }              → the conversation
