@@ -510,6 +510,15 @@ function advanceNarrativeCaller(contact, nodeId) {
     contact.timer  = null
   }
 
+  // Auto-continue (`then`): a choiceless node chains straight into the next message after a
+  // short "still typing" beat, so a caller can send several lines in a row before offering a
+  // choice. Reuses the pendingNext/replyDelay path, so it inherits the typing indicator and
+  // choice-suppression automatically. Ignored if the node has choices or has already resolved.
+  if (node.then != null && !node.choices?.length && !node.resolve) {
+    contact.pendingNext = node.then
+    contact.replyDelay  = 2 + Math.floor(Math.random() * 3)
+  }
+
   if (state.selectedContact === contact.id) {
     renderContactMessages(contact)
     renderContactMeta(contact)

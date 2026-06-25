@@ -488,8 +488,12 @@ The handoff is taught by doing real (if mundane) dispatcher work — an Incident
 dispatch — rather than by explaining the UI directly. The colleague is **Barbara West**. She
 doesn't vanish once the real situation starts: she hands off the board, then travels off-screen
 to a residential district through the same transit system units use, landing as a normal Person
-exposed to the simulation like anyone else from that point on. Her fate beyond that point is not
-authored. She's also the one exception to "On answering" (Content System, above) — she doesn't
+exposed to the simulation like anyone else from that point on. Her *fate* beyond that point is not
+authored — the sim decides whether she lives or dies at home — but she is not inert: she remains a
+real, call-backable contact, and reaching her while she's still alive can yield a small authored
+reward (an easter egg for the player who thinks to try, and who tries early enough — if the sim has
+already killed her, the callback simply gets the standard "No response."). She's also the one
+exception to "On answering" (Content System, above) — she doesn't
 open with a 911 line, since it would be strange for a colleague handing off the shift to dial it.
 
 ---
