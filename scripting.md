@@ -107,6 +107,9 @@ Every node continues in exactly one of these ways. This is the core grammar:
      next line lands. (Like `then`, but a longer, author-set silence instead of a quick beat.)
 4. **`resolve`** — the conversation ends (`'waiting'` or `'lost'`).
 
+Any of the destinations (`next`, `then`, `timerNext`) can be a single node id **or** a conditional
+rule list — see "Branching on game state."
+
 A terminal "they died" node is just `{ text: null, resolve: 'lost' }`.
 
 ---
@@ -208,16 +211,63 @@ Key them by **`scriptId`** (or a saved person id), *not* by `name` — names are
 unique or stable. Units work the same way: `state.units[id].districtId` tells you where a unit is,
 and `state.districts[id].unitIds` lists the units in a district.
 
-**Two caveats:**
-- You can *read* all of this freely, but **routing the conversation on it** — "if Barbara is here →
-  node A, else → node B", or "if Joyland's ratio is over half → grim, else → hopeful" — is **not
-  wired yet**. Today only *time* deadlines (`timer`/`timerNext`) branch automatically. Forking on
-  state needs one small, known addition (letting `next` compute itself). Flag any beat that needs
-  it.
-- For the specific case of *two named characters meeting* (sending two people to the same place and
-  reacting when both arrive), there's a purpose-built **co-location Director hook** planned — that's
-  the clean way to do multi-character intersections (and the backbone of a story like the mall).
-  Ask for it when you write the beat that needs it.
+**Two notes:**
+- You can now **route the conversation on any of this** — see "Branching on game state" just below.
+- For *two named characters physically meeting and that spawning a brand-new beat* (not routing an
+  existing conversation, but firing a fresh call/event the moment both arrive somewhere), there's
+  still a purpose-built **co-location Director hook** planned. Routing a conversation on "is Barbara
+  here?" works today (the `person-in` condition below); the planned hook is for when their meeting
+  should *create* something new. Ask for it when you write that beat.
+
+---
+
+## Branching on game state
+
+Any destination — a choice's `next`, a node's `then`, or a node's `timerNext` — can be **conditional**.
+Instead of a single node id, give it a **list of rules**. The first rule whose `when` passes wins; a
+rule with **no `when` is the default** (put it last):
+
+```js
+choices: [
+  { label: "Tell her to run for it.", next: [
+    { when: { type: 'ratio-over', district: 'joyland', value: 0.5 }, goto: 'too-late' },
+    { goto: 'she-makes-it' },          // default — runs if the ratio isn't past half
+  ] },
+],
+```
+
+The same works as a **router node** with no choices — use `then` to branch the instant the node is
+reached (give it `text: null` if it's purely a switch):
+
+```js
+'barbara-home': {
+  text: null,
+  then: [
+    { when: { type: 'person-in', scriptId: 'marcus', district: 'old-iron-works' }, goto: 'they-meet' },
+    { when: { type: 'ratio-over', district: 'joyland', value: 0.6 },               goto: 'rough-night' },
+    { goto: 'settles-in' },            // default
+  ],
+},
+```
+
+### The conditions you can test
+
+| `when` condition | True when… |
+|---|---|
+| `{ type: 'after-time', hour, min }` | the clock is at/after that time (`min` optional) |
+| `{ type: 'before-time', hour, min }` | the clock is before that time |
+| `{ type: 'zombies-over', district, count }` | that district has **more** than `count` zombies |
+| `{ type: 'zombies-under', district, count }` | **fewer** than `count` zombies |
+| `{ type: 'ratio-over', district, value }` | the zombie share (0–1) is over `value` |
+| `{ type: 'humans-gone', district }` | the district's population has hit zero |
+| `{ type: 'unit-in', district }` | any unit is in that district |
+| `{ type: 'person-in', scriptId, district }` | that script's character is in that district (co-location) |
+| `{ type: 'all', of: [ … ] }` | **every** listed condition is true |
+| `{ type: 'any', of: [ … ] }` | **at least one** listed condition is true |
+
+Need a condition that isn't here? It's a small add — name it. And for a truly one-off case a
+destination can also be a raw function `(state) => nodeId` (an escape hatch), but prefer the rule
+list — it reads like the rest of the script and you don't have to think in code.
 
 ---
 
@@ -256,4 +306,6 @@ NODE
   timer/timerNext → number/nodeId     deadline (with choices) or pause (without)
   onEnter(state, actions)             side effects
   resolve       → 'waiting' (alive, quiet) | 'lost' (dead, thread closes)
+
+  any next/then/timerNext = nodeId | [{ when, goto }, …] (first match; no-when = default) | (state)=>nodeId
 ```

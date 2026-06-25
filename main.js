@@ -401,6 +401,50 @@ function triggerToCondition(trigger) {
   }
 }
 
+// ── CONDITIONAL ROUTING ──
+// Any destination slot in a script — a choice's `next`, a node's `then`, a node's `timerNext` —
+// can be one of three shapes, resolved to a concrete node id at the moment it's used:
+//   • a node id (string/number)                     → just go there (the common case)
+//   • an array of { when, goto } rules              → first rule whose `when` passes wins; a rule
+//                                                     with no `when` is the default/fallback
+//   • a function (state) => nodeId                  → escape hatch for logic the rules can't express
+// The declarative rule form keeps branching scannable and reuses a small condition vocabulary
+// (evalRouteCond) in the same spirit as the trigger descriptors above.
+function evalRouteCond(cond, state) {
+  if (!cond) return true                                   // no `when` = always (the default rule)
+  switch (cond.type) {
+    case 'after-time':    return state.tick >= ticksFor(cond.hour, cond.min ?? 0)
+    case 'before-time':   return state.tick <  ticksFor(cond.hour, cond.min ?? 0)
+    case 'zombies-over':  return (state.districts[cond.district]?.zombies ?? 0) >  cond.count
+    case 'zombies-under': return (state.districts[cond.district]?.zombies ?? 0) <  cond.count
+    case 'ratio-over': {
+      const d = state.districts[cond.district]; if (!d) return false
+      const total = (d.zombies ?? 0) + (d.humans ?? 0)
+      return total > 0 && (d.zombies / total) > cond.value
+    }
+    case 'humans-gone':   return (state.districts[cond.district]?.humans ?? 1) === 0
+    case 'unit-in':       return Object.values(state.units).some(u => u.districtId === cond.district)
+    case 'person-in':     return Object.values(state.people).some(p =>
+                                  p.scriptId === cond.scriptId && p.districtId === cond.district)
+    case 'all':           return (cond.of ?? []).every(c => evalRouteCond(c, state))
+    case 'any':           return (cond.of ?? []).some(c  => evalRouteCond(c, state))
+    default:
+      console.warn(`Router: unknown condition type "${cond.type}"`)
+      return false
+  }
+}
+
+// Resolve a destination (string id | rule array | function) to a concrete node id, or null if a
+// rule array matched nothing and carried no default (an authoring bug — callers should warn/skip).
+function resolveNext(dest, state) {
+  if (typeof dest === 'function') return dest(state)
+  if (Array.isArray(dest)) {
+    for (const rule of dest) if (evalRouteCond(rule.when, state)) return rule.goto
+    return null
+  }
+  return dest
+}
+
 // ── DIRECTOR BEATS ──
 // Scripts self-describe their trigger; the Director auto-registers from that field.
 // To add a new character: create scripts/<id>.js, import it above, add to the array.
@@ -517,7 +561,7 @@ function advanceNarrativeCaller(contact, nodeId) {
   // choice. Reuses the pendingNext/replyDelay path, so it inherits the typing indicator and
   // choice-suppression automatically. Ignored if the node has choices or has already resolved.
   if (node.then != null && !node.choices?.length && !node.resolve) {
-    contact.pendingNext = node.then
+    contact.pendingNext = resolveNext(node.then, state)
     contact.replyDelay  = 2 + Math.floor(Math.random() * 3)
   }
 
@@ -557,8 +601,8 @@ function processNarrativeCallers() {
       const script = NARRATIVE_SCRIPTS[contact.scriptId]
       const node   = script?.nodes[contact.phase]
       if (node?.timerNext != null) {
-        advanceNarrativeCaller(contact, node.timerNext)
-        advanced = true
+        const dest = resolveNext(node.timerNext, state)
+        if (dest != null) { advanceNarrativeCaller(contact, dest); advanced = true }
       }
     }
   }
@@ -1929,7 +1973,7 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
 
   // Stop the choice timer, queue NPC reply with a short random delay
   contact.timer       = null
-  contact.pendingNext = choice.next
+  contact.pendingNext = resolveNext(choice.next, state)
   contact.replyDelay  = 2 + Math.floor(Math.random() * 3)
 
   renderContactMessages(contact)
