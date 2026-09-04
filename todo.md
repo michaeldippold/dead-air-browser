@@ -221,9 +221,50 @@ The core loop is operational. Key systems in place:
 
 ### Map & Units
 
-- [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive.
+#### Map v3 — real Lexington *(ruled 2026-09-04; design.md "The Map" has the why)*
+
+The flat SVG never earned its job as the main information surface. Replacing it with a real
+Lexington map (MapLibre GL + self-hosted PMTiles + our own baked road graph and A* routing), with
+units driving real routes, is now the growth area. Technical constraints are relaxed for this —
+build tools, vendored deps, a Python bake, paid hosting — the only rule is playable and fun in the
+browser. Build order, each step visually verifiable:
+
+- [ ] **Spike** (`spike-map/`, throwaway): PMTiles extract of Lexington loaded in a cut-down
+      Protomaps dark style; `roads.json` baked with osmnx; A* between two clicked points drawn
+      as a line following real streets and one-ways; one unit driving that route at road speed
+      with correct bearing; a few hand-traced district polygons tinted by category. The
+      "see it with your own eyes" gate before anything below starts.
+- [ ] **Landmarks first.** Go through the four scripted callers and Barbara and pin each named
+      story location to a real building (footprint + address + entrance node). The set of
+      landmarks decides the bounding box, and the box decides where districts get drawn.
+- [ ] **Redraw districts** over real neighborhoods — rename, merge, split, add as the geography
+      wants; keep the count modest. Recompute adjacency from the drawn polygons. Ground outside
+      every district renders dim and is not dispatchable. Update `main.js` district IDs, loot
+      pools, `DISTRICT_CODE`, and every script's `district` field to the new set.
+- [ ] **Position vs state in the sim.** Units get a real road position; `districtId` becomes
+      derived (point-in-polygon per tick). Transit stays "no district." Travel time derived
+      from route length over road speed with per-district danger multipliers; the hop constant
+      retires. Units spawn at the real LPD HQ and Fire Station No. 1.
+- [ ] **Arrival behavior.** ENGAGE patrols (random walk on in-district roads at residential
+      speed), HIDE parks, SCAVENGE wanders between the district's businesses, named-location
+      dispatch parks on the footprint.
+- [ ] **Places, two tiers.** Authored named locations in our own GeoJSON layer (always
+      clickable, dispatch targets); every other named building from the tiles gets hover-name
+      and the same click card with an empty contacts section. Card: name, address, district,
+      units there/en route, named callers there with status. Bidirectional selection.
+- [ ] **Information rules on the map.** Danger paint from district ratio, gated by intel
+      (tint buildings, dim roads inside the boundary — not a flat fill). Caller pins on
+      disclosure; dashed last-known ring after Outside. ETAs per available unit on select.
+- [ ] **Layout merge.** DISPATCH + MAP become one window with a collapsible roster strip;
+      CONTACTS and COMMS are closable sidebars; wallpaper untouched. MapLibre needs a resize
+      observer inside a resizable window.
+- [ ] **Attribution.** "© OpenStreetMap contributors" visible. Non-negotiable.
+- [ ] **Retire the SVG map** once the above is playable (keep it reachable behind a query flag
+      as a debug view until then).
+
+- [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive. *(Folds into Map v3's danger paint.)*
 - [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units. The "distinct COMMS language" piece here is already most of the way handled by the per-district COMMS degradation in 0.9.0 (an overrun district's scanner chatter is already breaking down) — extend that, don't build a second COMMS path.
-- [ ] **Real-world setting.** **City picked: Lexington, Kentucky** (see "What's Shipped" — the topbar title, desktop badge, and overall chrome already reflect this). What's left is the deeper rename: real, specific place names for districts (e.g. the actual hospital name instead of "Memorial") to ground the world; worth deciding what the city's declining industry was (steel? auto parts? textiles?) since that detail should flavor caller voice, not just signage. Bigger lift than a simple rename: district IDs are referenced throughout `main.js` (state, adjacency, loot pools) and in every script's `district` trigger field. Not needed for v0.9.0, but must land at or before v1.0.0 — changing the name after people have already seen it undercuts the first impression. **The map redraw is explicitly negotiable, not required** — renaming can happen directly on the existing district polygons, geography be damned. A redraw with more regular shapes and consistent corner orientation is a nice-to-have that can slide to v1.1+ without blocking 1.0 if it's not worth the time.
+- [ ] **Real-world setting.** **City picked: Lexington, Kentucky** (see "What's Shipped" — the topbar title, desktop badge, and overall chrome already reflect this). What's left is the deeper rename: real, specific place names for districts (e.g. the actual hospital name instead of "Memorial") to ground the world; worth deciding what the city's declining industry was (steel? auto parts? textiles?) since that detail should flavor caller voice, not just signage. Bigger lift than a simple rename: district IDs are referenced throughout `main.js` (state, adjacency, loot pools) and in every script's `district` trigger field. Not needed for v0.9.0, but must land at or before v1.0.0 — changing the name after people have already seen it undercuts the first impression. **The map redraw is no longer negotiable — it's Map v3 above**, and the district rename is part of it: names, count and shapes all get redrawn to fit real neighborhoods.
 
 ### Endgame & Legibility
 
@@ -320,7 +361,7 @@ A morale meter on the Unit (not individual persons). Drops on bad outcomes, rise
 ### Terminal Window
 A dedicated TERMINAL window where game actions can be driven by typed commands — for fast typers and keyboard-preferrers. Example: `/dispatch 1 westgate` dispatches Unit 1 to Westgate; returns a success line or an error code if the unit or district isn't found, or the unit is already there. Ideally covers the most common actions first: dispatch, set activity, check district status. The window itself fits the aesthetic perfectly — it's already a game about sitting at a computer. Low priority but high ceiling; build after the core UX is fully stable so the command vocabulary doesn't drift.
 
-### Map v2 — Infrastructure & Atmosphere
+### Map v2 — Infrastructure & Atmosphere *(SUPERSEDED 2026-09-04 by Map v3 in v1.0.0 — kept for the trail)*
 The current SVG map is right-angle polygons with flat fills, which reads well as a tactical CAD display and is correct for v1. When the map becomes a growth area again, the upgrade path is:
 
 - **D3.js for pan/zoom.** `d3.zoom()` bound to the SVG — single call, gives smooth pinch/scroll zoom and drag-pan. Data joins for updating district state without touching the DOM manually.

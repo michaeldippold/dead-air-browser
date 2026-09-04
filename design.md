@@ -12,8 +12,8 @@ You are a night-shift emergency communications supervisor. Not a hero, not polic
 on the other end of the line. You coordinate police, fire, and civilian response across a city
 during a 12-hour overnight shift that goes very wrong.
 
-You are physically safe and informationally crippled. You never see a zombie. You never see a
-street. You see a map of districts, a handful of voices on the phone, and the radio chatter of
+You are physically safe and informationally crippled. You never see a zombie. You see a map of
+the city with your own cars on it, a handful of voices on the phone, and the radio chatter of
 units you can't watch in action. Every decision is made with less information than you want,
 and the game does not get easier once you understand it — it gets clearer, which is different.
 
@@ -35,7 +35,11 @@ Kentucky, LPD HQ, Station No. 1, LFUCG Govt Center, Good Samaritan Hospital, Old
 Kendrick Ave, Market St, Newtown Commerce, The Red Mile, Lexington Quarry) — internal district IDs
 are unchanged, only the `label` field and map text. University of Kentucky and The Red Mile are
 classified `government` and `retail` respectively (not `residential`), which feeds their loot
-table and COMMS flavor. Still open: deciding what the city's declining industry was
+table and COMMS flavor. **Neither the names nor the count of these districts is a sacred cow**
+(ruled 2026-09-04): the current fourteen were a compromise made to get a flat SVG working, and the
+names are fun facts pulled from the real city. When the map becomes real Lexington (see The Map),
+districts get redrawn — renamed, merged, split, added — to match the actual geography, keeping the
+count modest. Still open: deciding what the city's declining industry was
 (steel, auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
 not just the skyline.
 
@@ -89,11 +93,14 @@ less than engaging would have — so the caller move stays the inferior *pure-si
 stops being pure cost. That gap is the point — it keeps district dispatch the optimization and
 caller dispatch the commitment.
 
-**The district map is a strategic abstraction, not a literal one.** Districts don't represent
+**The district is a strategic abstraction, not a literal one.** Districts don't represent
 "X zombies standing in a field" — they represent how bad an area's situation is right now. The
 map tells the player *where* to look. Callers tell them *what's actually happening there*.
-Neither tells the whole picture on its own, and that's correct — a building-level map is a
-different game, and explicitly out of scope for what's buildable in a browser.
+Neither tells the whole picture on its own, and that's correct. *(The old version of this
+paragraph went on to say a building-level map was "out of scope for what's buildable in a
+browser." That was a feasibility guess, not a design ruling, and it was wrong — see The Map. The
+map is now building-level; the **simulation** is still district-level, and that's the line that
+matters.)*
 
 **The two halves must reinforce each other, or they're two games sharing a screen.** The simulation
 and the story are not a balance to strike — they're one experience, and the work of design is to
@@ -129,9 +136,11 @@ the entire point of a run that keeps no score.
 ### Districts
 
 A fixed set of named districts, each with a category (residential, government, medical, retail,
-industrial), forming a graph via adjacency — not a literal geometric distance, a hop-count
-graph. That graph is reused for two purposes: zombie inter-district spread, and travel time (see
-Movement & Risk).
+industrial), forming a graph via adjacency. That graph drives zombie inter-district spread.
+**A district is the sim's unit of state, not the unit of position** — on the real-geography map
+(see The Map) every unit has an actual road position and its district is *derived* from it; the
+sim only ever asks "which district contains this unit." Travel time used to be hop count over
+this graph; it's now derived from the real route (see Movement & Risk).
 
 ### Two population ledgers, not one
 
@@ -159,8 +168,11 @@ occupy.
   only when a piece of content actually needs one. A district with no scripted arc needs zero
   named locations.
 
-Location is never rendered on the map. It's metadata — a modifier on exposure and a label in
-contact text ("Marcus Webb — Old Iron Works, Loading Dock"), nothing more.
+Location *is* rendered on the map, but only once the caller has disclosed it (see The Map,
+"What the map is allowed to show"). Mechanically it stays metadata — a modifier on exposure and a
+label in contact text ("Marcus Webb — Old Iron Works, Loading Dock"). Named story locations are
+real buildings with real footprints; the general categories are real addresses drawn from the
+city's address pool.
 
 Mechanically, location is a multiplier on the same threat-weight system that already governs
 combat targeting (the same lever the HIDE unit activity uses). Outside means high exposure.
@@ -405,13 +417,16 @@ with any scenario.
 
 ## Movement & Risk
 
-Nothing in the game animates movement. Distance is graph distance over the district adjacency
-map — hop count, not geometry — and that one piece of data drives two related mechanics:
+*(Revised 2026-09-04. The original ruling — "nothing in the game animates movement, distance is
+hop count" — was a concession to a flat SVG map, not a design goal. Superseded by The Map.)*
 
-**Unit travel.** Dispatching a unit between districts takes time proportional to hop count, not
-instant teleport. Units are vehicle-equipped and move fast per hop. While in transit, a unit is
-not present in any district — not on the map, not clickable, not contributing to combat or
-suppression anywhere — until it arrives.
+**Unit travel.** Dispatching a unit is a real drive over Lexington's real road graph: the route
+is computed, the unit moves along it on the map at road speed, and travel time is *derived* —
+route length over road speed, with a multiplier for how bad the districts along the way are. No
+hop constant. While in transit, a unit belongs to **no district**, even as its route crosses
+three of them — not contributing to combat or suppression anywhere until it arrives. That rule
+predates the real map and survives it unchanged; it's what keeps "driving through" from becoming
+free suppression. On arrival the unit's district is derived from where it actually stopped.
 
 **Caller travel — "Outside."** Telling a caller to relocate (run, evacuate, regroup at a named
 location) puts them into the Outside category for a period of real exposure — much higher risk
@@ -420,10 +435,121 @@ civilian should carry the same weight as a tactical order to a unit, but the ris
 completely different, and the player should feel that difference. Watching someone you told to
 run go silent mid-transit is the emotional core this mechanic exists to produce.
 
+Caller travel is deliberately **not** animated on the map. A unit is yours; you know where your
+cars are. A caller on foot in the dark is not — their pin drops back to a dashed *last known*
+ring at the place they left and stays there until they check in from somewhere else or go
+silent. Watching that ring sit on a darkening building is the point.
+
 Both kinds of transit surface in a single TRAVELING list, sorted by soonest arrival, showing
 units (their unit map-dot, role-colored) and callers (bare name) side by side. The stakes differ
 — a unit in transit is an opportunity cost, a caller in transit can die — but the row format
 doesn't telegraph which. Reading the name is the only way to know.
+
+---
+
+## The Map *(ruled 2026-09-04)*
+
+> The map is the game's main information surface, and the flat SVG of fourteen right-angle boxes
+> never earned that job. The call system is the part of this game that's fun; the map is what
+> supports it, and it has to look like it belongs next to a dispatcher's call board. The reference
+> is **911 Operator**: a real city rendered dark, units gliding along real streets between stops,
+> hover for a glance and click for detail. This section records what was decided and why. The
+> lesson it rests on comes from the idle-civ project, where a "no map, the browser can't" rule
+> turned out to be simply wrong once tried.
+
+### Stack
+
+**MapLibre GL JS** rendering a self-hosted **PMTiles** extract of Lexington (OpenStreetMap data,
+one static file, HTTP range requests, no tile server, no API key), styled from a cut-down
+Protomaps dark flavor. On top of it: a **baked road graph** with our own A* routing (edge cost is
+time, with per-district danger multipliers — owning the graph is what lets the outbreak edit the
+roads later), and a small **authored GeoJSON** of district polygons and named locations. Units are
+a symbol layer; caller pins are DOM markers so the terminal aesthetic carries over without a
+second art pipeline.
+
+Rejected: three.js from scratch (would reimplement tile loading, label placement and styling that
+MapLibre already does; the gloss ceiling — no bloom or ambient occlusion — is accepted, and
+MapLibre's custom-layer interface leaves the door open to lit pieces later), D3-on-SVG (the ceiling
+was the drawing, not the tech), Pixi (still hand-building a look).
+
+**Technical constraints are relaxed.** Earlier notes about "no build tools" or "no backend" are
+void. Build steps, vendored dependencies, a Python bake script, paid hosting with a real backend —
+all acceptable. The only constraint: **it has to be playable and fun in the browser.** The bake
+(tile extract, road graph, stations, addresses) is a one-off asset step per city, not a build step.
+OSM data is ODbL: "© OpenStreetMap contributors" stays visible somewhere. Non-negotiable.
+
+### District is state, position is geography
+
+The worry with real geography was that districts flatten everything inside them — that every unit
+sent to a district drives to its centroid, as if the whole neighborhood lived in one apartment.
+The fix is to separate two things the SVG-era code fused: **the district is the unit of state, the
+road position is the unit of place.** A unit always has a real position on the road graph. Its
+district is derived by point-in-polygon. The sim reads the district; the map reads the position.
+
+- **Dispatch to a district lands wherever the road takes you** — the destination is the nearest
+  routable node inside the polygon to where the unit currently is. A car sent to Joyland from
+  downtown pulls in at Joyland's near edge, not its middle. A big district is closer on its near
+  side than its far side, which is how cities work.
+- **Arrival behavior follows the unit's activity.** ENGAGE means **patrol**: the unit drifts along
+  roads inside the polygon at residential speed, a random walk that stays in bounds. HIDE means
+  parked. SCAVENGE wanders between the district's businesses. Six units in a district look like
+  six cars working a neighborhood. The sim is indifferent to all of it.
+- **Units spawn at real stations** — LPD headquarters, Fire Station No. 1 — not at a district's
+  center.
+- **A unit dispatched to a named location parks on its footprint** rather than patrolling.
+
+### Districts are drawn to fit the city, not the other way round
+
+Landmarks come first. The named story locations (see Places) decide where the map has to end,
+and the bounding box and the district polygons get drawn around them — so the box is *not* simply
+"inside New Circle Road" if the mall or the racetrack is a story place. Districts are hand-traced
+over real neighborhoods; their names, count and category all change to fit (see Setting). Keep
+the count modest. Ground that's on the map but inside no district renders dim and can't be
+dispatched to — outside coverage. Dead air, literally.
+
+### Places: two tiers
+
+- **Authored named locations** — the two-or-three-per-district story places (Locations within a
+  district). Each gets a real OSM footprint, display name, address, and its entrance road node,
+  baked into our own GeoJSON and drawn as our own layer above the basemap, so they are always
+  clickable regardless of zoom or which tiles have loaded. They are dispatch targets.
+- **Every other named building** comes free from the tiles — the mall, the hospital, every
+  church and grocery. Hover shows the real name; click shows the same detail card as an authored
+  place, usually with an empty contacts section. That empty state is doing work: the map tells
+  you where, callers tell you what.
+
+The place card shows: name, address, district, units there or en route, and the **named callers
+currently there** with a status line each. Sim people never appear. Clicking a caller's row opens
+their thread; clicking a contact in CONTACTS flies the camera to their pin and lights the
+footprint. Selection is bidirectional everywhere — roster row ↔ map unit, contact ↔ pin.
+
+### What the map is allowed to show
+
+The clean-numbers rule applies to the map exactly as it applies to the sidebar:
+
+- **Danger paint derives from the district's zombie ratio and is gated by intel** — no radio or
+  binoculars, no paint. It is not a second data source. There is no infection heat field, no
+  per-cell grid, no simulation layer finer than the district (Explicitly Out of Scope). A district
+  in trouble is drawn by tinting the buildings and dimming the roads inside its boundary, with the
+  boundary a thin line — a neighborhood going dark, not a red blob with a label.
+- **Caller pins appear on disclosure.** A caller has no pin until they've told you where they are
+  (most opening lines do). Sent Outside, the pin becomes a dashed *last known* ring at the place
+  they left, until they check in from somewhere else or go silent.
+- **Your own units are fully known.** Positions, routes, ETAs per unit — all fine, and the
+  route-every-available-unit-on-select ETA readout is encouraged. Dispatchers know where their
+  cars are. Information crippling is about the *situation*, never about your own people.
+- **Routes read danger.** An edge's cost multiplier comes from the district it runs through, so
+  units route *around* a bad district and the player watches a route bend as the map darkens.
+  Blocked streets and held corridors are the natural later extensions of the same mechanism.
+
+### Layout
+
+DISPATCH and MAP merge into **one window** — everything about where your people are and what
+they're doing. The unit roster is a collapsible strip over the map; hovering a roster row
+highlights that unit and its route. CONTACTS and COMMS stay as the two sidebar windows, both
+closable so the map can take most of the screen. The badge wallpaper and the desktop metaphor stay
+untouched behind it all. Target is a desktop PC; the two sidebars together already fill most of a
+1080p screen, which is fine.
 
 ---
 
@@ -514,10 +640,12 @@ desk.
 
 ## Explicitly Out of Scope
 
-- A building-level or street-level map. The district abstraction, backed by named locations
-  within it, is the intended fidelity. Don't reach for more granularity than that.
-- Animated movement of any kind. Distance and time are represented through countdowns and lists,
-  not motion on the map.
+- A building-level **simulation**. The map is street-level now (see The Map), but the sim's
+  unit of state is still the district, backed by named locations within it. Don't add a finer
+  simulation layer (per-building zombie counts, an infection heat grid) to match the map's
+  fidelity — the map shows where, callers say what.
+- Animated movement of anything but units. Units drive on the map. Callers, sim people, and
+  zombies are never rendered as motion — a caller who moves becomes a last-known ring.
 - A real inventory or equipment system. Items only exist where they modify a simulation outcome
   (combat, healing, intel reveal). If something would only ever matter narratively, it doesn't
   need to be a tracked item.
