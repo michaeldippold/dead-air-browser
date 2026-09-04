@@ -33,7 +33,7 @@
 | 15 | **Routes read danger.** Edge cost multiplier from the district the edge runs through (`1 + 2.5 × danger`). Units bend around bad districts; the player watches it happen. | Blocked streets / held corridors are the natural later extension. |
 | 16 | **Strong district boundaries are the default**, with a *map settings* toggle for the subtle look. Palette: residential cyan `#7fd6ff`, government violet `#b9a3ff`, retail amber `#ffcf5a`, industrial steel `#c9d2dc`, medical rose `#ff8fb0`. | Blues sank into the navy basemap; the strong look also lifts the roads. |
 | 17 | **Follow mode flies to a chase view** (zoom +1.5, min 16.3, pitch 62) and owns the wheel while following. | Recentering every frame cancels MapLibre's zoom easing, so zoom felt dead. |
-| 18 | **Layout: DISPATCH and MAP merge into one window** (roster as a collapsible strip over the map); CONTACTS and COMMS stay as closable sidebars; **the badge wallpaper and the desktop metaphor stay.** Desktop PC is the target. | Owner ruling. Panels "need design TLC post-integration" — expected, not a blocker. |
+| 18 | **Layout: DISPATCH and MAP merge into one window** (roster as a collapsible strip over the map); CONTACTS and COMMS stay as closable sidebars. **It is still a window on the desktop — never full-bleed.** It takes most of the width by default and grows when a sidebar is closed, but the badge wallpaper, desktop icons and taskbar remain visible around it, and it drags, resizes, minimizes and maximizes like every other window. Desktop PC is the target. | Owner ruling, twice: the desktop is flavor and stays. Panels "need design TLC post-integration" — expected, not a blocker. |
 | 19 | **Technical constraints are relaxed.** Build tools, vendored deps, a Python bake, paid hosting — all fine. The only rule: playable and fun in the browser. | Owner ruling. |
 | 20 | **"© OpenStreetMap contributors" stays visible.** ODbL. | Non-negotiable. |
 
@@ -163,14 +163,15 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
 - `renderUnitDots` (~L2418) → `pushUnits()`; `renderTravelingPanel` (~L2460) stays as the list (it already sorts by soonest arrival).
 
 ### e. Layout merge (§1 #18)
-- `WIN_IDS` / `LAYOUT_WIN_IDS` (~L937): `dispatch` and `map` become one window id `ops` (or keep `map` and fold DISPATCH's body in). `resetLayout` (~L957): `ops` takes the center; `contacts` left, `radio` right, both closable.
+- **Windowed, not full-bleed.** The merged window is one more `.win` managed by `initWindowManager` — titlebar, pin, minimize, maximize, edge-resize, all as today. The desktop (`#desktop-badge`, `#desktop-icons`, taskbar) stays exactly as it is and stays visible around the windows. Do not make the map the page background.
+- `WIN_IDS` / `LAYOUT_WIN_IDS` (~L937): `dispatch` and `map` become one window id `ops` (or keep `map` and fold DISPATCH's body in). `resetLayout` (~L957): `contacts` on the left, `radio` on the right, `ops` fills everything between them — on a 1080p desktop that is most of the width already. Closing or minimizing a sidebar lets `ops` widen into its space (recompute in `resetLayout`, or just let the player drag; both are fine). Maximize gives the map the full desktop minus the taskbar, which is as close to full-bleed as it ever gets, and it is the player's choice.
 - The unit roster (`#units-list`, cards/badges layouts) becomes a collapsible strip over the map (top-left in the spike). Roster hover → unit hover state + route highlight; roster click → select. Unit detail (`#unit-detail-view`) stays as the strip's expanded state; its dispatch `<select>` is now redundant with map dispatch — keep for keyboard users or drop.
 - District detail (`#district-detail-panel`, `renderDistrictDetail` ~L1517) becomes the district card (right side). Place card is new (§2 spike `showPlace`: name, kind, address, district, units inside, en route, named callers with status, dispatch link).
 - Wallpaper (`#desktop-badge`) untouched.
 
 ### f. Places and callers
 - `places.json` loads; `contacts` gain `placeId | null`, `disclosed: false`, `lastKnownPlaceId`. `makeContact` (~L86) `location` (district) stays for the sim; the pin is `placeId` once `disclosed`. Scripts set `place: 'good-samaritan-hospital'` next to `district`; the opening node (or a `disclose` action in `SCRIPT_ACTIONS`) flips `disclosed`. Ambient/generic callers: no pin until the address pool exists (deferred) — they show on the district only.
-- Existing four + Barbara: E. Novak → `good-samaritan-hospital`; Marcus Webb → West End industrial (owner picks); Danny → a Northside place (Castlewood Park is the obvious residential anchor); Holt is mobile (no pin); Barbara none.
+- Existing four + Barbara (**settled by the owner 2026-09-04; easy to move later**): E. Novak → `good-samaritan-hospital`; Marcus Webb → `marathon-terminal` (West End; his "Old Iron Works, Loading Dock" line becomes the terminal's loading dock); Danny → `castlewood-park` (Northside); Holt is mobile (no pin); Barbara none.
 - `arriveOnCall` (~L153): when the responding unit reaches the contact's place, it goes INSIDE (§1 #8); that is the hook for "meeting survivors" beats.
 
 ### g. Verbs
