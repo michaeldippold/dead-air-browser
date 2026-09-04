@@ -870,20 +870,20 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-wrap: wrap;
 }
 
-#ddv-units {
+#ddv-units, #pdv-units {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 /* Badge-style unit cards inside district detail panel */
-#ddv-units .roster-card          { flex-direction: row; cursor: pointer; }
-#ddv-units .roster-card.selected { border-color: var(--accent); }
-#ddv-units .roster-card.selected .roster-unit-label { color: var(--accent); }
-#ddv-units .roster-card:hover    { transform: none; }
-#ddv-units .roster-portrait      { width: 9px; height: unset; min-height: unset; align-self: stretch; flex-shrink: 0; overflow: hidden; }
-#ddv-units .roster-portrait svg  { display: none; }
-#ddv-units .roster-card-body     { flex: 1; min-width: 0; overflow: hidden; padding: 7px 10px; gap: 4px; justify-content: center; }
+#ddv-units .roster-card, #pdv-units .roster-card          { flex-direction: row; cursor: pointer; }
+#ddv-units .roster-card.selected, #pdv-units .roster-card.selected { border-color: var(--accent); }
+#ddv-units .roster-card.selected .roster-unit-label, #pdv-units .roster-card.selected .roster-unit-label { color: var(--accent); }
+#ddv-units .roster-card:hover, #pdv-units .roster-card:hover    { transform: none; }
+#ddv-units .roster-portrait, #pdv-units .roster-portrait      { width: 9px; height: unset; min-height: unset; align-self: stretch; flex-shrink: 0; overflow: hidden; }
+#ddv-units .roster-portrait svg, #pdv-units .roster-portrait svg  { display: none; }
+#ddv-units .roster-card-body, #pdv-units .roster-card-body     { flex: 1; min-width: 0; overflow: hidden; padding: 7px 10px; gap: 4px; justify-content: center; }
 
 #ddv-loot {
   display: flex;
@@ -2360,7 +2360,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* RESPONDING reads as actively busy — filled accent + pulse, distinct from the outlined idle
    activity badges. The unit is tied up on a call, not free to retask. */
-.roster-activity--responding {
+.roster-activity--responding, .roster-activity--enroute {
   color: var(--bg);
   background: var(--accent);
   border-color: var(--accent);

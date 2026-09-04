@@ -1642,6 +1642,15 @@ document.getElementById('ddv-units').addEventListener('click', e => {
   if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
 })
 
+// One unit tag for both right-side cards (district + place): the badge-style card, lit when it is
+// the selected unit, with an optional status badge override (EN ROUTE for a unit still driving).
+function unitTag(unit, badge = null) {
+  let html = renderUnitCard(unit, 'badges')
+  if (state.selectedUnit?.unitId === unit.id) html = html.replace('class="roster-card"', 'class="roster-card selected"')
+  if (badge) html = html.replace(/<span class="roster-activity[^"]*">[^<]*<\/span>/, `<span class="roster-activity roster-activity--enroute">${badge}</span>`)
+  return html
+}
+
 // ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
 // Name, kind, address, district, units inside / en route, named callers with a status line, and a
 // dispatch link for the selected unit. A free-tier POI gets the same card, minus the dispatch.
@@ -1664,9 +1673,8 @@ function showPlaceDetail(place) {
     ['ADDRESS',  place.addr ?? '—'],
     ['DISTRICT', d?.label ?? 'outside coverage'],
   ].map(([k, v]) => `<div class="pdv-row"><span class="pdv-k">${k}</span><span class="pdv-v">${v}</span></div>`).join('')
-  const unitRow = (u, tag) => `<div class="pdv-unit" data-unit-id="${u.id}"><span class="member-dot member-dot--${state.people[u.leaderPersonId]?.role ?? 'civilian'}"></span><span>${u.label.toUpperCase()}</span><span class="pdv-tag">${tag}</span></div>`
   document.getElementById('pdv-units').innerHTML =
-    (here.map(u => unitRow(u, 'INSIDE')).join('') + enroute.map(u => unitRow(u, 'EN ROUTE')).join('')) || '<div class="pdv-none">none</div>'
+    (here.map(u => unitTag(u)).join('') + enroute.map(u => unitTag(u, 'EN ROUTE')).join('')) || '<div class="pdv-none">none</div>'
   document.getElementById('pdv-callers').innerHTML = callers.length
     ? callers.map(c => `<div class="pdv-caller" data-contact-id="${c.id}"><span class="pdv-caller-name">${c.name}</span><span class="pdv-tag">${(c.alive ? c.status : 'lost') ?? ''}</span></div>`).join('')
     : '<div class="pdv-none">none</div>'
@@ -1700,8 +1708,9 @@ function hidePlaceDetail() {
 
 document.getElementById('place-detail-panel').addEventListener('click', e => {
   if (e.target.closest('#btn-pdv-close')) { hidePlaceDetail(); return }
+  if (e.target.closest('[data-item-key]')) return
   const unitRow = e.target.closest('[data-unit-id]')
-  if (unitRow) { selectUnit(unitRow.dataset.unitId); return }
+  if (unitRow) { const id = unitRow.dataset.unitId; if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id); return }
   const callerRow = e.target.closest('[data-contact-id]')
   if (callerRow) { if (winState['contacts']?.minimized) toggleMinimize('contacts'); bringToFront('contacts'); showContactDetail(callerRow.dataset.contactId); return }
   if (e.target.closest('#pdv-go') && state.selectedUnit && state.selectedPlace) {
@@ -1756,7 +1765,7 @@ function renderDistrictDetail() {
     const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
     const listHtml  = unitsHere.length === 0
       ? '<span class="ddv-no-intel">None</span>'
-      : unitsHere.map(u => renderUnitCard(u, 'badges').replace('class="roster-card"', `class="roster-card${state.selectedUnit?.unitId === u.id ? ' selected' : ''}"`)).join('')
+      : unitsHere.map(u => unitTag(u)).join('')
     ddvUnits.innerHTML = listHtml
   }
 
