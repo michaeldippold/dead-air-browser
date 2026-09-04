@@ -1,0 +1,298 @@
+[
+ {
+  "name": "City Fire Station #7",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.496059,
+   37.997099
+  ]
+ },
+ {
+  "name": "Fayette County Fire Station No 13",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.521749,
+   38.064107
+  ]
+ },
+ {
+  "name": "Fire Station #1",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.490125,
+   38.047807
+  ]
+ },
+ {
+  "name": "Fire Station #10",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.503767,
+   38.073941
+  ]
+ },
+ {
+  "name": "Fire Station #11",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.526835,
+   38.031272
+  ]
+ },
+ {
+  "name": "Fire Station #12",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.525702,
+   38.018029
+  ]
+ },
+ {
+  "name": "Fire Station #14",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.551081,
+   38.044317
+  ]
+ },
+ {
+  "name": "Fire Station #15",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.530291,
+   37.992598
+  ]
+ },
+ {
+  "name": "Fire Station #16",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.469141,
+   37.973585
+  ]
+ },
+ {
+  "name": "Fire Station #20",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.557712,
+   38.01094
+  ]
+ },
+ {
+  "name": "Fire Station #21",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.423939,
+   38.002536
+  ]
+ },
+ {
+  "name": "Fire Station #22",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.497179,
+   37.961756
+  ]
+ },
+ {
+  "name": "Fire Station #3",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.506754,
+   38.048422
+  ]
+ },
+ {
+  "name": "Fire Station #4",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.499068,
+   38.054455
+  ]
+ },
+ {
+  "name": "Fire Station #5",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.493304,
+   38.03611
+  ]
+ },
+ {
+  "name": "Fire Station #6",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.507158,
+   38.039519
+  ]
+ },
+ {
+  "name": "Fire Station #8",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.468268,
+   38.070052
+  ]
+ },
+ {
+  "name": "Fire Station #9",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.463705,
+   38.016605
+  ]
+ },
+ {
+  "name": "Fire Training Prop",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.621003,
+   38.040918
+  ]
+ },
+ {
+  "name": "KLEX ARFF",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.603017,
+   38.034874
+  ]
+ },
+ {
+  "name": "Lexington Fire Department Station 2",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.45681,
+   38.045624
+  ]
+ },
+ {
+  "name": "Station 24",
+  "kind": "fire_station",
+  "lonlat": [
+   -84.535063,
+   38.094076
+  ]
+ },
+ {
+  "name": "Albert B. Chandler Hospital",
+  "kind": "hospital",
+  "lonlat": [
+   -84.50939,
+   38.031077
+  ]
+ },
+ {
+  "name": "Baptist Health",
+  "kind": "hospital",
+  "lonlat": [
+   -84.512363,
+   38.018633
+  ]
+ },
+ {
+  "name": "Baptist Health Hamburg",
+  "kind": "hospital",
+  "lonlat": [
+   -84.415925,
+   38.031577
+  ]
+ },
+ {
+  "name": "Baptist Health Hamburg",
+  "kind": "hospital",
+  "lonlat": [
+   -84.416867,
+   38.031194
+  ]
+ },
+ {
+  "name": "Cardinal Hill Rehabilitation Hospital",
+  "kind": "hospital",
+  "lonlat": [
+   -84.541678,
+   38.046474
+  ]
+ },
+ {
+  "name": "Eastern State Hospital",
+  "kind": "hospital",
+  "lonlat": [
+   -84.497974,
+   38.082757
+  ]
+ },
+ {
+  "name": "Franklin R. Sousley Campus",
+  "kind": "hospital",
+  "lonlat": [
+   -84.540772,
+   38.073816
+  ]
+ },
+ {
+  "name": "Good Samaritan Hospital",
+  "kind": "hospital",
+  "lonlat": [
+   -84.500704,
+   38.042238
+  ]
+ },
+ {
+  "name": "Kentucky Children's Richmond Road",
+  "kind": "hospital",
+  "lonlat": [
+   -84.472821,
+   38.022373
+  ]
+ },
+ {
+  "name": "Saint Joseph East",
+  "kind": "hospital",
+  "lonlat": [
+   -84.439481,
+   37.999405
+  ]
+ },
+ {
+  "name": "Saint Joseph Hospital",
+  "kind": "hospital",
+  "lonlat": [
+   -84.525736,
+   38.032617
+  ]
+ },
+ {
+  "name": "The Ridge Behaviorial Health System",
+  "kind": "hospital",
+  "lonlat": [
+   -84.442644,
+   38.00456
+  ]
+ },
+ {
+  "name": "VA Troy Bowling Campus",
+  "kind": "hospital",
+  "lonlat": [
+   -84.506709,
+   38.029748
+  ]
+ },
+ {
+  "name": "Fayette Sheriff's Office",
+  "kind": "police",
+  "lonlat": [
+   -84.495428,
+   38.046723
+  ]
+ },
+ {
+  "name": "Lexington Police Department",
+  "kind": "police",
+  "lonlat": [
+   -84.496574,
+   38.045184
+  ]
+ }
+]

@@ -4,8 +4,24 @@
     {
       "name": "dispatch",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-p", "5678", "."],
+      "runtimeArgs": [
+        "serve",
+        "-p",
+        "5678",
+        "."
+      ],
       "port": 5678
+    },
+    {
+      "name": "spike-map",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "spike-map",
+        "run",
+        "dev"
+      ],
+      "port": 5679
     }
   ]
 }

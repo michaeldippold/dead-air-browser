@@ -1,0 +1,7 @@
+{
+  "city": "Lexington, KY",
+  "bbox": { "west": -84.63, "south": 37.96, "east": -84.38, "north": 38.12 },
+  "center": [-84.4977, 38.0406],
+  "protomaps_build": "https://build.protomaps.com/20260904.pmtiles",
+  "maxzoom": 15
+}

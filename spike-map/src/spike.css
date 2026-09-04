@@ -1,0 +1,64 @@
+:root {
+  --bg: #06101f;
+  --panel: rgba(8, 16, 32, 0.88);
+  --line: #24406b;
+  --text: #cfe0ff;
+  --dim: #7d95bf;
+  --police: #4ea3ff;
+  --fire: #ff5a4e;
+  --civ: #e8e2c9;
+  --accent: #ffd24a;
+  font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
+#map { position: fixed; inset: 0; }
+#vignette {
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+}
+#ui { position: fixed; inset: 0; pointer-events: none; font-size: 12px; }
+#ui > * { pointer-events: auto; }
+
+.panel {
+  position: absolute; background: var(--panel); border: 1px solid var(--line);
+  padding: 8px 10px; min-width: 220px; backdrop-filter: blur(4px);
+}
+.panel-title { font-size: 11px; letter-spacing: 0.12em; color: var(--dim); margin-bottom: 6px; }
+#roster { left: 12px; top: 12px; }
+#place  { right: 12px; top: 12px; max-width: 300px; }
+#danger { left: 12px; bottom: 36px; }
+.hint { color: var(--dim); font-size: 11px; margin-top: 8px; max-width: 260px; }
+
+.row {
+  display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center;
+  padding: 4px 6px; border: 1px solid transparent; cursor: pointer;
+}
+.row:hover, .row.hover { border-color: var(--line); background: rgba(36,64,107,0.35); }
+.row.selected { border-color: var(--accent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--civ); }
+.dot.police { background: var(--police); }
+.dot.fire { background: var(--fire); }
+.row .status { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.row .status.moving { color: var(--accent); }
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.kv .k { color: var(--dim); }
+
+.drow { display: grid; grid-template-columns: 1fr 90px 36px; gap: 8px; align-items: center; padding: 2px 0; }
+.drow input { width: 90px; }
+.drow .v { color: var(--dim); text-align: right; }
+
+#tip {
+  position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line);
+  padding: 4px 8px; font-size: 11px; white-space: nowrap; transform: translate(12px, 12px);
+}
+#attrib { position: absolute; right: 8px; bottom: 6px; font-size: 10px; color: var(--dim); }
+
+.caller-pin {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent);
+  background: rgba(255,210,74,0.25); box-shadow: 0 0 10px rgba(255,210,74,0.6);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 50% { box-shadow: 0 0 2px rgba(255,210,74,0.2); } }
+
+.maplibregl-ctrl-attrib { display: none; }
