@@ -158,66 +158,47 @@
 
             <rect x="0" y="0" width="1200" height="900" fill="none" stroke="var(--border)" stroke-width="1.5"/>
 
+            <!-- ?map=2d fallback only (map-integration.md §5a/§5i): a schematic 3×3 of the nine real districts -->
             <g id="districts">
-              <polygon id="northgate"    data-category="residential"
-                points="0,0 480,0 480,180 340,180 340,280 0,280"/>
-              <polygon id="millbrook"    data-category="residential"
-                points="480,0 800,0 800,280 340,280 340,180 480,180"/>
-              <polygon id="eastridge"    data-category="residential"
-                points="800,0 1200,0 1200,280 800,280"/>
-              <polygon id="westgate"     data-category="residential"
-                points="0,280 240,280 240,520 0,520"/>
-              <polygon id="police-hq"    data-category="government"
-                points="240,280 440,280 440,420 240,420"/>
-              <polygon id="fire-station" data-category="government"
-                points="440,280 640,280 640,420 440,420"/>
-              <polygon id="city-hall"    data-category="government"
-                points="240,420 640,420 640,520 240,520"/>
-              <polygon id="memorial"     data-category="medical"
-                points="640,280 960,280 960,520 640,520"/>
-              <polygon id="ironworks"    data-category="industrial"
-                points="960,280 1200,280 1200,520 960,520"/>
-              <polygon id="riverside"    data-category="residential"
-                points="0,520 240,520 240,760 0,760"/>
-              <polygon id="market"       data-category="retail"
-                points="240,520 640,520 640,640 480,640 480,760 240,760"/>
-              <polygon id="commerce"     data-category="retail"
-                points="480,640 640,640 640,520 1200,520 1200,760 480,760"/>
-              <polygon id="southend"     data-category="residential"
-                points="0,760 700,760 700,900 0,900"/>
-              <polygon id="industrial"   data-category="industrial"
-                points="700,760 1200,760 1200,900 700,900"/>
+              <polygon id="westend" data-category="industrial"
+                points="0,0 400,0 400,300 0,300"/>
+              <polygon id="northside" data-category="residential"
+                points="400,0 800,0 800,300 400,300"/>
+              <polygon id="eastend" data-category="residential"
+                points="800,0 1200,0 1200,300 800,300"/>
+              <polygon id="redmile" data-category="retail"
+                points="0,300 300,300 300,600 0,600"/>
+              <polygon id="downtown" data-category="government"
+                points="300,300 600,300 600,600 300,600"/>
+              <polygon id="chevychase" data-category="residential"
+                points="600,300 900,300 900,600 600,600"/>
+              <polygon id="hamburg" data-category="retail"
+                points="900,300 1200,300 1200,600 900,600"/>
+              <polygon id="university" data-category="government"
+                points="0,600 500,600 500,900 0,900"/>
+              <polygon id="southside" data-category="retail"
+                points="500,600 1200,600 1200,900 500,900"/>
             </g>
 
             <g id="district-labels" pointer-events="none">
-              <text x="200"  y="112" class="lbl-name">JOYLAND</text>
-              <text x="200"  y="130" class="lbl-cat">Residential</text>
-              <text x="600"  y="108" class="lbl-name">WINBURN</text>
-              <text x="600"  y="126" class="lbl-cat">Residential</text>
-              <text x="1000" y="112" class="lbl-name">CASTLEWOOD</text>
-              <text x="1000" y="130" class="lbl-cat">Residential</text>
-              <text x="120"  y="385" class="lbl-name" style="font-size:14px;">UNIVERSITY OF KENTUCKY</text>
-              <text x="120"  y="403" class="lbl-cat">Government</text>
-              <text x="340"  y="342" class="lbl-name">LPD HQ</text>
-              <text x="340"  y="358" class="lbl-cat">Government</text>
-              <text x="540"  y="342" class="lbl-name">STATION NO. 1</text>
-              <text x="540"  y="358" class="lbl-cat">Government</text>
-              <text x="440"  y="458" class="lbl-name">LFUCG GOVT CENTER</text>
-              <text x="440"  y="474" class="lbl-cat">Government</text>
-              <text x="800"  y="385" class="lbl-name">GOOD SAMARITAN HOSPITAL</text>
-              <text x="800"  y="403" class="lbl-cat">Medical</text>
-              <text x="1080" y="385" class="lbl-name">OLD IRON WORKS</text>
-              <text x="1080" y="403" class="lbl-cat">Industrial</text>
-              <text x="120"  y="618" class="lbl-name">KENDRICK AVE</text>
-              <text x="120"  y="636" class="lbl-cat">Residential</text>
-              <text x="380"  y="610" class="lbl-name">MARKET ST</text>
-              <text x="380"  y="628" class="lbl-cat">Retail</text>
-              <text x="870"  y="618" class="lbl-name">NEWTOWN COMMERCE</text>
-              <text x="870"  y="636" class="lbl-cat">Retail</text>
-              <text x="350"  y="812" class="lbl-name">THE RED MILE</text>
-              <text x="350"  y="830" class="lbl-cat">Retail</text>
-              <text x="950"  y="812" class="lbl-name">LEXINGTON QUARRY</text>
-              <text x="950"  y="830" class="lbl-cat">Industrial</text>
+              <text x="200" y="150" class="lbl-name">WEST END</text>
+              <text x="200" y="168" class="lbl-cat">Industrial</text>
+              <text x="600" y="150" class="lbl-name">NORTHSIDE</text>
+              <text x="600" y="168" class="lbl-cat">Residential</text>
+              <text x="1000" y="150" class="lbl-name">EAST END</text>
+              <text x="1000" y="168" class="lbl-cat">Residential</text>
+              <text x="150" y="450" class="lbl-name">RED MILE</text>
+              <text x="150" y="468" class="lbl-cat">Retail</text>
+              <text x="450" y="450" class="lbl-name">DOWNTOWN</text>
+              <text x="450" y="468" class="lbl-cat">Government</text>
+              <text x="750" y="450" class="lbl-name">CHEVY CHASE</text>
+              <text x="750" y="468" class="lbl-cat">Residential</text>
+              <text x="1050" y="450" class="lbl-name">HAMBURG</text>
+              <text x="1050" y="468" class="lbl-cat">Retail</text>
+              <text x="250" y="750" class="lbl-name">UNIVERSITY</text>
+              <text x="250" y="768" class="lbl-cat">Government</text>
+              <text x="850" y="750" class="lbl-name">SOUTHSIDE</text>
+              <text x="850" y="768" class="lbl-cat">Retail</text>
             </g>
 
             <g id="unit-dots" pointer-events="all"></g>

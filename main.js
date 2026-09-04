@@ -3,6 +3,7 @@ import marcusWebb from './scripts/marcus-webb.js'
 import danny      from './scripts/danny.js'
 import holt       from './scripts/holt.js'
 import tutorial   from './scripts/tutorial.js'
+import { DISTRICTS, loadDistricts, adjacencyFromPolygons } from './src/map/districts.js'
 
 // ── CONFIG & CONSTANTS ──
 
@@ -756,9 +757,8 @@ function ticksFor(hour, minute = 0) {
 
 // ── LOOT ──
 
+// Keyed by category; a district id may override (none do today — map-integration.md §5b).
 const LOOT_POOLS = {
-  'police-hq':    [{ item: 'gun',        w: 7 }, { item: 'first-aid', w: 2 }, { item: 'rations',    w: 2 }],
-  'fire-station': [{ item: 'fire-axe',   w: 7 }, { item: 'first-aid', w: 2 }, { item: 'rations',    w: 2 }],
   residential:    [{ item: 'rations',    w: 8 }, { item: 'first-aid', w: 4 }, { item: 'radio',      w: 3 }, { item: 'binoculars', w: 1 }],
   medical:        [{ item: 'first-aid',  w: 9 }, { item: 'rations',   w: 5 }, { item: 'radio',      w: 2 }],
   retail:         [{ item: 'rations',    w: 7 }, { item: 'radio',     w: 5 }, { item: 'first-aid',  w: 3 }, { item: 'binoculars', w: 2 }],
@@ -794,21 +794,32 @@ const state = {
   people:          {},
   units:           {},
   transits:        [],
-  districts: {
-    'northgate':    { label: 'Joyland',                 category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('northgate',    'residential', 2) },
-    'millbrook':    { label: 'Winburn',                 category: 'residential', humans: 1000, zombies: 0, unitIds: [], loot: rollLoot('millbrook',    'residential', 2) },
-    'eastridge':    { label: 'Castlewood',              category: 'residential', humans: 1200, zombies: 0, unitIds: [], loot: rollLoot('eastridge',    'residential', 2) },
-    'westgate':     { label: 'University of Kentucky',  category: 'government',  humans: 900,  zombies: 0, unitIds: [], loot: rollLoot('westgate',     'government', 1) },
-    'police-hq':    { label: 'LPD HQ',                  category: 'government',  humans: 80,   zombies: 0, unitIds: [], loot: rollLoot('police-hq',    'government',  3) },
-    'fire-station': { label: 'Station No. 1',           category: 'government',  humans: 60,   zombies: 0, unitIds: [], loot: rollLoot('fire-station', 'government',  3) },
-    'city-hall':    { label: 'LFUCG Govt Center',       category: 'government',  humans: 200,  zombies: 0, unitIds: [], loot: rollLoot('city-hall',    'government',  2) },
-    'memorial':     { label: 'Good Samaritan Hospital', category: 'medical',     humans: 600,  zombies: 0, unitIds: [], loot: rollLoot('memorial',     'medical',     4) },
-    'ironworks':    { label: 'Old Iron Works',          category: 'industrial',  humans: 380,  zombies: 0, unitIds: [], loot: rollLoot('ironworks',    'industrial',  2) },
-    'riverside':    { label: 'Kendrick Ave',            category: 'residential', humans: 1100, zombies: 0, unitIds: [], loot: rollLoot('riverside',    'residential', 2) },
-    'market':       { label: 'Market St',               category: 'retail',      humans: 700,  zombies: 0, unitIds: [], loot: rollLoot('market',       'retail',      3) },
-    'commerce':     { label: 'Newtown Commerce',        category: 'retail',      humans: 650,  zombies: 0, unitIds: [], loot: rollLoot('commerce',     'retail',      2) },
-    'southend':     { label: 'The Red Mile',            category: 'retail',      humans: 950,  zombies: 0, unitIds: [], loot: rollLoot('southend',     'retail', 2) },
-    'industrial':   { label: 'Lexington Quarry',        category: 'industrial',  humans: 400,  zombies: 0, unitIds: [], loot: rollLoot('industrial',   'industrial',  2) },
+  districts: {},   // filled below from public/data/districts.geojson
+}
+
+// ── DISTRICTS ──
+// Nine districts drawn from real Lexington road corridors (map-integration.md §4). Ids, labels
+// and categories come from the bake; the sim's starting crowd and loot depth are authored here.
+// Starting humans: ~11k total, roughly by real population — tune later.
+const DISTRICT_SEED = {
+  downtown:   { humans: 900,  loot: 3 },
+  northside:  { humans: 1400, loot: 2 },
+  eastend:    { humans: 1100, loot: 2 },
+  chevychase: { humans: 1500, loot: 2 },
+  university: { humans: 1300, loot: 3 },
+  southside:  { humans: 1800, loot: 3 },
+  redmile:    { humans: 1000, loot: 2 },
+  westend:    { humans: 900,  loot: 2 },
+  hamburg:    { humans: 1100, loot: 3 },
+}
+
+await loadDistricts('/data/districts.geojson')
+for (const d of DISTRICTS) {
+  const seed = DISTRICT_SEED[d.id] ?? { humans: 1000, loot: 2 }
+  state.districts[d.id] = {
+    label: d.label, category: d.category,
+    humans: seed.humans, zombies: 0, unitIds: [],
+    loot: rollLoot(d.id, d.category, seed.loot),
   }
 }
 
@@ -826,59 +837,46 @@ let _unitCounter = 0
     state.districts[districtId].unitIds.push(unit.id)
   }
 
-  // Police HQ — 2 units: 2 police + 1 embedded civilian
-  spawnUnit('police-hq', [
+  // LPD HQ (Downtown) — 2 units: 2 police + 1 embedded civilian
+  spawnUnit('downtown', [
     { role: 'police',   items: ['gun']       },
     { role: 'police',   items: ['gun']       },
     { role: 'civilian', items: ['radio']     },
   ])
-  spawnUnit('police-hq', [
+  spawnUnit('downtown', [
     { role: 'police',   items: ['gun']       },
     { role: 'police',   items: ['gun']       },
     { role: 'civilian', items: ['first-aid'] },
   ])
 
-  // Fire Station — 2 units: 2 fire + 1 embedded civilian
-  spawnUnit('fire-station', [
+  // Fire Station #1 (Northside) — 2 units: 2 fire + 1 embedded civilian
+  spawnUnit('northside', [
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'civilian', items: ['first-aid'] },
   ])
-  spawnUnit('fire-station', [
+  spawnUnit('northside', [
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'civilian', items: ['radio']     },
   ])
 
-  // City Hall — 2 units: 2 civilian + 1 police for protection
-  spawnUnit('city-hall', [
+  // LFUCG Government Center (Downtown) — 2 units: 2 civilian + 1 police for protection
+  spawnUnit('downtown', [
     { role: 'civilian', items: ['first-aid', 'radio'] },
     { role: 'civilian', items: ['first-aid']          },
     { role: 'police',   items: ['gun']                },
   ])
-  spawnUnit('city-hall', [
+  spawnUnit('downtown', [
     { role: 'civilian', items: ['radio']   },
     { role: 'civilian', items: ['rations'] },
     { role: 'police',   items: ['gun']     },
   ])
 })()
 
-const adjacency = {
-  'northgate':    ['millbrook', 'westgate', 'police-hq'],
-  'millbrook':    ['northgate', 'eastridge', 'police-hq', 'fire-station', 'memorial'],
-  'eastridge':    ['millbrook', 'memorial', 'ironworks'],
-  'westgate':     ['northgate', 'police-hq', 'city-hall', 'riverside'],
-  'police-hq':    ['northgate', 'millbrook', 'westgate', 'fire-station', 'city-hall'],
-  'fire-station': ['millbrook', 'police-hq', 'city-hall', 'memorial'],
-  'city-hall':    ['westgate', 'police-hq', 'fire-station', 'memorial', 'market'],
-  'memorial':     ['millbrook', 'eastridge', 'fire-station', 'city-hall', 'ironworks', 'commerce'],
-  'ironworks':    ['eastridge', 'memorial', 'commerce'],
-  'riverside':    ['westgate', 'market', 'southend'],
-  'market':       ['city-hall', 'riverside', 'commerce', 'southend'],
-  'commerce':     ['memorial', 'ironworks', 'market', 'southend', 'industrial'],
-  'southend':     ['riverside', 'market', 'commerce', 'industrial'],
-  'industrial':   ['commerce', 'southend'],
-}
+// Derived from the district polygons at load (shared boundary vertices) — drives zombie
+// inter-district spread. Never hand-maintained; move a road in the bake and this follows.
+const adjacency = adjacencyFromPolygons()
 
 function computeHopDistances(graph) {
   const dist = {}
@@ -901,10 +899,8 @@ const hopsBetween = (a, b) => HOP_DISTANCE[a]?.[b] ?? 1
 let _transitCounter = 0
 
 const DISTRICT_CODE = {
-  'northgate': 'JL', 'millbrook': 'WB', 'eastridge': 'CW', 'westgate': 'UK',
-  'police-hq': 'PD', 'fire-station': 'S1', 'city-hall': 'GC', 'memorial': 'GS',
-  'ironworks': 'IW', 'riverside': 'KA', 'market': 'MK', 'commerce': 'NC',
-  'southend': 'RM', 'industrial': 'LQ',
+  downtown: 'DT', northside: 'NS', eastend: 'EE', chevychase: 'CC', university: 'UN',
+  southside: 'SS', redmile: 'RM', westend: 'WE', hamburg: 'HB',
 }
 
 // ── INIT ──
@@ -2139,13 +2135,13 @@ document.querySelectorAll('#districts polygon').forEach(poly => {
 const FLAVOR = {
   winDawn:      'At some point in the early hours, the radio went quiet in a way that was different from before. Not the quiet of a district going dark — the quiet of nothing new moving. Dawn came without an announcement. The city held through the night. Not every district, not without cost, but enough. The logs were reviewed for days afterward, looking for the decision that made the difference. Nobody could agree on which one it was.',
   loseUnits:    'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.',
-  loseOverrun:  'The tipping point was never a single moment. Districts fell one by one, each one making the next easier to lose. By the time ten were gone, the math had already finished the argument. The last transmissions were just confirmation of what the map had been saying for hours. The city is gone. The dispatcher is still at the console.',
+  loseOverrun:  'The tipping point was never a single moment. Districts fell one by one, each one making the next easier to lose. By the time six were gone, the math had already finished the argument. The last transmissions were just confirmation of what the map had been saying for hours. The city is gone. The dispatcher is still at the console.',
   loseHope:     'Four units. That\'s the number that broke it. Each disbandment was a decision — someone\'s last transmission, someone\'s equipment going silent. After the fourth, the weight of the radio traffic changed. It wasn\'t about the city anymore. It was about how long the city had left. The dispatcher closed the channel at 23:12 and didn\'t reopen it.',
 }
 
 const OVERRUN_THRESHOLD    = 0.75  // zombie ratio at which a district counts as lost for losecon
 const UNITS_LOST_LIMIT     = 4
-const DISTRICTS_LOST_LIMIT = 10
+const DISTRICTS_LOST_LIMIT = 6     // of 9 (67%); was 10 of 14
 const MAX_UNIT_SIZE        = 4     // leader + 3 members max; enforced when adding survivors
 
 function showEndScreen(title, restartLabel, flavor) {
@@ -2168,7 +2164,7 @@ function checkLose() {
     return
   }
 
-  // Condition 2 — 10 of 14 districts functionally overrun (≥75% zombie ratio)
+  // Condition 2 — 6 of 9 districts functionally overrun (≥75% zombie ratio)
   const overrunCount = Object.values(state.districts).filter(d => {
     const total = d.humans + d.zombies
     return total > 0 && d.zombies / total >= OVERRUN_THRESHOLD

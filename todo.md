@@ -258,6 +258,9 @@ browser. Build order, each step visually verifiable:
 - [x] **Tooling** *(2026-09-04, map-integration.md §5a)*: the game runs on Vite (`npm run dev` on 5678,
       `npm run build` → `dist/`); map data lives in `public/data/`, icons in `public/images/`; RELEASE.md
       builds and zips `dist/`; `?map=2d` flag reserved for the SVG fallback until the SVG is retired.
+- [x] **Re-key the districts** *(2026-09-04, §5b)*: nine districts loaded from `districts.geojson`, adjacency
+      computed from the polygons, new `DISTRICT_CODE`s, lose threshold 6 of 9, scripts on the new ids
+      (Danny → northside, E. Novak → university, Marcus Webb → westend / Marathon terminal).
 - [ ] **Position vs state in the sim.** Units get a real road position; `districtId` becomes
       derived (point-in-polygon per tick). Transit stays "no district." Travel time derived
       from route length over road speed with per-district danger multipliers; the hop constant

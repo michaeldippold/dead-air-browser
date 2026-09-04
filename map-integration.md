@@ -145,7 +145,7 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
   and the bake scripts write to the root `public/data/`. `MAP_2D` constant is in `main.js`, unused until §5d.
   Launch configs: `dispatch` (dev, 5678), `dist-preview` (`vite preview` of `dist/`, 4173), `spike-map` (5679).
 
-### b. Re-key the districts
+### b. Re-key the districts *(done 2026-09-04)*
 - `state.districts` (~L793): nine entries per §4 with `label`, `category`, `humans`, `zombies: 0`, `unitIds: []`, `loot: rollLoot(id, category, n)`.
 - `LOOT_POOLS` (~L755): keep the *category* pools; drop per-district overrides unless a district wants one.
 - `adjacency` (~L862) → computed from `districts.geojson` at load (shapely-style: shared boundary length; port the 25 m buffer / 300 m rule from the bake, or simpler: two rings share ≥ 3 vertices). `computeHopDistances` (~L879) stays for spread only, or retire it.
@@ -153,6 +153,12 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
 - `DISTRICTS_LOST_LIMIT` → 6. `seedFromDifficulty` (~L2610) is generic; `numDistricts` in `SCENARIOS` (L23/31) still fine.
 - Scripts: `scripts/danny.js` `northgate` → `northside`; `scripts/e-novak.js` `memorial` → `university`; `scripts/marcus-webb.js` `ironworks` → `westend`. Update in-dialogue place names (E. Novak is at Good Samaritan, which is in University; Marcus Webb's "Old Iron Works, Loading Dock" → Marathon Terminal or Kentucky Utilities in West End — owner's call, both are real industrial footprints).
 - `index.html` SVG polygons and labels: leave for `?map=2d`, or delete with step **i**.
+- *As built:* `state.districts` is filled from `districts.geojson` at load (`src/map/districts.js`, ported verbatim from
+  the spike, plus `adjacencyFromPolygons()` — shared boundary vertices, ≥3, matches the §4 table exactly). Starting
+  humans / loot depth live in `DISTRICT_SEED`. Units spawn in `downtown` (LPD, Govt Center) and `northside`
+  (Fire Station #1) until §5c/f put them inside the stations. Marcus Webb's opening line is now the Marathon
+  terminal loading dock and his push is "east" (the terminal is west of downtown). The SVG fallback is a
+  schematic 3×3 of the nine districts.
 
 ### c. Sim: position vs state
 - `makeUnit` (~L82): add `pos: [lon,lat]`, `node`, `route: null`, `progress: 0`, `place: null`, `home: placeId`. `districtId` stays as a field but is **written only by** `arrive()` / `districtAt(pos)`, never by dispatch.

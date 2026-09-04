@@ -1,23 +1,23 @@
-// Marcus Webb — Old Iron Works
+// Marcus Webb — Marathon Terminal, West End (settled 2026-09-04; was "Old Iron Works")
 // Machinist holed up with a group of coworkers. Competent, pragmatic, no-nonsense.
-// Trigger: zombies reach Old Iron Works.
+// Trigger: zombies reach West End.
 // Arc: he's already organized. Wants to know if you're worth coordinating with.
-//      Player can tell him to hold, ask for intel, or push him north toward LPD HQ.
-//      Pushing north is risky. Holding is stable but costs him a man eventually.
+//      Player can tell him to hold, ask for intel, or push him east toward LPD HQ.
+//      Pushing east is risky. Holding is stable but costs him a man eventually.
 
 export default {
   id:          'marcus-webb',
   name:        'Marcus Webb',
   callerRole:  'civilian',
   callerItems: [],
-  district:    'ironworks',
-  trigger:     { type: 'zombie-presence', district: 'ironworks' },
+  district:    'westend',
+  trigger:     { type: 'zombie-presence', district: 'westend' },
   once:        true,
 
   nodes: {
 
     0: {
-      text: "Marcus Webb, Old Iron Works. Eight of us here — machinists, couple maintenance guys. Solid doors, some improvised tools. Are you people running a coordinated response or are we handling this ourselves?",
+      text: "Marcus Webb, Marathon terminal, the loading dock. Eight of us here — machinists, couple maintenance guys. Solid doors, some improvised tools. Are you people running a coordinated response or are we handling this ourselves?",
       choices: [
         { label: 'We have it. Hold your position.',     next: 'webb-hold'  },
         { label: 'What can you see from your end?',     next: 'webb-intel' },
@@ -35,7 +35,7 @@ export default {
       text: "Street's bad to the south. Something happened at the warehouse two blocks over — don't know what. We've got line of sight on the main road. Foot traffic stopped about an hour ago. No vehicles.",
       choices: [
         { label: 'That helps. Keep your doors locked.',          next: 'webb-hold' },
-        { label: 'If it worsens, push north toward LPD HQ.', next: 'webb-push' },
+        { label: 'If it worsens, push east toward LPD HQ.', next: 'webb-push' },
       ],
       timer: 10, timerNext: 'webb-hold',
     },
@@ -44,7 +44,7 @@ export default {
       text: "Lost one man — went to check on his truck in the lot. We gave it thirty minutes. He's not coming back. Seven of us now. Everything else holding.",
       choices: [
         { label: 'Hold position. You did right by him.',     next: 'webb-resolve' },
-        { label: 'Get your people moving. Head north now.', next: 'webb-push'    },
+        { label: 'Get your people moving. Head east now.', next: 'webb-push'    },
       ],
       timer: 10, timerNext: 'webb-resolve',
     },

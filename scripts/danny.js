@@ -1,6 +1,6 @@
-// Danny — Joyland (last name unknown)
+// Danny — Northside, Joyland neighborhood (last name unknown)
 // A child on a landline. Parents went to get grandma and haven't come back.
-// Trigger: zombies reach Joyland.
+// Trigger: zombies reach Northside.
 // Arc: he followed his dad's instructions to the letter. He's scared but not panicking.
 //      Player can keep him in place or send him to Mrs. Kowalski down the hall.
 //      Pure call-and-response, no auto-resolution for not answering (see design.md, Content
@@ -12,8 +12,8 @@ export default {
   name:        'Unknown — Child',
   callerRole:  'civilian',
   callerItems: [],
-  district:    'northgate',
-  trigger:     { type: 'zombie-presence', district: 'northgate' },
+  district:    'northside',
+  trigger:     { type: 'zombie-presence', district: 'northside' },
   once:        true,
 
   nodes: {

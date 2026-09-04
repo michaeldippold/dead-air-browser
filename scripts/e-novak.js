@@ -1,6 +1,6 @@
-// E. Novak — Good Samaritan Hospital
+// E. Novak — Good Samaritan Hospital (University district)
 // Pharmacist sheltering in the hospital dispensary during the outbreak.
-// Trigger: zombies reach Good Samaritan Hospital.
+// Trigger: zombies reach the University district.
 // Arc: she calls for help. Player can keep her in place or tell her to run.
 //      Running is fast and probably fatal. Staying is slow, detailed, and ends with
 //      her attempting to move at dawn. Pure call-and-response, no auto-resolution for
@@ -11,8 +11,8 @@ export default {
   name:        'E. Novak',
   callerRole:  'civilian',
   callerItems: [],
-  district:    'memorial',
-  trigger:     { type: 'zombie-presence', district: 'memorial' },
+  district:    'university',
+  trigger:     { type: 'zombie-presence', district: 'university' },
   once:        true,
 
   nodes: {
