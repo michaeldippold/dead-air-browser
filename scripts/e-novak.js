@@ -12,6 +12,7 @@ export default {
   callerRole:  'civilian',
   callerItems: [],
   district:    'university',
+  place:       'good-samaritan-hospital',   // map pin once she says where she is
   trigger:     { type: 'zombie-presence', district: 'university' },
   once:        true,
 

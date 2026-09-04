@@ -13,6 +13,7 @@ export default {
   callerRole:  'civilian',
   callerItems: [],
   district:    'northside',
+  place:       'castlewood-park',           // settled 2026-09-04; easy to move
   trigger:     { type: 'zombie-presence', district: 'northside' },
   once:        true,
 

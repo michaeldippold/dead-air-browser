@@ -3,7 +3,10 @@ import marcusWebb from './scripts/marcus-webb.js'
 import danny      from './scripts/danny.js'
 import holt       from './scripts/holt.js'
 import tutorial   from './scripts/tutorial.js'
-import { DISTRICTS, loadDistricts, adjacencyFromPolygons } from './src/map/districts.js'
+import { DISTRICTS, loadDistricts, adjacencyFromPolygons, districtAt, tagEdges, danger, cold } from './src/map/districts.js'
+import { loadGraph, graph, nearestNode } from './src/map/graph.js'
+import * as mover from './src/map/mover.js'
+import { createMapRenderer } from './src/map/index.js'
 
 // ── CONFIG & CONSTANTS ──
 
@@ -15,7 +18,6 @@ const TICK_MS       = 3000
 const SPREAD_RATE   = 0.15  // SIR β — transmission coefficient, not per-zombie rate
 let spreadChance = 0.35
 const ROLES = ['police', 'fire', 'civilian']
-const UNIT_TICKS_PER_HOP   = 2  // vehicle-fast
 const PERSON_TICKS_PER_HOP = 6  // on-foot, reserved for future caller Outside-travel — unused for now
 
 // ── GAME CLOCK ──
@@ -85,7 +87,17 @@ function makePerson(name, role, items = [], opts = {}) {
 }
 
 function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
-  return { id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage', respondTimer: null }
+  return {
+    id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage', respondTimer: null,
+    // Map v3 (map-integration.md §5c): district is the sim's unit of *state*; road position is the
+    // renderer's unit of *place*. `districtId` is written only by arrival (districtAt(pos)) or a
+    // dispatch clearing it; the tick loop never reads pos/node/route/status.
+    pos: null, node: null, bearing: 0, route: null, progress: 0,
+    status: 'parked',      // renderer: 'moving' | 'patrol' | 'parked' | 'inside'
+    place: null,           // authored place id when INSIDE one
+    home: null,            // the station it started the night in
+    targetLabel: null,     // where it is driving to, for the roster
+  }
 }
 
 const makeContact = (name, districtId = null) => ({
@@ -98,6 +110,9 @@ const makeContact = (name, districtId = null) => ({
   timer:       null,
   scriptId:    null,
   personId:    null,   // set for scripted callers — links to the Person in state.people
+  placeId:     null,   // authored place the caller is at (map pin once disclosed) — map-integration.md §5f
+  disclosed:   false,  // the caller has told us where they are (flips on the first opened line)
+  lastKnownPlaceId: null,
   unitId:      null,   // set for unit contacts (type 'unit') — links to the dispatched unit
   callOwnerUnitId: null, // first unit to respond to this caller — owns the narrative resolution
   pendingNext: null,
@@ -156,7 +171,8 @@ function arriveOnCall(unit, contactId) {
   unit.activity = 'responding'
   const caller = state.contacts.find(c => c.id === contactId)
   const dest   = state.districts[unit.districtId]
-  unitReport(unit, `On scene at ${dest?.label ?? 'location'}.`)
+  const place  = unit.place ? placeById(unit.place) : null
+  unitReport(unit, `On scene at ${place?.name ?? dest?.label ?? 'location'}.`)
 
   // First unit to reach a caller owns the call's narrative resolution; any later units are backup —
   // they go RESPONDING and check in on their own thread, but don't re-fire the caller's reaction or
@@ -495,6 +511,7 @@ function spawnScript(scriptId) {
   contact.type     = 'narrative'
   contact.scriptId = scriptId
   contact.personId = person.id
+  contact.placeId  = script.place ?? null
   state.contacts.push(contact)
 
   if (scriptId === 'tutorial') {
@@ -790,6 +807,7 @@ const state = {
   selected:        null,
   selectedUnit:    null,
   selectedContact: null,
+  selectedPlace:   null,
   contacts:        [],
   people:          {},
   units:           {},
@@ -813,7 +831,14 @@ const DISTRICT_SEED = {
   hamburg:    { humans: 1100, loot: 3 },
 }
 
-await loadDistricts('/data/districts.geojson')
+const MAP_CFG = await (await fetch('/data/config.json')).json()
+await Promise.all([loadDistricts('/data/districts.geojson'), loadGraph('/data/roads.json')])
+tagEdges()
+// Authored places (map-integration.md §1 #4): baked footprints, always drawn, dispatch targets.
+// Each snaps to its nearest road node — that is where a car pulls in and where it comes back out.
+const PLACES = (await (await fetch('/data/places.json')).json()).map(p => ({ ...p, node: nearestNode(p.lonlat) }))
+const placeById = id => PLACES.find(p => p.id === id) ?? null
+
 for (const d of DISTRICTS) {
   const seed = DISTRICT_SEED[d.id] ?? { humans: 1000, loot: 2 }
   state.districts[d.id] = {
@@ -828,46 +853,52 @@ let _unitCounter = 0
 
 ;(function initStartingUnits() {
   // members: [{ role, items }, ...] — first entry is the leader
-  function spawnUnit(districtId, members) {
+  // Units start the night INSIDE their real stations (map-integration.md §1 #8).
+  function spawnUnit(placeId, members) {
+    const place   = placeById(placeId)
     const label   = `Unit ${++_unitCounter}`
     const persons = members.map(({ role, items }) => makePerson(nextPersonName(role), role, items))
-    const unit    = makeUnit(label, districtId, persons.map(p => p.id))
+    const unit    = makeUnit(label, place.district, persons.map(p => p.id))
+    unit.home = unit.place = placeId
+    unit.node = place.node
+    unit.pos  = graph.nodes[place.node]
+    unit.status = 'inside'
     persons.forEach(p => { p.unitId = unit.id; state.people[p.id] = p })
     state.units[unit.id] = unit
-    state.districts[districtId].unitIds.push(unit.id)
+    state.districts[place.district].unitIds.push(unit.id)
   }
 
   // LPD HQ (Downtown) — 2 units: 2 police + 1 embedded civilian
-  spawnUnit('downtown', [
+  spawnUnit('lexington-police-department', [
     { role: 'police',   items: ['gun']       },
     { role: 'police',   items: ['gun']       },
     { role: 'civilian', items: ['radio']     },
   ])
-  spawnUnit('downtown', [
+  spawnUnit('lexington-police-department', [
     { role: 'police',   items: ['gun']       },
     { role: 'police',   items: ['gun']       },
     { role: 'civilian', items: ['first-aid'] },
   ])
 
   // Fire Station #1 (Northside) — 2 units: 2 fire + 1 embedded civilian
-  spawnUnit('northside', [
+  spawnUnit('fire-station-#1', [
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'civilian', items: ['first-aid'] },
   ])
-  spawnUnit('northside', [
+  spawnUnit('fire-station-#1', [
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'fire',     items: ['fire-axe']  },
     { role: 'civilian', items: ['radio']     },
   ])
 
   // LFUCG Government Center (Downtown) — 2 units: 2 civilian + 1 police for protection
-  spawnUnit('downtown', [
+  spawnUnit('lexington-fayette-urban-county-governmen', [
     { role: 'civilian', items: ['first-aid', 'radio'] },
     { role: 'civilian', items: ['first-aid']          },
     { role: 'police',   items: ['gun']                },
   ])
-  spawnUnit('downtown', [
+  spawnUnit('lexington-fayette-urban-county-governmen', [
     { role: 'civilian', items: ['radio']   },
     { role: 'civilian', items: ['rations'] },
     { role: 'police',   items: ['gun']     },
@@ -877,24 +908,6 @@ let _unitCounter = 0
 // Derived from the district polygons at load (shared boundary vertices) — drives zombie
 // inter-district spread. Never hand-maintained; move a road in the bake and this follows.
 const adjacency = adjacencyFromPolygons()
-
-function computeHopDistances(graph) {
-  const dist = {}
-  for (const start of Object.keys(graph)) {
-    dist[start] = { [start]: 0 }
-    const queue = [start]
-    while (queue.length) {
-      const cur = queue.shift()
-      const d = dist[start][cur]
-      for (const next of graph[cur] || []) {
-        if (dist[start][next] === undefined) { dist[start][next] = d + 1; queue.push(next) }
-      }
-    }
-  }
-  return dist
-}
-const HOP_DISTANCE = computeHopDistances(adjacency)
-const hopsBetween = (a, b) => HOP_DISTANCE[a]?.[b] ?? 1
 
 let _transitCounter = 0
 
@@ -921,6 +934,98 @@ const udvActivity = document.getElementById('udv-activity')
 const udvItems    = document.getElementById('udv-items')
 const udvMembers  = document.getElementById('udv-members')
 const udvTarget   = document.getElementById('udv-target')
+
+// ── MAP RENDERER (Map v3) ──
+// Hooks in, not imports out: the renderer gets getters over sim state and emits intents. The sim
+// never reads a unit's position; the renderer never writes a district. `?map=2d` keeps the SVG.
+let mapRenderer = null
+if (MAP_2D) {
+  document.getElementById('map-gl').style.display = 'none'
+  document.getElementById('map-attrib').style.display = 'none'
+} else {
+  document.getElementById('map-svg-wrap').style.display = 'none'
+  mapRenderer = createMapRenderer({
+    stage: document.getElementById('map-stage'),
+    mapEl: document.getElementById('map-gl'),
+    tipEl: document.getElementById('map-tip'),
+    ctxEl: document.getElementById('map-ctx'),
+    cfg:   MAP_CFG,
+    get: {
+      units:          () => Object.values(state.units),
+      unitName:       u  => unitShortName(u),
+      unitRole:       u  => state.people[u.leaderPersonId]?.role ?? 'civilian',
+      unitStatus:     u  => unitStatusText(u),
+      places:         () => PLACES,
+      placeContacts:  id => contactsAtPlace(id),
+      selectedUnitId: () => state.selectedUnit?.unitId ?? null,
+      timeScale:      () => (gamePaused ? 0 : 20),   // 1 tick = 3 s real = 1 game minute
+      districtStatus: id => {
+        const d = state.districts[id]; if (!d) return ''
+        const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
+        return intel ? getDistrictStatus(d).label : d.category
+      },
+    },
+    on: {
+      selectUnit:     id => { if (id) showUnitDetail(id); else hideUnitDetail() },
+      dispatch:       (unitId, target) => dispatchUnit(unitId, target),
+      showPlace:      id => showPlaceDetail(placeById(id)),
+      showPoi:        poi => showPoiDetail(poi),
+      selectDistrict: id => selectDistrict(id),
+      hoverUnit:      id => unitsList.querySelectorAll('[data-unit-id]').forEach(el => el.classList.toggle('roster-hover', el.dataset.unitId === id)),
+    },
+  })
+}
+
+// Dev hook: inspect the sim from the console (never read by game code).
+window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover }
+
+// The roster strip collapses to its header so the map can breathe.
+document.getElementById('roster-strip-toggle').addEventListener('click', () => {
+  const strip = document.getElementById('roster-strip')
+  strip.classList.toggle('collapsed')
+  document.getElementById('roster-strip-caret').textContent = strip.classList.contains('collapsed') ? '▸' : '▾'
+})
+
+function unitShortName(unit) {
+  const leader = state.people[unit.leaderPersonId]
+  return leader ? leader.name.replace(/^(\w)\w+\s/, '$1. ') : unit.label
+}
+
+// One line for the roster, the tooltip and the unit card: where the unit is and what it's doing.
+function unitStatusText(unit) {
+  if (unit.status === 'moving') {
+    const t = state.transits.find(t => t.kind === 'unit' && t.refId === unit.id)
+    return `EN ROUTE → ${unit.targetLabel ?? '—'}${t ? ' (' + formatCountdown(t.etaMs) + ')' : ''}`
+  }
+  const place  = unit.place ? placeById(unit.place) : null
+  const dLabel = state.districts[unit.districtId]?.label ?? 'outside coverage'
+  if (unit.status === 'inside')         return `INSIDE · ${place?.name ?? dLabel}`
+  if (unit.activity === 'responding')   return `RESPONDING · ${dLabel}`
+  if (unit.status === 'patrol')         return `PATROL · ${dLabel}`
+  if (unit.activity === 'hide')         return `HOLDING · ${dLabel}`
+  return `${unit.activity.toUpperCase()} · ${dLabel}`
+}
+
+// Named callers who have told us they are at this place (sim people never appear — §1 #4).
+function contactsAtPlace(placeId) {
+  return state.contacts.filter(c => c.placeId === placeId && c.disclosed && c.type !== 'unit')
+}
+
+// Danger paint and the cold shroud are gated by intel exactly like the sidebar (§1 #12):
+// no radio / binoculars / god mode there, no paint. One number per district, nothing finer.
+let _paintKey = ''
+function syncMapPaint() {
+  if (!mapRenderer) return
+  let key = ''
+  for (const [id, d] of Object.entries(state.districts)) {
+    const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
+    const total = d.humans + d.zombies
+    danger[id] = intel && total > 0 ? d.zombies / total : 0
+    cold[id]   = intel && d.humans === 0
+    key += `${id}:${danger[id].toFixed(3)}:${cold[id] ? 1 : 0};`
+  }
+  if (key !== _paintKey) { _paintKey = key; mapRenderer.pushDistricts() }
+}
 const btnUdvSend  = document.getElementById('btn-udv-send')
 const btnUdvBack  = document.getElementById('btn-udv-back')
 const cdvName     = document.getElementById('cdv-name')
@@ -934,18 +1039,21 @@ const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
-const WIN_IDS = ['dispatch', 'map', 'contacts', 'radio', 'sitrep', 'items', 'alert']
-const LAYOUT_WIN_IDS = ['dispatch', 'map', 'contacts', 'radio']
+// 'dispatch' is the merged DISPATCH + MAP window (map-integration.md §5e).
+const WIN_IDS = ['dispatch', 'contacts', 'radio', 'sitrep', 'items', 'alert']
+const LAYOUT_WIN_IDS = ['dispatch', 'contacts', 'radio']
 const winState = {}
 let _topZ = 10
 
 function getDefaultLayout() {
   const desktop = document.getElementById('desktop')
   const dw = desktop.clientWidth, dh = desktop.clientHeight
-  const rw = 292, lw = 270, dw_d = 376
+  // CONTACTS left, COMMS right, DISPATCH (the map) fills everything between — most of the width
+  // on a 1080p desktop already. Closing a sidebar lets the player drag it wider; maximize gives it
+  // the whole desktop minus the taskbar. Never full-bleed: the badge wallpaper stays.
+  const rw = 292, lw = 270
   return {
-    dispatch: { x: lw + 2,           y: 0, w: dw_d,                        h: dh },
-    map:      { x: lw + dw_d + 4,    y: 0, w: dw - lw - dw_d - rw - 6,    h: dh },
+    dispatch: { x: lw + 2,            y: 0, w: dw - lw - rw - 4,             h: dh },
     contacts: { x: 0,                 y: 0, w: lw,                           h: dh },
     radio:    { x: dw - rw,           y: 0, w: rw,                           h: dh },
     sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
@@ -1115,6 +1223,7 @@ function toggleMinimize(id) {
     syncGodBtn()
     renderGodPanel()
     renderDistrictDetail()
+    syncMapPaint()
   }
   syncTaskbar()
 }
@@ -1463,6 +1572,7 @@ godBtn.addEventListener('click', () => {
   syncGodBtn()
   renderGodPanel()
   renderDistrictDetail()
+  syncMapPaint()
 })
 
 function syncGodBtn() {
@@ -1487,6 +1597,7 @@ document.getElementById('unit-dots').addEventListener('click', e => {
 })
 
 function selectDistrict(id) {
+  hidePlaceDetail()
   if (state.selected) {
     const prev = document.getElementById(state.selected)
     if (prev) prev.classList.remove('selected')
@@ -1504,6 +1615,72 @@ function selectDistrict(id) {
   mapContainer.dataset.view = 'district'
   renderDistrictDetail()
 }
+
+// ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
+// Name, kind, address, district, units inside / en route, named callers with a status line, and a
+// dispatch link for the selected unit. A free-tier POI gets the same card, minus the dispatch.
+const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
+                     school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
+function showPlaceDetail(place) {
+  if (!place) return
+  if (state.selected) { document.getElementById(state.selected)?.classList.remove('selected'); state.selected = null }
+  state.selectedPlace = place.id
+  const d       = state.districts[place.district]
+  const here    = Object.values(state.units).filter(u => u.place === place.id && u.status === 'inside')
+  const enroute = state.transits.filter(t => t.kind === 'unit' && t.placeId === place.id).map(t => state.units[t.refId]).filter(Boolean)
+  const callers = contactsAtPlace(place.id)
+  const sel     = state.selectedUnit ? state.units[state.selectedUnit.unitId] : null
+
+  document.getElementById('pdv-name').textContent = place.name
+  document.getElementById('pdv-kind').textContent = KIND_LABEL[place.kind] ?? place.kind ?? ''
+  document.getElementById('pdv-meta').innerHTML = [
+    ['ADDRESS',  place.addr ?? '—'],
+    ['DISTRICT', d?.label ?? 'outside coverage'],
+  ].map(([k, v]) => `<div class="pdv-row"><span class="pdv-k">${k}</span><span class="pdv-v">${v}</span></div>`).join('')
+  const unitRow = (u, tag) => `<div class="pdv-unit" data-unit-id="${u.id}"><span class="member-dot member-dot--${state.people[u.leaderPersonId]?.role ?? 'civilian'}"></span><span>${u.label.toUpperCase()}</span><span class="pdv-tag">${tag}</span></div>`
+  document.getElementById('pdv-units').innerHTML =
+    (here.map(u => unitRow(u, 'INSIDE')).join('') + enroute.map(u => unitRow(u, 'EN ROUTE')).join('')) || '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-callers').innerHTML = callers.length
+    ? callers.map(c => `<div class="pdv-caller" data-contact-id="${c.id}"><span class="pdv-caller-name">${c.name}</span><span class="pdv-tag">${(c.alive ? c.status : 'lost') ?? ''}</span></div>`).join('')
+    : '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-dispatch').innerHTML = sel
+    ? (sel.place === place.id ? `<div class="pdv-none">${sel.label.toUpperCase()} is here.</div>` : `<button id="pdv-go">DISPATCH ${sel.label.toUpperCase()} HERE</button>`)
+    : '<div class="pdv-none">Select a unit to dispatch here.</div>'
+  mapContainer.dataset.view = 'place'
+}
+
+function showPoiDetail(poi) {
+  if (!poi) return
+  if (state.selected) { document.getElementById(state.selected)?.classList.remove('selected'); state.selected = null }
+  state.selectedPlace = null
+  const d = districtAt(poi.lonlat)
+  document.getElementById('pdv-name').textContent = poi.name ?? '—'
+  document.getElementById('pdv-kind').textContent = poi.kind ?? ''
+  document.getElementById('pdv-meta').innerHTML =
+    `<div class="pdv-row"><span class="pdv-k">DISTRICT</span><span class="pdv-v">${d ? state.districts[d.id]?.label ?? d.label : 'outside coverage'}</span></div>`
+  document.getElementById('pdv-units').innerHTML   = '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-callers').innerHTML = '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-dispatch').innerHTML = `<div class="pdv-none">Not a dispatch location. Send a unit to ${d ? (state.districts[d.id]?.label ?? d.label) : 'a district'} instead.</div>`
+  mapContainer.dataset.view = 'place'
+}
+
+function hidePlaceDetail() {
+  if (mapContainer.dataset.view !== 'place') return
+  state.selectedPlace = null
+  delete mapContainer.dataset.view
+}
+
+document.getElementById('place-detail-panel').addEventListener('click', e => {
+  if (e.target.closest('#btn-pdv-close')) { hidePlaceDetail(); return }
+  const unitRow = e.target.closest('[data-unit-id]')
+  if (unitRow) { if (winState['dispatch']?.minimized) toggleMinimize('dispatch'); bringToFront('dispatch'); showUnitDetail(unitRow.dataset.unitId); return }
+  const callerRow = e.target.closest('[data-contact-id]')
+  if (callerRow) { if (winState['contacts']?.minimized) toggleMinimize('contacts'); bringToFront('contacts'); showContactDetail(callerRow.dataset.contactId); return }
+  if (e.target.closest('#pdv-go') && state.selectedUnit && state.selectedPlace) {
+    dispatchUnit(state.selectedUnit.unitId, { placeId: state.selectedPlace })
+    showPlaceDetail(placeById(state.selectedPlace))
+  }
+})
 
 function getDistrictStatus(d) {
   const total = d.humans + d.zombies
@@ -1588,10 +1765,12 @@ unitsList.addEventListener('mouseover', e => {
   document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
   const poly = document.getElementById(card.dataset.districtId)
   if (poly) poly.classList.add('roster-hover')
+  mapRenderer?.hoverUnitById?.(card.dataset.unitId)
 })
 
 unitsList.addEventListener('mouseleave', () => {
   document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
+  mapRenderer?.hoverUnitById?.(null)
 })
 
 function showUnitDetail(unitId) {
@@ -1600,6 +1779,8 @@ function showUnitDetail(unitId) {
   state.selectedUnit = { unitId, districtId: unit.districtId }
   renderUnitDetail(unit)
   setUnitsView('unit-detail')
+  mapRenderer?.setSelected(unitId)
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
 function renderUnitDetail(unit) {
@@ -1608,14 +1789,7 @@ function renderUnitDetail(unit) {
   const leader  = state.people[unit.leaderPersonId]
 
   udvType.textContent = unit.label
-  if (!unit.districtId) {
-    const t = state.transits.find(t => t.kind === 'unit' && t.refId === unit.id)
-    const destLabel = state.districts[t?.destId]?.label ?? '—'
-    const countdown = t ? formatCountdown(t.etaMs) : '0:00'
-    udvLocation.textContent = `EN ROUTE → ${destLabel} (${countdown})`
-  } else {
-    udvLocation.textContent = d?.label ?? '—'
-  }
+  udvLocation.textContent = unitStatusText(unit)
 
   udvActivity.innerHTML = unit.activity === 'responding'
     ? `<div class="udv-responding">RESPONDING — on a call</div>`
@@ -1654,6 +1828,8 @@ function renderUnitDetail(unit) {
 function hideUnitDetail() {
   state.selectedUnit = null
   setUnitsView(null)
+  mapRenderer?.setSelected(null)
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
 function renderContactMeta(contact) {
@@ -1713,12 +1889,25 @@ function showContactDetail(contactId) {
     const poly = document.getElementById(contact.location)
     if (poly) poly.classList.add('contact-district')
   }
+  // Caller pins appear on disclosure (§1 #14): opening the thread is when they tell us where they
+  // are, so the first open flips it. Selecting a contact lights their footprint and flies to it.
+  if (contact.placeId && contact.alive) {
+    const first = !contact.disclosed
+    contact.disclosed = true
+    const place = placeById(contact.placeId)
+    if (place && mapRenderer) {
+      if (first) mapRenderer.pushPlaces()
+      mapRenderer.litPlace(place.id)
+      mapRenderer.flyTo(place.lonlat, 15.2)
+    }
+  }
 }
 
 function hideContactDetail() {
   state.selectedContact = null
   setContactsView(null)
   _clearContactDistrictPulse()
+  mapRenderer?.litPlace(null)
 }
 
 // The game's core verb, surfaced inside the open call thread: pick an available unit and send it
@@ -1955,7 +2144,7 @@ document.getElementById('cdv-dispatch').addEventListener('click', e => {
   const sel     = document.getElementById('cdv-dispatch-select')
   const contact = state.contacts.find(c => c.id === state.selectedContact)
   if (!sel || !contact || !contact.location) return
-  dispatchUnit(sel.value, contact.location, { contactId: contact.id })
+  dispatchUnit(sel.value, contact.location, { contactId: contact.id })   // routed to their place if disclosed
   renderDispatchControl(contact)
 })
 
@@ -1980,45 +2169,78 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   renderContactsPanel()
 })
 
-function dispatchUnit(unitId, destId, opts = {}) {
-  const unit = state.units[unitId]
-  const dest = state.districts[destId]
-  if (!unit || !dest) return
-  const { contactId = null } = opts
+// The only two dispatch targets (map-integration.md §1 #5): a district (with an activity) or an
+// authored place. `target` is a district id string (legacy callers), { districtId, activity? } or
+// { placeId }. Bare map never dispatches.
+function normalizeTarget(target) {
+  if (typeof target === 'string') return { districtId: target, placeId: null, activity: null }
+  if (target?.placeId) { const p = placeById(target.placeId); return p ? { districtId: p.district, placeId: p.id, activity: null } : null }
+  if (target?.districtId) return { districtId: target.districtId, placeId: null, activity: target.activity ?? null }
+  return null
+}
 
-  // Same-district caller response — no travel, respond in place. (A plain same-district tactical
-  // dispatch is still a no-op, as before.)
-  if (unit.districtId === destId) {
+function dispatchUnit(unitId, target, opts = {}) {
+  const unit = state.units[unitId]
+  const { contactId = null } = opts
+  // A caller who has disclosed a place is met *there*, inside (§1 #8) — that is the arrival hook.
+  if (contactId) {
+    const c = state.contacts.find(c => c.id === contactId)
+    if (c?.placeId && c.disclosed) target = { placeId: c.placeId }
+  }
+  const tgt  = normalizeTarget(target)
+  const dest = tgt && state.districts[tgt.districtId]
+  if (!unit || !tgt || !dest) return
+  const place     = tgt.placeId ? placeById(tgt.placeId) : null
+  const destLabel = place ? place.name : dest.label
+
+  // Already there: the same place, or the same district while not holed up inside a place. A
+  // caller response resolves in place; a tactical re-dispatch only changes the activity.
+  const alreadyThere = place ? unit.place === place.id : (unit.districtId === tgt.districtId && !unit.place)
+  if (alreadyThere) {
     if (contactId) {
       unitReport(unit, `Dispatch, we're already on location — moving to assist.`)
       arriveOnCall(unit, contactId)
-      renderUnitsPanel()
-      renderUnitDots()
+    } else if (tgt.activity && unit.activity !== 'responding') {
+      unit.activity = tgt.activity
     }
+    renderUnitsPanel()
+    renderUnitDots()
     return
   }
+  if (!unit.pos) return
+
+  const district = DISTRICTS.find(d => d.id === tgt.districtId)
+  const plan = mover.planTransit(unit, place ? { place } : { district })
+  if (!plan) { unitReport(unit, `Dispatch, no route to ${destLabel} from here.`); return }
 
   const srcId = unit.districtId
   const src   = state.districts[srcId]
-  if (!src) return
-
-  src.unitIds = src.unitIds.filter(id => id !== unitId)
-  unit.districtId = null
+  if (src) src.unitIds = src.unitIds.filter(id => id !== unitId)
+  unit.districtId  = null   // in transit a unit belongs to no district (§1 #9)
+  unit.place       = null
+  unit.targetLabel = destLabel
+  if (tgt.activity && unit.activity !== 'responding') unit.activity = tgt.activity
   if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = null
 
-  const ticks = hopsBetween(srcId, destId) * UNIT_TICKS_PER_HOP
+  // Travel time is derived from the route (§1 #10): drive time at lights-and-sirens speed over
+  // real roads, slowed through dangerous districts. Arrival stays tick-driven (deterministic for
+  // scripts); the car is paced to land on the tick, never before it.
+  const ticks = Math.max(1, Math.ceil(plan.seconds / (60 * MINS_PER_TICK)))
+  mover.pace(unit, ticks * 60 * MINS_PER_TICK)
   state.transits.push({
     id: `t${++_transitCounter}`, kind: 'unit', refId: unitId,
-    srcId, destId, ticksRemaining: ticks, totalTicks: ticks,
+    srcId, destId: tgt.districtId, placeId: place?.id ?? null,
+    ticksRemaining: ticks, totalTicks: ticks,
     etaMs: Date.now() + ticks * TICK_MS,
     respondContactId: contactId,   // set => caller dispatch: arrive into RESPONDING + fire arrival
   })
 
-  director.emit('unit-departs', { unitId, srcId, destId })
-  unitReport(unit, `10-4 dispatch, en route to ${dest.label}.`)
+  director.emit('unit-departs', { unitId, srcId, destId: tgt.districtId })
+  unitReport(unit, `10-4 dispatch, en route to ${destLabel}.`)
   renderUnitsPanel()
   renderUnitDots()
   renderTravelingPanel()
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
 function resolveTransits() {
@@ -2031,14 +2253,23 @@ function resolveTransits() {
       const unit = state.units[t.refId]
       const dest = state.districts[t.destId]
       if (unit && dest) {
-        unit.districtId = t.destId
-        dest.unitIds.push(t.refId)
-        if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = t.destId
-        director.emit('unit-enters', { unitId: t.refId, destId: t.destId, srcId: t.srcId })
+        // Arrival (§1 #7–8): snap to the road node; the district is derived from the position (a
+        // place's district from the bake). At a place the unit goes INSIDE; at a district it parks,
+        // and the renderer starts patrol laps from there when the activity is ENGAGE.
+        mover.arrive(unit)
+        const place = t.placeId ? placeById(t.placeId) : null
+        unit.districtId = place ? place.district : (districtAt(unit.pos)?.id ?? t.destId)
+        unit.place      = place?.id ?? null
+        unit.targetLabel = null
+        if (place) mover.goInside(unit); else mover.park(unit)
+        const d = state.districts[unit.districtId] ?? dest
+        d.unitIds.push(t.refId)
+        if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = unit.districtId
+        director.emit('unit-enters', { unitId: t.refId, destId: unit.districtId, srcId: t.srcId, placeId: unit.place })
         if (t.respondContactId) {
           arriveOnCall(unit, t.respondContactId)
         } else {
-          unitReport(unit, `On scene at ${dest.label}.`)
+          unitReport(unit, `On scene at ${place?.name ?? d.label}.`)
         }
       }
     } else if (t.kind === 'person') {
@@ -2053,6 +2284,7 @@ function resolveTransits() {
   renderUnitsPanel()
   renderUnitDots()
   renderTravelingPanel()
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]
     if (unit) renderUnitDetail(unit)
@@ -2321,6 +2553,7 @@ function render() {
   renderContactsPanel()
   renderGodPanel()
   renderRadio()
+  syncMapPaint()
 
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
     const { unitId } = state.selectedUnit
@@ -2416,6 +2649,7 @@ function renderUnitCard(unit, layout) {
 }
 
 function renderUnitDots() {
+  if (mapRenderer) { mapRenderer.refresh(); return }   // Map v3: cars, badges, routes
   const dotsGroup = document.getElementById('unit-dots')
   if (!dotsGroup) return
   dotsGroup.innerHTML = ''

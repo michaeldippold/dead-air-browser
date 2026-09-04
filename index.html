@@ -81,10 +81,6 @@
         <span class="desktop-icon-glyph" style="mask-image:url('/images/dispatch.svg'); -webkit-mask-image:url('/images/dispatch.svg');"></span>
         <span class="desktop-icon-label">DISPATCH</span>
       </button>
-      <button class="desktop-icon" data-win="map">
-        <span class="desktop-icon-glyph" style="mask-image:url('/images/map.svg'); -webkit-mask-image:url('/images/map.svg');"></span>
-        <span class="desktop-icon-label">MAP</span>
-      </button>
       <button class="desktop-icon" data-win="radio">
         <span class="desktop-icon-glyph" style="mask-image:url('/images/comms.svg'); -webkit-mask-image:url('/images/comms.svg');"></span>
         <span class="desktop-icon-label">COMMS</span>
@@ -95,55 +91,18 @@
       </button>
     </div>
 
-    <!-- Window: Dispatch Roster -->
+    <!-- Window: DISPATCH — the map with the unit roster over it (map-integration.md §1 #18, §5e).
+         Windowed, never full-bleed: one more .win the window manager drags, resizes, maximizes. -->
     <div class="win" id="win-dispatch">
       <div class="win-titlebar">
         <span class="win-title">DISPATCH</span>
         <div class="win-controls"></div>
       </div>
-      <div class="win-body" id="dispatch-container">
-        <div id="units-panel" data-card-layout="cards">
-          <div id="units-view">
-            <div id="units-list"></div>
-          </div>
-          <div id="item-description-view">
-            <button id="btn-idv-back">← BACK</button>
-            <div id="idv-name"></div>
-            <div id="idv-description"></div>
-          </div>
-          <div id="unit-detail-view">
-            <button id="btn-udv-back">← BACK</button>
-            <div id="udv-header">
-              <div id="udv-type"></div>
-              <div id="udv-location"></div>
-            </div>
-            <div class="udv-section-header">LOCATION</div>
-            <div id="udv-dispatch">
-              <select id="udv-target" class="game-select"></select>
-              <button id="btn-udv-send">DISPATCH</button>
-            </div>
-            <div class="udv-section-header">CURRENTLY DOING</div>
-            <div id="udv-activity"></div>
-            <div class="udv-section-header">ROSTER</div>
-            <div id="udv-members"></div>
-            <div class="udv-section-header">ITEMS</div>
-            <div id="udv-items"></div>
-          </div>
-        </div>
-        <select id="dispatch-layout-select" class="game-select">
-          <option value="cards">Cards</option>
-          <option value="badges">Badges</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Window: Map -->
-    <div class="win" id="win-map">
-      <div class="win-titlebar">
-        <span class="win-title">MAP</span>
-        <div class="win-controls"></div>
-      </div>
       <div class="win-body" id="map-container">
+
+        <div id="map-stage">
+        <!-- Map v3: MapLibre renders into #map-gl (src/map/). The SVG below is the ?map=2d fallback. -->
+        <div id="map-gl"></div>
 
         <!-- Map SVG -->
         <div id="map-svg-wrap">
@@ -205,8 +164,70 @@
 
           </svg>
 
-          <div id="traveling-panel" style="display:none;"></div>
         </div><!-- #map-svg-wrap -->
+
+          <!-- Unit roster: a collapsible strip over the map. Roster hover ↔ map hover, click → detail. -->
+          <div id="roster-strip">
+            <div id="roster-strip-header">
+              <button id="roster-strip-toggle" title="Collapse / expand"><span class="roster-strip-title">UNITS</span><span id="roster-strip-caret">▾</span></button>
+              <select id="dispatch-layout-select" class="game-select">
+                <option value="cards">Cards</option>
+                <option value="badges">Badges</option>
+              </select>
+            </div>
+            <div id="units-panel" data-card-layout="cards">
+              <div id="units-view">
+                <div id="units-list"></div>
+              </div>
+              <div id="item-description-view">
+                <button id="btn-idv-back">← BACK</button>
+                <div id="idv-name"></div>
+                <div id="idv-description"></div>
+              </div>
+              <div id="unit-detail-view">
+                <button id="btn-udv-back">← BACK</button>
+                <div id="udv-header">
+                  <div id="udv-type"></div>
+                  <div id="udv-location"></div>
+                </div>
+                <div class="udv-section-header">LOCATION</div>
+                <div id="udv-dispatch">
+                  <select id="udv-target" class="game-select"></select>
+                  <button id="btn-udv-send">DISPATCH</button>
+                </div>
+                <div class="udv-section-header">CURRENTLY DOING</div>
+                <div id="udv-activity"></div>
+                <div class="udv-section-header">ROSTER</div>
+                <div id="udv-members"></div>
+                <div class="udv-section-header">ITEMS</div>
+                <div id="udv-items"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="traveling-panel" style="display:none;"></div>
+          <div id="map-tip" hidden></div>
+          <div id="map-ctx" hidden></div>
+          <div id="map-attrib">© OpenStreetMap contributors · Protomaps</div>
+        </div><!-- #map-stage -->
+
+        <!-- Place card: an authored place or a free-tier POI (map-integration.md §5e) -->
+        <div id="place-detail-panel">
+          <div class="ddv-section ddv-section--title">
+            <div class="pdv-title-row"><div id="pdv-name"></div><button id="btn-pdv-close" class="win-btn" title="Close">×</button></div>
+            <div id="pdv-kind"></div>
+          </div>
+          <div class="ddv-section"><div id="pdv-meta"></div></div>
+          <div class="ddv-section">
+            <div class="udv-section-header">UNITS</div>
+            <div id="pdv-units"></div>
+          </div>
+          <div class="ddv-section">
+            <div class="udv-section-header">CALLERS</div>
+            <div id="pdv-callers"></div>
+          </div>
+          <div class="ddv-section"><div id="pdv-dispatch"></div></div>
+        </div>
 
         <!-- District detail sidebar -->
         <div id="district-detail-panel">
@@ -398,10 +419,6 @@
     <button class="task-btn" data-win="dispatch">
       <span class="task-btn-glyph" style="mask-image:url('/images/dispatch.svg'); -webkit-mask-image:url('/images/dispatch.svg');"></span>
       DISPATCH
-    </button>
-    <button class="task-btn" data-win="map">
-      <span class="task-btn-glyph" style="mask-image:url('/images/map.svg'); -webkit-mask-image:url('/images/map.svg');"></span>
-      MAP
     </button>
     <button class="task-btn" data-win="radio">
       <span class="task-btn-glyph" style="mask-image:url('/images/comms.svg'); -webkit-mask-image:url('/images/comms.svg');"></span>

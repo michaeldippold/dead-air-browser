@@ -528,11 +528,158 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   background: var(--map-panel-bg);
 }
 
-#dispatch-container {
+/* Roster strip over the map (map-integration.md §5e) */
+#roster-strip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 8;
+  width: 352px;
+  max-height: calc(100% - 20px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(3px);
 }
+#roster-strip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#roster-strip.collapsed #roster-strip-header { border-bottom: none; }
+#roster-strip-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  padding: 2px 0;
+}
+#roster-strip-toggle:hover { color: var(--accent); }
+#roster-strip.collapsed #units-panel,
+#roster-strip.collapsed #dispatch-layout-select { display: none; }
+#roster-strip.collapsed { width: auto; }
+
+/* ── Map v3 stage (MapLibre) ── */
+#map-stage {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+#map-gl {
+  position: absolute;
+  inset: 0;
+  background: #06101f;
+}
+#map-gl .maplibregl-ctrl-attrib { display: none; }
+#map-gl canvas:focus { outline: none; }
+#map-attrib {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 5;
+  font-size: 10px;
+  color: #7d95bf;
+  pointer-events: none;
+  text-shadow: 0 0 3px #06101f;
+}
+#map-tip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+#map-tip .dim { color: var(--text-dimmer); }
+#map-ctx {
+  position: absolute;
+  z-index: 30;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border-active);
+  color: var(--text);
+  padding: 4px 0;
+  font-size: 12px;
+}
+.ctx-title {
+  padding: 4px 10px 6px;
+  color: var(--text-dimmer);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.ctx-item { padding: 5px 10px; cursor: pointer; }
+.ctx-item:hover { background: var(--btn-bg-hover); color: var(--accent); }
+.ctx-item.disabled { color: var(--text-dimmer); cursor: default; opacity: 0.6; }
+.ctx-item.disabled:hover { background: none; color: var(--text-dimmer); }
+
+/* Roster ↔ map hover */
+.roster-card.roster-hover { border-color: var(--accent); }
+
+/* Place card (right side, same shell as the district card) */
+#place-detail-panel {
+  width: 215px;
+  flex-shrink: 0;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 12px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+#map-container[data-view="place"] #place-detail-panel { display: flex; }
+.pdv-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+#pdv-name {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+#pdv-kind { font-size: 12px; letter-spacing: 1px; color: var(--text-dimmer); text-transform: uppercase; }
+.pdv-row { display: flex; flex-direction: column; gap: 1px; font-size: 12px; margin-bottom: 6px; }
+.pdv-k { font-size: 10px; letter-spacing: 0.08em; color: var(--text-dimmer); }
+.pdv-v { color: var(--text); }
+.pdv-unit, .pdv-caller {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; padding: 3px 4px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.pdv-unit:hover, .pdv-caller:hover { border-color: var(--border-active); background: var(--btn-bg-hover); }
+.pdv-caller-name { flex: 1; }
+.pdv-unit > span:nth-child(2) { flex: 1; }
+.pdv-tag { font-size: 10px; letter-spacing: 0.06em; color: var(--text-dimmer); text-transform: uppercase; }
+.pdv-none { font-size: 11px; color: var(--text-dimmer); }
+#pdv-go {
+  width: 100%;
+  padding: 8px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  background: var(--btn-bg);
+  color: var(--btn-color);
+  border: 1px solid var(--btn-border);
+  cursor: pointer;
+}
+#pdv-go:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
 
 /* Map SVG area */
 #map-svg-wrap {
@@ -684,10 +831,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #map-palette-select { display: none; }
 
 #dispatch-layout-select {
-  position: absolute;
-  bottom: 12px;
-  right: 14px;
-  z-index: 2;
+  font-size: 10px;
+  padding: 1px 4px;
 }
 
 #units-panel[data-view="unit-detail"] ~ #dispatch-layout-select,
@@ -706,7 +851,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex: 1;
   min-height: 0;
   width: 100%;
-  background: var(--bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -924,7 +1068,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   flex-direction: column;
   gap: 15px;
   padding: 14px 12px 12px;
-  height: 100%;
+  min-height: 0;
   overflow-y: auto;
 }
 
