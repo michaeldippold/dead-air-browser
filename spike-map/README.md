@@ -20,7 +20,7 @@ Those are the only two targets; bare map deselects. Right-click anything for a c
 (unit: select / follow / return to station; district: ENGAGE or HIDE; place: dispatch / show).
 Middle-mouse drag rotates and pitches (right-drag is given to the menus). Hover a district with
 a unit selected for its ETA; hover any named place for its name; click a ◆ place for its card.
-Keys: `o` overview, `f` follow selected unit, `p` cycle danger paint (shroud / streets / both),
+Keys: `o` overview, `f` follow selected unit, `b` strong/subtle district boundaries, `p` cycle danger paint (shroud / streets / both),
 `1`/`2`/`3` time scale 1×/6×/20×. The DANGER panel is a dev slider: it paints the district's streets red and bends routes
 around it; the `cold` checkbox is "no humans left" and drops the dark shroud.
 

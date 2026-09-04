@@ -11,6 +11,7 @@ Run from spike-map/:  python bake/districts.py
 import json, os, heapq, math, itertools
 from collections import defaultdict
 from shapely.geometry import Polygon, Point
+from shapely.ops import unary_union
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -166,6 +167,22 @@ print("building districts")
 for d in DISTRICTS:
     ring, poly = build(d)
     polys[d["id"]] = poly
+
+# Holes: two neighbouring loops can pick different roads for what should be one shared edge,
+# leaving a block group that belongs to nobody. Fold each fully-enclosed hole into the
+# district it shares the most boundary with.
+merged = unary_union(list(polys.values()))
+for g in (merged.geoms if merged.geom_type == "MultiPolygon" else [merged]):
+    for interior in g.interiors:
+        hole = Polygon(interior)
+        best = max(polys, key=lambda k: polys[k].exterior.intersection(hole.exterior.buffer(3e-5)).length)
+        polys[best] = polys[best].union(hole).buffer(0)
+        if polys[best].geom_type == "MultiPolygon": polys[best] = max(polys[best].geoms, key=lambda p: p.area)
+        km2 = Polygon([(x * KLON, y * KLAT) for x, y in hole.exterior.coords]).area / 1e6
+        print(f"  hole of {km2:.2f} km2 folded into {best}")
+
+for d in DISTRICTS:
+    ring = [[round(x, 6), round(y, 6)] for x, y in polys[d["id"]].exterior.coords]
     features.append({"type": "Feature", "id": d["id"],
                      "properties": {"id": d["id"], "label": d["label"], "category": d["category"]},
                      "geometry": {"type": "Polygon", "coordinates": [ring]}})

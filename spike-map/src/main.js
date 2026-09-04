@@ -110,6 +110,21 @@ function placeIcon(color) {
   return g.getImageData(0, 0, s, s)
 }
 
+// Occupancy badge: a role-colored dot with a chunky white digit outlined in black, so it reads
+// on any background. One per unit TYPE inside a place, in a row to the right of the diamond.
+function badgeIcon(color, n) {
+  const s = 34, c = document.createElement('canvas'); c.width = c.height = s
+  const g = c.getContext('2d'); g.translate(s / 2, s / 2)
+  g.fillStyle = '#06101f'; g.beginPath(); g.arc(0, 0, 16, 0, Math.PI * 2); g.fill()
+  g.fillStyle = color; g.beginPath(); g.arc(0, 0, 14, 0, Math.PI * 2); g.fill()
+  g.font = 'bold 19px "IBM Plex Mono", "Cascadia Mono", Consolas, monospace'
+  g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.lineJoin = 'round'; g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText(String(n), 0, 1)
+  g.fillStyle = '#fff'; g.fillText(String(n), 0, 1)
+  return g.getImageData(0, 0, s, s)
+}
+const ROLE_ORDER = ['police', 'fire', 'civilian']
+
 // ---------- Places (authored tier, stood in by the baked POIs) ----------
 const KIND_COLOR = { hospital: '#e07a9a', police: '#4ea3ff', fire: '#ff5a4e', venue: '#ffd24a', retail: '#e0b25a', park: '#6fcf8a',
                      school: '#b39ddb', campus: '#b39ddb', civic: '#9fb6e0', industrial: '#a0a8b8', landmark: '#e8e2c9' }
@@ -265,9 +280,12 @@ function heatFC() {
 function placesFC() {
   return { type: 'FeatureCollection', features: places.map(p => {
     const inside = units.filter(u => isInside(u) && u.place === p)
+    const badges = {}
+    let slot = 0
+    for (const r of ROLE_ORDER) { const n = inside.filter(u => u.role === r).length; if (n) badges['badge' + slot++] = `badge-${r}-${Math.min(n, 9)}` }
     return {
     type: 'Feature', id: p.id, properties: { id: p.id, name: p.name, kind: p.kind, icon: 'place-' + p.kind, color: KIND_COLOR[p.kind] ?? '#e8e2c9', contacts: p.contacts.length,
-      inside: inside.length, occColor: inside.length ? ROLE_COLOR[inside[0].role] : '#000' },
+      inside: inside.length, ...badges },
     geometry: { type: 'Point', coordinates: p.lonlat } } }) }
 }
 function pushPlaces() { map.getSource('places')?.setData(placesFC()) }
@@ -296,6 +314,7 @@ map.on('load', async () => {
   console.log('[spike] graph', graph.ids.length, 'nodes', graph.edges.length, 'edges')
   for (const [k, c] of Object.entries(ROLE_COLOR)) map.addImage('car-' + k, carIcon(c))
   for (const [k, c] of Object.entries(KIND_COLOR)) map.addImage('place-' + k, placeIcon(c))
+  for (const r of ROLE_ORDER) for (let n = 1; n <= 9; n++) map.addImage(`badge-${r}-${n}`, badgeIcon(ROLE_COLOR[r], n))
 
   // Districts: tint under buildings, boundary line, label. Danger draws a shroud ABOVE the
   // buildings: in the pitched view the extrusions poke up through it, so rooftops stay lit
@@ -369,16 +388,13 @@ map.on('load', async () => {
     'text-opacity': ['interpolate', ['linear'], ['zoom'], 12.6, 0, 13.2, 0.95],
     'icon-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0.9],
   } })
-  // 5. Occupancy badge: units that arrive at a place go INSIDE. The car disappears and the
-  // place wears a count in the unit's color, top-right of the diamond.
-  map.addLayer({ id: 'place-occ', type: 'circle', source: 'places', filter: ['>', ['get', 'inside'], 0], paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 7, 16, 9], 'circle-color': ['get', 'occColor'],
-    'circle-stroke-color': '#06101f', 'circle-stroke-width': 1.5,
-    'circle-translate': ['interpolate', ['linear'], ['zoom'], 12, ['literal', [10, -10]], 16, ['literal', [16, -16]]] } })
-  map.addLayer({ id: 'place-occ-text', type: 'symbol', source: 'places', filter: ['>', ['get', 'inside'], 0], layout: {
-    'text-field': ['to-string', ['get', 'inside']], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true,
-    'text-offset': ['interpolate', ['linear'], ['zoom'], 12, ['literal', [1.0, -1.0]], 16, ['literal', [1.6, -1.6]]],
-  }, paint: { 'text-color': '#06101f' } })
+  // Occupancy badges: units that arrive at a place go INSIDE. The car disappears and the place
+  // wears one dot per unit type, in a row flowing right from the diamond, vertically centred.
+  // Three slot layers; each place fills slots in police / fire / civilian order.
+  ;[0, 1, 2].forEach(slot => map.addLayer({ id: 'place-badge-' + slot, type: 'symbol', source: 'places', filter: ['has', 'badge' + slot], layout: {
+    'icon-image': ['get', 'badge' + slot], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 1.35],
+    'icon-offset': [34 + slot * 30, 0], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+  } }))
 
   // Routes and units.
   map.addSource('routes', { type: 'geojson', data: emptyFC(), promoteId: 'id' })
@@ -409,7 +425,7 @@ map.on('load', async () => {
   makeUnit('u4', 'fire', 'Martinez', fs5)
 
   Object.assign(window.spike, { units, places, select, dispatch, DISTRICTS, entryNode })
-  renderRoster(); renderDanger(); applyPaintMode()
+  renderRoster(); renderDanger(); applyPaintMode(); applyBoundary()
   map.getSource('units').setData(unitsFC())
   pushPlaces()
   requestAnimationFrame(loop)
@@ -619,13 +635,16 @@ function renderDanger() {
   document.getElementById('boundary-toggle').onclick = toggleBoundary
 }
 function cyclePaint() { paintMode = { shroud: 'streets', streets: 'both', both: 'shroud' }[paintMode]; applyPaintMode() }
-let boundaryBoost = false
+let boundaryBoost = true   // the owner preferred the strong look as the default; 'b' is the off switch
 function toggleBoundary() {
   boundaryBoost = !boundaryBoost
+  applyBoundary()
+  setHint(`district boundaries: ${boundaryBoost ? 'strong' : 'subtle'}`)
+}
+function applyBoundary() {
   map.setPaintProperty('district-fill', 'fill-opacity', ['+', boundaryBoost ? 0.2 : 0.09, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]])
   map.setPaintProperty('district-glow', 'line-opacity', boundaryBoost ? 0.3 : 0.14)
   map.setPaintProperty('district-line', 'line-width', ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 3.5, boundaryBoost ? 3.2 : 2.2], ['get', 'danger']])
-  setHint(`district boundaries: ${boundaryBoost ? 'strong' : 'normal'}`)
 }
 function overview() { stopFollow(); map.flyTo({ center: cfg.center, zoom: 13.4, pitch: 52, bearing: -12, duration: 1200 }) }
 
