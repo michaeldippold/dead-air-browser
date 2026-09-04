@@ -17,7 +17,7 @@ export async function loadDistricts(url = '/data/districts.geojson') {
 }
 
 export const CATEGORY_COLOR = {
-  residential: '#4f7ac9', government: '#6f63c7', medical: '#c95c7d', retail: '#c9a04f', industrial: '#8a8f9a',
+  residential: '#7fd6ff', government: '#b9a3ff', medical: '#ff8fb0', retail: '#ffcf5a', industrial: '#c9d2dc',
 }
 
 // Live per-district danger 0..1 (dev slider in the spike; district ratio in the game).

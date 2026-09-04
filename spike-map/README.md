@@ -15,7 +15,7 @@ Also registered in `.claude/launch.json` as `spike-map`.
 
 Controls: click a unit (map or roster) to select it; click it again or press `Esc` to
 deselect. With a unit selected, left-click a **district** to dispatch it there (it arrives at
-the near edge, then patrols routed laps through the interior) or a **◆ place** to park it there.
+the near edge, then patrols routed laps through the interior) or a **◆ place** to send it inside (the car disappears; the diamond wears a count badge).
 Those are the only two targets; bare map deselects. Right-click anything for a context menu
 (unit: select / follow / return to station; district: ENGAGE or HIDE; place: dispatch / show).
 Middle-mouse drag rotates and pitches (right-drag is given to the menus). Hover a district with

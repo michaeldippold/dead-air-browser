@@ -496,7 +496,12 @@ district is derived by point-in-polygon. The sim reads the district; the map rea
   six cars working a neighborhood. The sim is indifferent to all of it.
 - **Units spawn at real stations** — LPD headquarters, Fire Station No. 1 — not at a district's
   center.
-- **A unit dispatched to a named location parks on its footprint** rather than patrolling.
+- **A unit dispatched to a named location goes *inside*.** The car disappears from the map and
+  the place's glyph wears a count badge in the unit's color. A visible car stopped at the curb
+  reads as "they parked outside," and the story beats we want at a place — meeting survivors,
+  clearing a building — happen inside it. Units start the night inside their stations the same
+  way. Re-dispatching brings the car back out at the place's entrance. This is where the
+  arriving-at-a-place script hook fires.
 
 ### Districts are drawn to fit the city, not the other way round
 

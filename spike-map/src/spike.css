@@ -68,6 +68,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 .link:hover { color: var(--accent); }
 .row .status.moving { color: var(--accent); }
 .row .status.patrol { color: #7fd48a; }
+.row .status.inside { color: #9fb6e0; }
 
 #ctx {
   position: absolute; background: var(--panel); border: 1px solid var(--line); min-width: 220px;

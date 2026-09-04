@@ -127,7 +127,7 @@ let paintMode = 'streets'   // 'shroud' | 'streets' | 'both'
 function makeUnit(id, role, name, place) {
   const node = nearestNode(place.lonlat)
   const u = { id, role, name, node, pos: graph.nodes[node], bearing: 0, route: null, progress: 0,
-              status: 'parked', district: null, target: null, place, home: place }
+              status: 'inside', district: null, target: null, place, home: place }
   u.district = districtAt(u.pos)?.id ?? null
   units.push(u); return u
 }
@@ -188,6 +188,7 @@ function dispatch(u, target) {
   u.target = { node: toNode, district: target.district ?? null, place: target.place ?? null, activity: target.activity ?? 'engage' }
   u.district = null; u.place = null   // in transit: belongs to no district, sits at no place
   u.eta = r.seconds
+  pushPlaces()
   setHint(`${u.name} → ${label}: ${(u.route.length / 1000).toFixed(1)} km, ${fmt(r.seconds)} at road speed`)
   renderRoster(); pushRoutes()
 }
@@ -211,7 +212,7 @@ function arrive(u) {
   u.pos = graph.nodes[u.node]
   u.district = districtAt(u.pos)?.id ?? null
   u.route = null
-  if (t?.place) { u.status = 'parked'; u.place = t.place; u.target = null }
+  if (t?.place) { u.status = 'inside'; u.place = t.place; u.target = null; pushPlaces() }
   else if (t?.district && t.activity === 'engage') { u.status = 'patrol'; startPatrolLeg(u, t.district) }
   else { u.status = 'parked'; u.target = null }
   renderRoster(); pushRoutes()
@@ -238,8 +239,9 @@ function remainingSeconds(u) {
 
 // ---------- Map data plumbing ----------
 const emptyFC = () => ({ type: 'FeatureCollection', features: [] })
+const isInside = u => u.status === 'inside'
 function unitsFC() {
-  return { type: 'FeatureCollection', features: units.map(u => ({
+  return { type: 'FeatureCollection', features: units.filter(u => !isInside(u)).map(u => ({
     type: 'Feature', id: u.id, properties: { id: u.id, icon: 'car-' + u.role, bearing: u.bearing, status: u.status, name: u.name },
     geometry: { type: 'Point', coordinates: u.pos } })) }
 }
@@ -261,10 +263,14 @@ function heatFC() {
   }) }
 }
 function placesFC() {
-  return { type: 'FeatureCollection', features: places.map(p => ({
-    type: 'Feature', id: p.id, properties: { id: p.id, name: p.name, kind: p.kind, icon: 'place-' + p.kind, color: KIND_COLOR[p.kind] ?? '#e8e2c9', contacts: p.contacts.length },
-    geometry: { type: 'Point', coordinates: p.lonlat } })) }
+  return { type: 'FeatureCollection', features: places.map(p => {
+    const inside = units.filter(u => isInside(u) && u.place === p)
+    return {
+    type: 'Feature', id: p.id, properties: { id: p.id, name: p.name, kind: p.kind, icon: 'place-' + p.kind, color: KIND_COLOR[p.kind] ?? '#e8e2c9', contacts: p.contacts.length,
+      inside: inside.length, occColor: inside.length ? ROLE_COLOR[inside[0].role] : '#000' },
+    geometry: { type: 'Point', coordinates: p.lonlat } } }) }
 }
+function pushPlaces() { map.getSource('places')?.setData(placesFC()) }
 function pushRoutes() { map.getSource('routes')?.setData(routesFC()) }
 function pushDistricts() {
   map.getSource('districts')?.setData(districtsGeoJSON())
@@ -297,7 +303,7 @@ map.on('load', async () => {
   map.addSource('districts', { type: 'geojson', data: districtsGeoJSON(), promoteId: 'id' })
   map.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
     'fill-color': ['get', 'color'],
-    'fill-opacity': ['+', 0.06, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]],
+    'fill-opacity': ['+', 0.09, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]],
   } }, 'buildings')
   map.addSource('roads-overlay', { type: 'geojson', data: roadsOverlayFC() })
   map.addLayer({ id: 'roads-dim', type: 'line', source: 'roads-overlay', paint: {
@@ -319,8 +325,11 @@ map.on('load', async () => {
   } })
   map.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: {
     'line-color': ['interpolate', ['linear'], ['get', 'danger'], 0, ['get', 'color'], 1, '#ff3b3b'],
-    'line-width': ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 2.5, 1.2], ['get', 'danger']], 'line-opacity': 0.9,
+    'line-width': ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 3.5, 2.2], ['get', 'danger']], 'line-opacity': 0.95,
   } })
+  // A soft outer glow on the boundary so it separates from same-hue basemap roads.
+  map.addLayer({ id: 'district-glow', type: 'line', source: 'districts', paint: {
+    'line-color': ['get', 'color'], 'line-width': 9, 'line-opacity': 0.14, 'line-blur': 4 } }, 'district-line')
   map.addSource('district-labels', { type: 'geojson', data: districtLabelsGeoJSON() })
   map.addLayer({ id: 'district-label', type: 'symbol', source: 'district-labels', layout: {
     'text-field': ['upcase', ['get', 'label']], 'text-font': ['Noto Sans Medium'], 'text-letter-spacing': 0.15, 'text-allow-overlap': true,
@@ -350,16 +359,26 @@ map.on('load', async () => {
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 8, 16, 18], 'circle-color': '#ffd24a', 'circle-opacity': 0.12,
     'circle-stroke-color': '#ffd24a', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.9 } })
   map.addLayer({ id: 'places', type: 'symbol', source: 'places', layout: {
-    'icon-image': ['get', 'icon'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.55, 16, 1],
+    'icon-image': ['get', 'icon'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 1.35],
     'icon-allow-overlap': true, 'icon-ignore-placement': true,
-    'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true,
-    'text-max-width': 12,
+    'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 12.5, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-optional': true,
+    'text-max-width': 11,
   }, paint: {
     'text-color': ['get', 'color'],
     'text-halo-color': '#06101f', 'text-halo-width': 1.2,
-    'text-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 0.9],
-    'icon-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0.85],
+    'text-opacity': ['interpolate', ['linear'], ['zoom'], 12.6, 0, 13.2, 0.95],
+    'icon-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0.9],
   } })
+  // 5. Occupancy badge: units that arrive at a place go INSIDE. The car disappears and the
+  // place wears a count in the unit's color, top-right of the diamond.
+  map.addLayer({ id: 'place-occ', type: 'circle', source: 'places', filter: ['>', ['get', 'inside'], 0], paint: {
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 7, 16, 9], 'circle-color': ['get', 'occColor'],
+    'circle-stroke-color': '#06101f', 'circle-stroke-width': 1.5,
+    'circle-translate': ['interpolate', ['linear'], ['zoom'], 12, ['literal', [10, -10]], 16, ['literal', [16, -16]]] } })
+  map.addLayer({ id: 'place-occ-text', type: 'symbol', source: 'places', filter: ['>', ['get', 'inside'], 0], layout: {
+    'text-field': ['to-string', ['get', 'inside']], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true,
+    'text-offset': ['interpolate', ['linear'], ['zoom'], 12, ['literal', [1.0, -1.0]], 16, ['literal', [1.6, -1.6]]],
+  }, paint: { 'text-color': '#06101f' } })
 
   // Routes and units.
   map.addSource('routes', { type: 'geojson', data: emptyFC(), promoteId: 'id' })
@@ -392,6 +411,7 @@ map.on('load', async () => {
   Object.assign(window.spike, { units, places, select, dispatch, DISTRICTS, entryNode })
   renderRoster(); renderDanger(); applyPaintMode()
   map.getSource('units').setData(unitsFC())
+  pushPlaces()
   requestAnimationFrame(loop)
 })
 window.spike = { get timeScale() { return timeScale }, set timeScale(v) { timeScale = v } }
@@ -427,9 +447,9 @@ const districtOf = id => DISTRICTS.find(d => d.id === id)
 
 // What is under the cursor, in priority order.
 function hit(point) {
-  const feats = map.queryRenderedFeatures(point, { layers: ['units', 'places', 'poi-hit', 'district-fill'] })
+  const feats = map.queryRenderedFeatures(point, { layers: ['units', 'places', 'footprint-fill', 'poi-hit', 'district-fill'] })
   const f = id => feats.find(x => x.layer.id === id)
-  const unitF = f('units'), placeF = f('places'), poiF = f('poi-hit'), distF = f('district-fill')
+  const unitF = f('units'), placeF = f('places') ?? f('footprint-fill'), poiF = f('poi-hit'), distF = f('district-fill')
   return {
     unit: unitF && units.find(u => u.id === unitF.properties.id),
     place: placeF && places.find(p => p.id === placeF.properties.id),
@@ -443,7 +463,8 @@ map.on('mousemove', e => {
   setHoverUnit(h.unit ?? null); setHoverDistrict(h.district ?? null); setHoverPlace(h.place ?? null)
   map.getCanvas().style.cursor = h.unit || h.place || h.poi ? 'pointer' : h.district && selected ? 'crosshair' : ''
   if (h.unit) { const u = h.unit; showTip(`<b>${u.name}</b> · ${u.role} · ${statusText(u)}`, e.point); return }
-  if (h.place) { const p = h.place; showTip(`<b>${p.name}</b> <span class="dim">${KIND_LABEL[p.kind]} · dispatch location${p.contacts.length ? ` · ${p.contacts.length} contact` : ''}</span>`, e.point); return }
+  if (h.place) { const p = h.place; const n = units.filter(u => isInside(u) && u.place === p).length
+    showTip(`<b>${p.name}</b> <span class="dim">${KIND_LABEL[p.kind] ?? p.kind} · dispatch location${n ? ` · ${n} unit${n > 1 ? 's' : ''} inside` : ''}${p.contacts.length ? ` · ${p.contacts.length} contact` : ''}</span>`, e.point); return }
   if (h.poi) { const p = h.poi.properties; showTip(`<b>${p.name}</b> <span class="dim">${p.kind ?? ''}</span>`, e.point); return }
   if (h.district) {
     const d = h.district
@@ -541,13 +562,13 @@ window.addEventListener('mousedown', e => { if (ctxOpen && !ctx.contains(e.targe
 
 function showPlace(p) {
   const d = districtAt(p.lonlat)
-  const here = units.filter(u => u.place === p || (!u.route && dist(u.pos, p.lonlat) < 80)).map(u => u.name)
+  const here = units.filter(u => isInside(u) && u.place === p).map(u => u.name)
   const enroute = units.filter(u => u.target?.place === p).map(u => u.name)
   document.getElementById('place').hidden = false
   document.getElementById('place-name').textContent = p.name
   document.getElementById('place-meta').innerHTML = [
     ['KIND', KIND_LABEL[p.kind] ?? p.kind], ['ADDRESS', p.addr ?? '—'], ['DISTRICT', d ? d.label : 'outside coverage'],
-    ['UNITS HERE', here.length ? here.join(', ') : 'none'], ['EN ROUTE', enroute.length ? enroute.join(', ') : '—'],
+    ['UNITS INSIDE', here.length ? here.join(', ') : 'none'], ['EN ROUTE', enroute.length ? enroute.join(', ') : '—'],
     ['CONTACTS', p.contacts.length ? p.contacts.map(c => `${c.name} — ${c.status}`).join('<br>') : 'none'],
     ['', `<span class="link" id="place-go">▶ dispatch ${selected ? selected.name : 'selected unit'} here</span>`],
   ].map(([k, v]) => `<div class="k">${k}</div><div>${v}</div>`).join('')
@@ -568,6 +589,7 @@ function statusText(u) {
   const where = u.place ? u.place.name : u.district ? districtOf(u.district).label : 'outside coverage'
   if (u.status === 'moving') { const t = u.target; return `MOVING · ${t.place ? t.place.name : t.district.label} · ETA ${fmt(remainingSeconds(u))}` }
   if (u.status === 'patrol') return `PATROL · ${where}`
+  if (u.status === 'inside') return `INSIDE · ${where}`
   return `PARKED · ${where}`
 }
 function renderRoster() {
@@ -594,8 +616,17 @@ function renderDanger() {
   rows.querySelectorAll('input[type=range]').forEach(i => i.oninput = () => { danger[i.dataset.id] = i.value / 100; i.nextElementSibling.textContent = i.value + '%'; pushDistricts() })
   rows.querySelectorAll('input[type=checkbox]').forEach(i => i.onchange = () => { cold[i.dataset.cold] = i.checked; pushDistricts() })
   document.getElementById('paint-toggle').onclick = cyclePaint
+  document.getElementById('boundary-toggle').onclick = toggleBoundary
 }
 function cyclePaint() { paintMode = { shroud: 'streets', streets: 'both', both: 'shroud' }[paintMode]; applyPaintMode() }
+let boundaryBoost = false
+function toggleBoundary() {
+  boundaryBoost = !boundaryBoost
+  map.setPaintProperty('district-fill', 'fill-opacity', ['+', boundaryBoost ? 0.2 : 0.09, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]])
+  map.setPaintProperty('district-glow', 'line-opacity', boundaryBoost ? 0.3 : 0.14)
+  map.setPaintProperty('district-line', 'line-width', ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 3.5, boundaryBoost ? 3.2 : 2.2], ['get', 'danger']])
+  setHint(`district boundaries: ${boundaryBoost ? 'strong' : 'normal'}`)
+}
 function overview() { stopFollow(); map.flyTo({ center: cfg.center, zoom: 13.4, pitch: 52, bearing: -12, duration: 1200 }) }
 
 window.addEventListener('keydown', e => {
@@ -603,6 +634,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'o') overview()
   if (e.key === 'f') { if (follow) stopFollow(); else startFollow() }
   if (e.key === 'p') cyclePaint()
+  if (e.key === 'b') toggleBoundary()
   if (e.key === '1') timeScale = 1
   if (e.key === '2') timeScale = 6
   if (e.key === '3') timeScale = 20
