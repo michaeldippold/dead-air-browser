@@ -223,6 +223,12 @@ The core loop is operational. Key systems in place:
 
 #### Map v3 — real Lexington *(ruled 2026-09-04; design.md "The Map" has the why)*
 
+> **Spike complete and owner-approved (2026-09-04).** The implementation handoff is
+> **`map-integration.md`**: twenty locked decisions, the spike modules to port, every tuned
+> number, the nine districts with adjacency and places, and the build order with `main.js`
+> touchpoints. A fresh session starts there and builds; nothing in it is up for relitigation.
+> The checklist below is the summary; the handoff is the spec.
+
 The flat SVG never earned its job as the main information surface. Replacing it with a real
 Lexington map (MapLibre GL + self-hosted PMTiles + our own baked road graph and A* routing), with
 units driving real routes, is now the growth area. Technical constraints are relaxed for this —

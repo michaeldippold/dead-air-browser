@@ -463,9 +463,10 @@ const districtOf = id => DISTRICTS.find(d => d.id === id)
 
 // What is under the cursor, in priority order.
 function hit(point) {
-  const feats = map.queryRenderedFeatures(point, { layers: ['units', 'places', 'footprint-fill', 'poi-hit', 'district-fill'] })
+  // Badges, diamond, footprint: all resolve to the place. At wide zooms the badge is the biggest target.
+  const feats = map.queryRenderedFeatures(point, { layers: ['units', 'place-badge-0', 'place-badge-1', 'place-badge-2', 'places', 'footprint-fill', 'poi-hit', 'district-fill'] })
   const f = id => feats.find(x => x.layer.id === id)
-  const unitF = f('units'), placeF = f('places') ?? f('footprint-fill'), poiF = f('poi-hit'), distF = f('district-fill')
+  const unitF = f('units'), placeF = f('place-badge-0') ?? f('place-badge-1') ?? f('place-badge-2') ?? f('places') ?? f('footprint-fill'), poiF = f('poi-hit'), distF = f('district-fill')
   return {
     unit: unitF && units.find(u => u.id === unitF.properties.id),
     place: placeF && places.find(p => p.id === placeF.properties.id),

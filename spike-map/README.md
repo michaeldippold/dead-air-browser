@@ -1,6 +1,8 @@
 # spike-map — Dead Air real-Lexington map spike
 
 Throwaway spike for the Map v3 decision (see `design.md` "The Map" and `todo.md` "Map v3").
+**Owner-approved 2026-09-04.** The integration handoff is `../map-integration.md`; this code is
+its reference implementation — port the modules, don't rewrite them from memory.
 Judging: the dark real-city look, units driving real roads, district = state / position =
 geography, hover/click, danger paint. Not production code.
 
