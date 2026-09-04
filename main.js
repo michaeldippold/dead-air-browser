@@ -1634,6 +1634,13 @@ function selectDistrict(id) {
   renderDistrictDetail()
 }
 document.getElementById('btn-ddv-close').addEventListener('click', () => { if (state.selected) selectDistrict(state.selected) })
+document.getElementById('ddv-units').addEventListener('click', e => {
+  if (e.target.closest('[data-item-key]')) return          // item tags keep their own behavior
+  const card = e.target.closest('[data-unit-id]')
+  if (!card) return
+  const id = card.dataset.unitId
+  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
+})
 
 // ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
 // Name, kind, address, district, units inside / en route, named callers with a status line, and a
@@ -1749,7 +1756,7 @@ function renderDistrictDetail() {
     const unitsHere = Object.values(state.units).filter(u => u.districtId === state.selected)
     const listHtml  = unitsHere.length === 0
       ? '<span class="ddv-no-intel">None</span>'
-      : unitsHere.map(u => renderUnitCard(u, 'badges')).join('')
+      : unitsHere.map(u => renderUnitCard(u, 'badges').replace('class="roster-card"', `class="roster-card${state.selectedUnit?.unitId === u.id ? ' selected' : ''}"`)).join('')
     ddvUnits.innerHTML = listHtml
   }
 
@@ -1798,6 +1805,8 @@ function selectUnit(unitId) {
   mapRenderer.setSelected(unitId)
   if (state.unitDetailOpen) renderUnitDetail(unit)
   renderUnitsPanel()
+  renderDistrictDetail()
+  unitsList.querySelector('.unit-row.selected')?.scrollIntoView({ block: 'nearest' })
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
@@ -1806,6 +1815,7 @@ function deselectUnit() {
   state.selectedUnit = null
   mapRenderer.setSelected(null)
   renderUnitsPanel()
+  renderDistrictDetail()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 

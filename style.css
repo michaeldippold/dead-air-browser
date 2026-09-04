@@ -877,7 +877,9 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 /* Badge-style unit cards inside district detail panel */
-#ddv-units .roster-card          { flex-direction: row; cursor: default; }
+#ddv-units .roster-card          { flex-direction: row; cursor: pointer; }
+#ddv-units .roster-card.selected { border-color: var(--accent); }
+#ddv-units .roster-card.selected .roster-unit-label { color: var(--accent); }
 #ddv-units .roster-card:hover    { transform: none; }
 #ddv-units .roster-portrait      { width: 9px; height: unset; min-height: unset; align-self: stretch; flex-shrink: 0; overflow: hidden; }
 #ddv-units .roster-portrait svg  { display: none; }
