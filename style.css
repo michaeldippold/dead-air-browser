@@ -347,20 +347,21 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 .item-ref-entry {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: clamp(12px, 2vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 0.6vw, 12px);
   padding: clamp(14px, 1.8vh, 30px) 0;
   border-bottom: 1px solid var(--border);
+  scroll-margin-top: clamp(14px, 1.8vh, 30px);   /* an item tag jump lands with the title clear of the top */
 }
 
 .item-ref-entry:last-child { border-bottom: none; }
 
-.item-ref-body {
+/* Title row: NAME [TAG] — the tag sits with its name instead of in a column of its own */
+.item-ref-title {
   display: flex;
-  flex-direction: column;
-  gap: clamp(6px, 0.6vw, 12px);
+  align-items: center;
+  gap: 10px;
 }
 
 .item-ref-name {
@@ -382,8 +383,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 #items-panel .item-chip {
-  font-size: clamp(12px, 1.2vw, 18px);
-  padding: clamp(8px, 0.9vw, 16px) clamp(14px, 1.6vw, 28px);
+  font-size: 11px;
+  padding: 2px 6px;
   cursor: default;
   pointer-events: none;
 }

@@ -1010,7 +1010,7 @@ function openItemsReference(key) {
   bringToFront('items')
   const entry = document.querySelector(`.item-ref-entry[data-item-key="${key}"]`)
   if (!entry) return
-  entry.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  entry.scrollIntoView({ block: 'start', behavior: 'smooth' })
   entry.classList.remove('item-ref-entry--flash')
   void entry.offsetWidth
   entry.classList.add('item-ref-entry--flash')
@@ -1095,7 +1095,7 @@ function getDefaultLayout() {
     contacts: { x: 0,                 y: 0, w: lw,                           h: dh },
     radio:    { x: dw - rw,           y: 0, w: rw,                           h: dh },
     sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
-    items:    { x: Math.floor((dw - 420) / 2), y: Math.floor((dh - 480) / 2), w: 420, h: 480 },
+    items:    { x: Math.floor((dw - 560) / 2), y: Math.floor((dh - 520) / 2), w: 560, h: 520 },
     alert:    { x: Math.floor((dw - 380) / 2), y: Math.floor((dh - 180) / 2), w: 380, h: 180 },
   }
 }
