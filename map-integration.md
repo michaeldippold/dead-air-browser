@@ -133,12 +133,17 @@ Adjacency above is *derived from the polygons* (shared boundary > 300 m). **Comp
 
 Each step leaves the game playable. Line numbers are from `main.js` @ commit `3faeecd` (2 984 lines) and will drift; grep the symbol.
 
-### a. Tooling — move the game onto Vite
+### a. Tooling — move the game onto Vite *(done 2026-09-04)*
 - `npm init` at repo root; deps `maplibre-gl@6`, `pmtiles@4`, `@protomaps/basemaps@5`, `kdbush@4`; dev dep `vite`. Copy `spike-map/vite.config.js` (the `optimizeDeps.exclude` line is load-bearing).
 - `index.html` already loads `main.js` as a module; Vite serves it as-is. `scripts/*.js` are static ES modules — fine.
 - Move `spike-map/public/data/*` to `public/data/`. Delete `pois.json`.
 - `.claude/launch.json`: `dispatch` becomes `npm run dev` on 5678. `RELEASE.md`: add `vite build` → deploy `dist/`. Hosting: any static host with Range support (GitHub Pages works for a 10 MB tile file; the repo is `michaeldippold/dead-air-browser`).
 - Keep `?map=2d` as a switch that skips map init and shows the SVG, until step **i**.
+- *As built:* root `package.json` / `vite.config.js` / `.gitignore`; `public/data/` (pois.json gone) and
+  `public/images/` (the icon SVGs are referenced from inline `style` attributes, which Vite does not
+  bundle — anything under `public/` is copied verbatim). The spike still runs, with `publicDir: '../public'`,
+  and the bake scripts write to the root `public/data/`. `MAP_2D` constant is in `main.js`, unused until §5d.
+  Launch configs: `dispatch` (dev, 5678), `dist-preview` (`vite preview` of `dist/`, 4173), `spike-map` (5679).
 
 ### b. Re-key the districts
 - `state.districts` (~L793): nine entries per §4 with `label`, `category`, `humans`, `zombies: 0`, `unitIds: []`, `loot: rollLoot(id, category, n)`.

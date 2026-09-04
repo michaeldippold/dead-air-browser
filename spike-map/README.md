@@ -28,11 +28,14 @@ around it; the `cold` checkbox is "no humans left" and drops the dark shroud.
 
 ## Bake (one-off, already committed)
 
-Data lives in `public/data/`. Four steps, in order:
+Data lives in the game's **`public/data/`** at the repo root (moved there in integration step
+§5a; the spike's `vite.config.js` points `publicDir` at it, and the bake scripts write there).
+Four steps, in order (run from the repo root or `spike-map/` — paths below are relative to
+`spike-map/`):
 
 ```
 # tiles: Protomaps daily build, cut to the bbox in bake/config.json (go-pmtiles CLI)
-pmtiles extract https://build.protomaps.com/20260904.pmtiles public/data/lexington.pmtiles \
+pmtiles extract https://build.protomaps.com/20260904.pmtiles ../public/data/lexington.pmtiles \
   --bbox=-84.63,37.96,-84.38,38.12 --maxzoom=15
 
 # road graph (with street names) + emergency POIs (osmnx 2.x)

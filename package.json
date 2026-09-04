@@ -1,0 +1,21 @@
+{
+  "name": "dead-air",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Dead Air — night-shift 911 dispatch during a zombie outbreak in Lexington, KY",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@protomaps/basemaps": "^5.7.2",
+    "kdbush": "^4.1.0",
+    "maplibre-gl": "^6.7.0",
+    "pmtiles": "^4.5.0"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
+  }
+}

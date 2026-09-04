@@ -6,6 +6,10 @@ import tutorial   from './scripts/tutorial.js'
 
 // ── CONFIG & CONSTANTS ──
 
+// Map v3 escape hatch (map-integration.md §5a): `?map=2d` skips the MapLibre map and shows the
+// legacy SVG districts. Removed with the SVG in step §5i.
+const MAP_2D = new URLSearchParams(location.search).get('map') === '2d'
+
 const TICK_MS       = 3000
 const SPREAD_RATE   = 0.15  // SIR β — transmission coefficient, not per-zombie rate
 let spreadChance = 0.35

@@ -255,6 +255,9 @@ browser. Build order, each step visually verifiable:
       adjacency from the polygons; update `main.js` district IDs, loot pools, `DISTRICT_CODE`, and
       every script's `district` field to the new set; ground outside every district renders dim
       and is not dispatchable.
+- [x] **Tooling** *(2026-09-04, map-integration.md §5a)*: the game runs on Vite (`npm run dev` on 5678,
+      `npm run build` → `dist/`); map data lives in `public/data/`, icons in `public/images/`; RELEASE.md
+      builds and zips `dist/`; `?map=2d` flag reserved for the SVG fallback until the SVG is retired.
 - [ ] **Position vs state in the sim.** Units get a real road position; `districtId` becomes
       derived (point-in-polygon per tick). Transit stays "no district." Travel time derived
       from route length over road speed with per-district danger multipliers; the hop constant

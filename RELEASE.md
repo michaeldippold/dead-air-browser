@@ -56,15 +56,29 @@ This marks the exact commit as the canonical release point. Tags are what the re
 
 ---
 
-## Step 5 — Create the release zip
+## Step 5 — Build and create the release zip
 
-Include only the files a player needs to run the game:
+The game is a Vite project (since Map v3): `index.html` + `main.js` are bundled, and the map
+data in `public/data/` (tiles, road graph, districts, places) is copied through verbatim.
 
-```powershell
-Compress-Archive -Path index.html, main.js, style.css, scripts -DestinationPath releases/dispatch-vX.Y.Z.zip -Force
+```
+npm ci
+npm run build
 ```
 
-Do NOT include: `.git/`, `releases/`, `design.md`, `tech.md`, `todo.md`, `CHANGELOG.md`, `RELEASE.md`.
+`dist/` is the playable build. Zip it:
+
+```powershell
+Compress-Archive -Path dist\* -DestinationPath releases/dispatch-vX.Y.Z.zip -Force
+```
+
+Deploy = serve `dist/` from any static host that supports HTTP Range requests (GitHub Pages,
+Netlify, `npx serve dist` all do). `lexington.pmtiles` is one 10 MB file read by byte range;
+without Range support the basemap never loads. Verify in the Network tab: tile requests are
+`206 Partial Content`.
+
+Do NOT include: `.git/`, `releases/`, `design.md`, `todo.md`, `CHANGELOG.md`, `RELEASE.md`,
+`map-integration.md`, `spike-map/`, `node_modules/`.
 
 ---
 

@@ -9,7 +9,7 @@ import json, os
 import osmnx as ox
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))  # repo root; data lives in public/data
 cfg = json.load(open(os.path.join(HERE, "config.json")))
 b = cfg["bbox"]
 bbox = (b["west"], b["south"], b["east"], b["north"])

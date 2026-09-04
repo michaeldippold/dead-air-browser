@@ -14,7 +14,7 @@ from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))  # repo root; data lives in public/data
 DATA = os.path.join(ROOT, "public", "data")
 
 NC = ["New Circle Road", "East New Circle Road", "West New Circle Road"]

@@ -3,14 +3,21 @@
   "configurations": [
     {
       "name": "dispatch",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "npm",
       "runtimeArgs": [
-        "serve",
-        "-p",
-        "5678",
-        "."
+        "run",
+        "dev"
       ],
       "port": 5678
+    },
+    {
+      "name": "dist-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
+      "port": 4173
     },
     {
       "name": "spike-map",

@@ -1,8 +1,9 @@
-"""Bake the drivable road graph and emergency POIs for the spike.
+"""Bake the drivable road graph.
 
-One-off asset step. Reads bake/config.json for the bbox, writes:
+One-off asset step. Reads bake/config.json for the bbox, writes (repo root):
   public/data/roads.json   {nodes: {id: [lon, lat]}, edges: [{u, v, len, kph, hw, oneway, geom}]}
-  public/data/pois.json    [{name, kind, lonlat}]
+
+(The old pois.json output was superseded by places.json from districts.py and is gone.)
 
 Run from spike-map/:  python bake/roads.py
 """
@@ -10,7 +11,7 @@ import json, os, sys, time
 import osmnx as ox
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))  # repo root; data lives in public/data
 cfg = json.load(open(os.path.join(HERE, "config.json")))
 b = cfg["bbox"]
 bbox = (b["west"], b["south"], b["east"], b["north"])   # osmnx 2.x: (left, bottom, right, top)
@@ -62,22 +63,3 @@ roads_path = os.path.join(out, "roads.json")
 with open(roads_path, "w") as f:
     json.dump({"bbox": bbox, "nodes": nodes, "edges": edges}, f, separators=(",", ":"))
 print(f"wrote {roads_path}  ({os.path.getsize(roads_path)/1e6:.1f} MB)", flush=True)
-
-# Emergency infrastructure: stations, hospitals. Centroids only.
-print("downloading POIs", flush=True)
-tags = {"amenity": ["police", "fire_station", "hospital"]}
-gdf = ox.features.features_from_bbox(bbox=bbox, tags=tags)
-pois = []
-for _, row in gdf.iterrows():
-    geom = row.geometry
-    c = geom.centroid if geom.geom_type != "Point" else geom
-    name = row.get("name")
-    if not isinstance(name, str):
-        continue
-    pois.append({"name": name, "kind": row.get("amenity"), "lonlat": [round(c.x, 6), round(c.y, 6)]})
-pois.sort(key=lambda p: (p["kind"], p["name"]))
-pois_path = os.path.join(out, "pois.json")
-json.dump(pois, open(pois_path, "w"), indent=1)
-print(f"wrote {pois_path}  ({len(pois)} POIs)", flush=True)
-for p in pois:
-    print("  ", p["kind"], "|", p["name"], p["lonlat"])
