@@ -13,11 +13,16 @@ npm --prefix spike-map run dev        # http://localhost:5679
 
 Also registered in `.claude/launch.json` as `spike-map`.
 
-Controls: click a roster row or a unit to select it. Click a district to dispatch there
-(near-edge arrival, then patrol). Click any road to drive to that point. Hover a district with
-a unit selected for its ETA. Hover any named place for its name; click it for the place card.
-Keys: `o` overview, `f` follow selected unit, `1`/`2`/`3` time scale 1×/6×/20×.
-The DANGER panel is a dev slider: it darkens the district and bends routes around it.
+Controls: click a unit (map or roster) to select it; click it again or press `Esc` to
+deselect. With a unit selected, left-click a **district** to dispatch it there (it arrives at
+the near edge, then patrols routed laps through the interior) or a **◆ place** to park it there.
+Those are the only two targets; bare map deselects. Right-click anything for a context menu
+(unit: select / follow / return to station; district: ENGAGE or HIDE; place: dispatch / show).
+Middle-mouse drag rotates and pitches (right-drag is given to the menus). Hover a district with
+a unit selected for its ETA; hover any named place for its name; click a ◆ place for its card.
+Keys: `o` overview, `f` follow selected unit, `p` cycle danger paint (shroud / streets / both),
+`1`/`2`/`3` time scale 1×/6×/20×. The DANGER panel is a dev slider: it paints the district and
+bends routes around it.
 
 ## Bake (one-off, already committed)
 

@@ -62,3 +62,19 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 @keyframes pulse { 50% { box-shadow: 0 0 2px rgba(255,210,74,0.2); } }
 
 .maplibregl-ctrl-attrib { display: none; }
+
+.dim { color: var(--dim); }
+.link { color: var(--dim); cursor: pointer; }
+.link:hover { color: var(--accent); }
+.row .status.moving { color: var(--accent); }
+.row .status.patrol { color: #7fd48a; }
+
+#ctx {
+  position: absolute; background: var(--panel); border: 1px solid var(--line); min-width: 220px;
+  padding: 4px 0; backdrop-filter: blur(4px); z-index: 10;
+}
+.ctx-title { padding: 4px 10px 6px; color: var(--dim); font-size: 11px; letter-spacing: 0.08em; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.ctx-item { padding: 5px 10px; cursor: pointer; }
+.ctx-item:hover { background: rgba(36,64,107,0.45); color: var(--accent); }
+.ctx-item.disabled { color: var(--dim); cursor: default; }
+.ctx-item.disabled:hover { background: none; color: var(--dim); }

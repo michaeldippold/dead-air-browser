@@ -14,7 +14,7 @@
     <div id="roster" class="panel">
       <div class="panel-title">UNITS</div>
       <div id="roster-rows"></div>
-      <div class="hint" id="hint">Select a unit, then click a district (or any road) to dispatch.</div>
+      <div class="hint" id="hint">Click a unit to select. Left-click a district or a ◆ place to dispatch. Right-click for options. Esc deselects. Middle-drag rotates.</div>
     </div>
 
     <div id="place" class="panel" hidden>
@@ -23,10 +23,11 @@
     </div>
 
     <div id="danger" class="panel">
-      <div class="panel-title">DANGER (dev)</div>
+      <div class="panel-title">DANGER (dev) · paint: <span class="link" id="paint-toggle"><span id="paint-mode">shroud</span> ⟳</span></div>
       <div id="danger-rows"></div>
     </div>
 
+    <div id="ctx" hidden></div>
     <div id="tip" hidden></div>
     <div id="attrib">© OpenStreetMap contributors · Protomaps</div>
   </div>

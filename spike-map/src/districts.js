@@ -1,7 +1,7 @@
 // Hand-traced spike districts over real Lexington neighborhoods. Rough on purpose:
 // the spike is judging the look and the position/state split, not the boundaries.
 // Real districts get traced properly once the landmarks are pinned.
-import { graph, pointInRing, nearestNode, dist } from './graph.js'
+import { graph, pointInRing, nearestNode, dist, route } from './graph.js'
 
 export const DISTRICTS = [
   { id: 'downtown', label: 'Downtown', category: 'government',
@@ -30,12 +30,16 @@ export function districtAt(lonlat) {
   return null
 }
 
-// Tag every road edge with the district containing its midpoint, once the graph is loaded.
+// Tag every road edge with the district containing its midpoint, and collect each
+// district's interior nodes, once the graph is loaded.
+const interior = {}
 export function tagEdges() {
   graph.edgeDistrict = graph.edges.map(e => {
     const m = e.geom[Math.floor(e.geom.length / 2)]
     return districtAt(m)?.id ?? null
   })
+  for (const d of DISTRICTS) interior[d.id] = []
+  for (const id of graph.ids) { const d = districtAt(graph.nodes[id]); if (d) interior[d.id].push(id) }
 }
 
 // Routing multiplier: 1 clean, up to 3.5 deep in a bad district.
@@ -47,22 +51,30 @@ export const dangerMultiplier = e => {
 // Nearest routable node inside the district to a given position — the "near edge" rule.
 export function entryNode(district, fromLonlat) {
   let best = null, bd = Infinity
-  for (const id of graph.ids) {
-    const p = graph.nodes[id]
-    if (!pointInRing(p, district.ring)) continue
-    const d = dist(fromLonlat, p)
+  for (const id of interior[district.id] ?? []) {
+    const d = dist(fromLonlat, graph.nodes[id])
     if (d < bd) { bd = d; best = id }
   }
   return best
 }
 
-// A random in-district neighbour node for patrol: prefer residential-speed edges.
-export function patrolStep(fromId, district) {
-  const opts = (graph.out[fromId] ?? []).filter(e => pointInRing(graph.nodes[e.v], district.ring))
-  if (!opts.length) return null
-  const slow = opts.filter(e => e.kph <= 45)
-  const pool = slow.length ? slow : opts
-  return pool[Math.floor(Math.random() * pool.length)]
+// A patrol leg: a routed lap to a random interior node at least 150 m away, never leaving
+// the district. A one-edge random walk ping-pongs at dead ends and stalls at the boundary;
+// a routed leg reads as a car cruising the neighborhood.
+export function patrolRoute(fromId, district) {
+  const pool = interior[district.id] ?? []
+  if (!pool.length) return null
+  const from = graph.nodes[fromId]
+  const inside = e => graph.edgeDistrict[e.id] === district.id ? 1 : Infinity
+  for (let tries = 0; tries < 10; tries++) {
+    const to = pool[Math.floor(Math.random() * pool.length)]
+    if (to === fromId || dist(from, graph.nodes[to]) < 150) continue
+    const r = route(fromId, to, { multiplier: inside })
+    if (r && r.edges.length) return r
+  }
+  // Boxed in (a node whose in-district roads are all one-way out): take any road out.
+  const any = (graph.out[fromId] ?? [])[0]
+  return any ? { coords: any.geom, edges: [any], seconds: any.len / (any.kph / 3.6), metres: any.len } : null
 }
 
 export function districtsGeoJSON() {
