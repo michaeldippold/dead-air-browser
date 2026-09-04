@@ -529,9 +529,15 @@ The clean-numbers rule applies to the map exactly as it applies to the sidebar:
 
 - **Danger paint derives from the district's zombie ratio and is gated by intel** — no radio or
   binoculars, no paint. It is not a second data source. There is no infection heat field, no
-  per-cell grid, no simulation layer finer than the district (Explicitly Out of Scope). A district
-  in trouble is drawn by tinting the buildings and dimming the roads inside its boundary, with the
-  boundary a thin line — a neighborhood going dark, not a red blob with a label.
+  per-cell grid, no simulation layer finer than the district (Explicitly Out of Scope). **The look
+  (ruled 2026-09-04, from the spike):** red heat blooming along the district's *own streets* —
+  a heatmap layer fed by points along the district's roads, all weighted by that one district
+  number, so it pools at the big intersections and reads as a horde being present in the streets
+  while the data stays one number per district. It "screams heatmap without being one." The
+  boundary line reddens with it. Darkening is reserved for a district that has gone **cold** — no
+  humans left — which drops a near-black shroud over the streets (rooftops still poke through in
+  the pitched view) and greys its label. A flat red polygon was tried first and rejected as a
+  red blob with a label.
 - **Caller pins appear on disclosure.** A caller has no pin until they've told you where they are
   (most opening lines do). Sent Outside, the pin becomes a dashed *last known* ring at the place
   they left, until they check in from somewhere else or go silent.

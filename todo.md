@@ -234,13 +234,21 @@ browser. Build order, each step visually verifiable:
       as a line following real streets and one-ways; one unit driving that route at road speed
       with correct bearing; a few hand-traced district polygons tinted by category. The
       "see it with your own eyes" gate before anything below starts.
-- [ ] **Landmarks first.** Go through the four scripted callers and Barbara and pin each named
-      story location to a real building (footprint + address + entrance node). The set of
-      landmarks decides the bounding box, and the box decides where districts get drawn.
-- [ ] **Redraw districts** over real neighborhoods — rename, merge, split, add as the geography
-      wants; keep the count modest. Recompute adjacency from the drawn polygons. Ground outside
-      every district renders dim and is not dispatchable. Update `main.js` district IDs, loot
-      pools, `DISTRICT_CODE`, and every script's `district` field to the new set.
+- [x] **Landmarks first** *(spike, 2026-09-04)*: `spike-map/bake/landmarks.py` pulls every named
+      OSM feature a story could care about (887 in the box) with footprints and addresses; the
+      authored list is hand-picked from it in `bake/districts.py` — 68 places, 5–10 per district,
+      real stations and hospitals included. Still owed: pinning the four scripted callers and
+      Barbara to specific ones, and story-only named locations (a loading dock, a bar) that OSM
+      doesn't carry.
+- [x] **Redraw districts** *(spike, 2026-09-04)*: nine districts built by `bake/districts.py` from
+      named road corridors — each is a clockwise loop of street-name legs; the tool finds the
+      junctions, routes along each named road between them (short off-name detours at a penalty),
+      and emits polygons that follow the real streets. Downtown, Northside, East End, Chevy Chase,
+      University, Southside, Red Mile, West End, Hamburg. The old hospital/station/government
+      "districts" are places inside these now. **Still owed in the game proper:** recompute
+      adjacency from the polygons; update `main.js` district IDs, loot pools, `DISTRICT_CODE`, and
+      every script's `district` field to the new set; ground outside every district renders dim
+      and is not dispatchable.
 - [ ] **Position vs state in the sim.** Units get a real road position; `districtId` becomes
       derived (point-in-polygon per tick). Transit stays "no district." Travel time derived
       from route length over road speed with per-district danger multipliers; the hop constant

@@ -21,25 +21,37 @@ Those are the only two targets; bare map deselects. Right-click anything for a c
 Middle-mouse drag rotates and pitches (right-drag is given to the menus). Hover a district with
 a unit selected for its ETA; hover any named place for its name; click a ◆ place for its card.
 Keys: `o` overview, `f` follow selected unit, `p` cycle danger paint (shroud / streets / both),
-`1`/`2`/`3` time scale 1×/6×/20×. The DANGER panel is a dev slider: it paints the district and
-bends routes around it.
+`1`/`2`/`3` time scale 1×/6×/20×. The DANGER panel is a dev slider: it paints the district's streets red and bends routes
+around it; the `cold` checkbox is "no humans left" and drops the dark shroud.
 
 ## Bake (one-off, already committed)
 
-Data lives in `public/data/`. Reproduce with:
+Data lives in `public/data/`. Four steps, in order:
 
 ```
 # tiles: Protomaps daily build, cut to the bbox in bake/config.json (go-pmtiles CLI)
 pmtiles extract https://build.protomaps.com/20260904.pmtiles public/data/lexington.pmtiles \
   --bbox=-84.63,37.96,-84.38,38.12 --maxzoom=15
 
-# road graph + emergency POIs (osmnx 2.x)
+# road graph (with street names) + emergency POIs (osmnx 2.x)
 pip install osmnx
 python bake/roads.py
+
+# every named OSM feature a story could care about, with footprints and addresses
+python bake/landmarks.py
+
+# districts from named road corridors + the hand-picked authored places
+python bake/districts.py
 ```
 
-`roads.json` is the drivable graph (strongly connected component, directed, per-edge speed and
-geometry). `pois.json` is every named police station, fire station and hospital in the box.
+`roads.json` is the drivable graph (strongly connected component, directed, per-edge speed,
+name and geometry). `landmarks.json` is the candidate pool (887 named features).
+`districts.geojson` is nine polygons that follow real streets: each district in
+`bake/districts.py` is a clockwise loop of street-name legs; the tool finds where consecutive
+legs meet, routes along each named road between the junctions (short off-name detours at a
+penalty), and emits the ring. `places.json` is the authored list, 5–10 per district, picked by
+name from the landmark pool; when a name repeats (every Kroger) the one inside the district wins.
+Edit the spec at the top of `bake/districts.py` and re-run to redraw.
 
 ## Stack
 

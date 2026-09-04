@@ -5,7 +5,7 @@ import * as maplibregl from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import { layers, namedFlavor } from '@protomaps/basemaps'
 import { graph, loadGraph, nearestNode, route, dist, bearingDeg } from './graph.js'
-import { DISTRICTS, CATEGORY_COLOR, danger, districtAt, tagEdges, dangerMultiplier, entryNode, patrolRoute, districtsGeoJSON } from './districts.js'
+import { DISTRICTS, CATEGORY_COLOR, danger, cold, loadDistricts, districtAt, tagEdges, dangerMultiplier, entryNode, patrolRoute, districtsGeoJSON, districtLabelsGeoJSON } from './districts.js'
 
 const cfg = await (await fetch('/data/config.json')).json()
 const B = cfg.bbox
@@ -111,15 +111,18 @@ function placeIcon(color) {
 }
 
 // ---------- Places (authored tier, stood in by the baked POIs) ----------
-const KIND_COLOR = { hospital: '#e07a9a', police: '#4ea3ff', fire_station: '#ff5a4e' }
-const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire_station: 'Fire station' }
+const KIND_COLOR = { hospital: '#e07a9a', police: '#4ea3ff', fire: '#ff5a4e', venue: '#ffd24a', retail: '#e0b25a', park: '#6fcf8a',
+                     school: '#b39ddb', campus: '#b39ddb', civic: '#9fb6e0', industrial: '#a0a8b8', landmark: '#e8e2c9' }
+const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
+                     school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
 let places = []   // { id, name, kind, lonlat, node, contacts: [{name, status}] }
 
 // ---------- Units ----------
 const ROLE_COLOR = { police: '#4ea3ff', fire: '#ff5a4e', civilian: '#e8e2c9' }
 const units = []
 let selected = null, hoverUnit = null, hoverDistrict = null, timeScale = 6, follow = false
-let paintMode = 'shroud'   // 'shroud' | 'streets' | 'both'
+let followZoom = 16.3, followTarget = 16.3
+let paintMode = 'streets'   // 'shroud' | 'streets' | 'both'
 
 function makeUnit(id, role, name, place) {
   const node = nearestNode(place.lonlat)
@@ -259,18 +262,21 @@ function heatFC() {
 }
 function placesFC() {
   return { type: 'FeatureCollection', features: places.map(p => ({
-    type: 'Feature', id: p.id, properties: { id: p.id, name: p.name, kind: p.kind, icon: 'place-' + p.kind, contacts: p.contacts.length },
+    type: 'Feature', id: p.id, properties: { id: p.id, name: p.name, kind: p.kind, icon: 'place-' + p.kind, color: KIND_COLOR[p.kind] ?? '#e8e2c9', contacts: p.contacts.length },
     geometry: { type: 'Point', coordinates: p.lonlat } })) }
 }
 function pushRoutes() { map.getSource('routes')?.setData(routesFC()) }
 function pushDistricts() {
   map.getSource('districts')?.setData(districtsGeoJSON())
+  map.getSource('district-labels')?.setData(districtLabelsGeoJSON())
   map.getSource('roads-overlay')?.setData(roadsOverlayFC())
   map.getSource('heat')?.setData(heatFC())
 }
 function applyPaintMode() {
   const shroud = paintMode !== 'streets', streets = paintMode !== 'shroud'
-  map.setLayoutProperty('district-shroud', 'visibility', shroud ? 'visible' : 'none')
+  // In 'streets' mode the shroud layer stays on but only cold districts get it.
+  map.setLayoutProperty('district-shroud', 'visibility', 'visible')
+  map.setFilter('district-shroud', shroud ? null : ['boolean', ['get', 'cold'], false])
   map.setLayoutProperty('roads-dim', 'visibility', shroud ? 'visible' : 'none')
   map.setLayoutProperty('heat', 'visibility', streets ? 'visible' : 'none')
   document.getElementById('paint-mode').textContent = paintMode
@@ -279,7 +285,7 @@ function applyPaintMode() {
 map.on('error', e => console.warn('[map error]', e?.error?.message ?? e))
 map.on('load', async () => {
   console.log('[spike] style loaded; loading graph')
-  await loadGraph('/data/roads.json')
+  await Promise.all([loadGraph('/data/roads.json'), loadDistricts()])
   tagEdges()
   console.log('[spike] graph', graph.ids.length, 'nodes', graph.edges.length, 'edges')
   for (const [k, c] of Object.entries(ROLE_COLOR)) map.addImage('car-' + k, carIcon(c))
@@ -300,37 +306,45 @@ map.on('load', async () => {
     'line-width': ['interpolate', ['exponential', 1.5], ['zoom'], 12, 1.5, 16, 7],
   } }, 'buildings')
   map.addLayer({ id: 'district-shroud', type: 'fill', source: 'districts', paint: {
-    'fill-color': '#03050a', 'fill-opacity': ['*', 0.62, ['get', 'danger']],
+    'fill-color': '#03050a', 'fill-opacity': ['case', ['boolean', ['get', 'cold'], false], 0.7, ['*', 0.62, ['get', 'danger']]],
   } })
   map.addSource('heat', { type: 'geojson', data: heatFC() })
   map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', layout: { visibility: 'none' }, paint: {
     'heatmap-weight': ['get', 'w'],
-    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 12, 8, 14, 16, 16, 36],
-    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 12, 0.12, 14, 0.2, 16, 0.35],
+    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 12, 9, 14, 18, 16, 40],
+    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 12, 0.16, 14, 0.26, 16, 0.45],
     'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
-      0, 'rgba(0,0,0,0)', 0.2, 'rgba(60,4,18,0.35)', 0.5, 'rgba(130,12,30,0.55)', 0.8, 'rgba(190,35,40,0.7)', 1, 'rgba(225,70,50,0.8)'],
-    'heatmap-opacity': 0.75,
+      0, 'rgba(0,0,0,0)', 0.15, 'rgba(70,4,18,0.4)', 0.45, 'rgba(150,12,30,0.6)', 0.75, 'rgba(215,40,40,0.78)', 1, 'rgba(255,90,60,0.9)'],
+    'heatmap-opacity': 0.85,
   } })
   map.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: {
     'line-color': ['interpolate', ['linear'], ['get', 'danger'], 0, ['get', 'color'], 1, '#ff3b3b'],
     'line-width': ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 2.5, 1.2], ['get', 'danger']], 'line-opacity': 0.9,
   } })
-  map.addLayer({ id: 'district-label', type: 'symbol', source: 'districts', layout: {
-    'text-field': ['upcase', ['get', 'label']], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-letter-spacing': 0.15, 'text-allow-overlap': true,
-  }, paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#06101f', 'text-halo-width': 1.5, 'text-opacity': 0.85 } })
+  map.addSource('district-labels', { type: 'geojson', data: districtLabelsGeoJSON() })
+  map.addLayer({ id: 'district-label', type: 'symbol', source: 'district-labels', layout: {
+    'text-field': ['upcase', ['get', 'label']], 'text-font': ['Noto Sans Medium'], 'text-letter-spacing': 0.15, 'text-allow-overlap': true,
+    'text-size': ['interpolate', ['linear'], ['zoom'], 11, 11, 13, 14, 16, 18],
+  }, paint: { 'text-color': ['case', ['boolean', ['get', 'cold'], false], '#4a5570', ['get', 'color']], 'text-halo-color': '#06101f', 'text-halo-width': 1.5, 'text-opacity': 0.85 } })
 
   // Free tier: any named place from the tiles gets a hover name and a card, but is not a
   // dispatch target. Invisible hit circles.
   map.addLayer({ id: 'poi-hit', type: 'circle', source: 'protomaps', 'source-layer': 'pois', minzoom: 13,
     filter: ['has', 'name'], paint: { 'circle-radius': 9, 'circle-opacity': 0, 'circle-stroke-opacity': 0 } })
 
-  // Authored tier: always drawn, always clickable, dispatch targets. The baked emergency POIs
-  // stand in for the real authored list until the landmarks pass.
-  const pois = await (await fetch('/data/pois.json')).json()
-  places = pois.filter(p => !/Training Prop|ARFF/.test(p.name))
-    .map((p, i) => ({ id: 'p' + i, name: p.name, kind: p.kind, lonlat: p.lonlat, node: nearestNode(p.lonlat), contacts: [] }))
+  // Authored tier: the hand-picked places from bake/districts.py. Always drawn, always
+  // clickable, dispatch targets. Footprints get an outline in the place's color so the
+  // building itself reads as somewhere you can send a car.
+  const baked = await (await fetch('/data/places.json')).json()
+  places = baked.map(p => ({ ...p, node: nearestNode(p.lonlat), contacts: [] }))
   const gs = places.find(p => /Good Samaritan/.test(p.name))
   if (gs) gs.contacts.push({ name: 'Marcus Webb', status: 'hiding' })
+  map.addSource('footprints', { type: 'geojson', data: { type: 'FeatureCollection', features: places.filter(p => p.footprint).map(p => ({
+    type: 'Feature', id: p.id, properties: { id: p.id, color: KIND_COLOR[p.kind] ?? '#e8e2c9' }, geometry: { type: 'Polygon', coordinates: [p.footprint] } })) }, promoteId: 'id' })
+  map.addLayer({ id: 'footprint-fill', type: 'fill', source: 'footprints', minzoom: 13.5, paint: {
+    'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.28, 0.12] } }, 'buildings')
+  map.addLayer({ id: 'footprint-line', type: 'line', source: 'footprints', minzoom: 13.5, paint: {
+    'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 13.5, 0.6, 16, 2], 'line-opacity': 0.9 } })
   map.addSource('places', { type: 'geojson', data: placesFC(), promoteId: 'id' })
   map.addLayer({ id: 'place-ring', type: 'circle', source: 'places', filter: ['>', ['get', 'contacts'], 0], paint: {
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 8, 16, 18], 'circle-color': '#ffd24a', 'circle-opacity': 0.12,
@@ -341,7 +355,7 @@ map.on('load', async () => {
     'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true,
     'text-max-width': 12,
   }, paint: {
-    'text-color': ['match', ['get', 'kind'], 'hospital', KIND_COLOR.hospital, 'police', KIND_COLOR.police, KIND_COLOR.fire_station],
+    'text-color': ['get', 'color'],
     'text-halo-color': '#06101f', 'text-halo-width': 1.2,
     'text-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 0.9],
     'icon-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0.85],
@@ -368,8 +382,8 @@ map.on('load', async () => {
   // Spawn at real stations.
   const findPlace = (kind, re) => places.find(p => p.kind === kind && re.test(p.name))
   const lpd = findPlace('police', /Lexington Police/) ?? places[0]
-  const fs4 = findPlace('fire_station', /#4\b/) ?? lpd
-  const fs5 = findPlace('fire_station', /#5\b/) ?? lpd
+  const fs4 = findPlace('fire', /#1\b/) ?? lpd
+  const fs5 = findPlace('fire', /#5\b/) ?? lpd
   makeUnit('u1', 'police', 'Sullivan', lpd)
   makeUnit('u2', 'police', 'Kowalski', lpd)
   makeUnit('u3', 'fire', 'Garza', fs4)
@@ -392,7 +406,10 @@ function loop(now) {
   if (moved) {
     map.getSource('units')?.setData(unitsFC())
     pushRoutes()
-    if (follow && selected) map.jumpTo({ center: selected.pos })
+  }
+  if (follow && selected) {
+    followZoom += (followTarget - followZoom) * Math.min(1, wallDt * 8)
+    map.jumpTo({ center: selected.pos, zoom: followZoom })
   }
   dashT += wallDt; rosterT += wallDt
   if (rosterT > 0.25) { rosterT = 0; tickRoster() }
@@ -450,14 +467,14 @@ function setFS(source, cur, next, key) {
 }
 function setHoverDistrict(d) { hoverDistrict = setFS('districts', hoverDistrict, d, 'hover') }
 let hoverPlace = null
-function setHoverPlace(p) { hoverPlace = setFS('places', hoverPlace, p, 'hover') }
+function setHoverPlace(p) { if (hoverPlace !== p) { if (hoverPlace?.footprint) map.setFeatureState({ source: 'footprints', id: hoverPlace.id }, { hover: false }); if (p?.footprint) map.setFeatureState({ source: 'footprints', id: p.id }, { hover: true }) } hoverPlace = setFS('places', hoverPlace, p, 'hover') }
 function setHoverUnit(u) {
   hoverUnit = setFS('units', hoverUnit, u, 'hover')
   document.querySelectorAll('#roster-rows .row').forEach(r => r.classList.toggle('hover', !!u && r.dataset.id === u.id))
 }
 function select(u) {
   selected = setFS('units', selected, u, 'selected')
-  if (!u) follow = false
+  if (!u) stopFollow()
   renderRoster(); pushRoutes()
 }
 
@@ -496,7 +513,7 @@ map.on('contextmenu', e => {
     const u = h.unit
     return openCtx([
       { label: u === selected ? 'Deselect' : 'Select', run: () => select(u === selected ? null : u) },
-      { label: follow && u === selected ? 'Stop following' : 'Follow', run: () => { select(u); follow = !follow; if (follow) map.flyTo({ center: u.pos, zoom: 16, pitch: 60, duration: 800 }) } },
+      { label: follow && u === selected ? 'Stop following' : 'Follow', run: () => { if (follow && u === selected) stopFollow(); else { select(u); startFollow() } } },
       { label: `Return to ${u.home.name}`, run: () => dispatch(u, { place: u.home }) },
     ], e.point, `${u.name} · ${u.role}`)
   }
@@ -529,7 +546,7 @@ function showPlace(p) {
   document.getElementById('place').hidden = false
   document.getElementById('place-name').textContent = p.name
   document.getElementById('place-meta').innerHTML = [
-    ['KIND', KIND_LABEL[p.kind]], ['DISTRICT', d ? d.label : 'outside coverage'],
+    ['KIND', KIND_LABEL[p.kind] ?? p.kind], ['ADDRESS', p.addr ?? '—'], ['DISTRICT', d ? d.label : 'outside coverage'],
     ['UNITS HERE', here.length ? here.join(', ') : 'none'], ['EN ROUTE', enroute.length ? enroute.join(', ') : '—'],
     ['CONTACTS', p.contacts.length ? p.contacts.map(c => `${c.name} — ${c.status}`).join('<br>') : 'none'],
     ['', `<span class="link" id="place-go">▶ dispatch ${selected ? selected.name : 'selected unit'} here</span>`],
@@ -573,21 +590,35 @@ function tickRoster() {
 }
 function renderDanger() {
   const rows = document.getElementById('danger-rows')
-  rows.innerHTML = DISTRICTS.map(d => `<div class="drow"><span style="color:${CATEGORY_COLOR[d.category]}">${d.label}</span><input type="range" min="0" max="100" value="${Math.round(danger[d.id] * 100)}" data-id="${d.id}"><span class="v">${Math.round(danger[d.id] * 100)}%</span></div>`).join('')
-  rows.querySelectorAll('input').forEach(i => i.oninput = () => { danger[i.dataset.id] = i.value / 100; i.nextElementSibling.textContent = i.value + '%'; pushDistricts() })
+  rows.innerHTML = DISTRICTS.map(d => `<div class="drow"><span style="color:${CATEGORY_COLOR[d.category]}">${d.label}</span><input type="range" min="0" max="100" value="${Math.round(danger[d.id] * 100)}" data-id="${d.id}"><span class="v">${Math.round(danger[d.id] * 100)}%</span><label class="cold" title="cold: no humans left"><input type="checkbox" data-cold="${d.id}"> cold</label></div>`).join('')
+  rows.querySelectorAll('input[type=range]').forEach(i => i.oninput = () => { danger[i.dataset.id] = i.value / 100; i.nextElementSibling.textContent = i.value + '%'; pushDistricts() })
+  rows.querySelectorAll('input[type=checkbox]').forEach(i => i.onchange = () => { cold[i.dataset.cold] = i.checked; pushDistricts() })
   document.getElementById('paint-toggle').onclick = cyclePaint
 }
 function cyclePaint() { paintMode = { shroud: 'streets', streets: 'both', both: 'shroud' }[paintMode]; applyPaintMode() }
-function overview() { follow = false; map.flyTo({ center: cfg.center, zoom: 13.4, pitch: 52, bearing: -12, duration: 1200 }) }
+function overview() { stopFollow(); map.flyTo({ center: cfg.center, zoom: 13.4, pitch: 52, bearing: -12, duration: 1200 }) }
 
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (ctxOpen) closeCtx(); else if (selected) select(null); else document.getElementById('place').hidden = true }
   if (e.key === 'o') overview()
-  if (e.key === 'f') { follow = !follow && !!selected; if (follow) map.flyTo({ center: selected.pos, zoom: 16, pitch: 60, duration: 800 }) }
+  if (e.key === 'f') { if (follow) stopFollow(); else startFollow() }
   if (e.key === 'p') cyclePaint()
   if (e.key === '1') timeScale = 1
   if (e.key === '2') timeScale = 6
   if (e.key === '3') timeScale = 20
   if (['1', '2', '3'].includes(e.key)) setHint(`time scale ${timeScale}×`)
 })
-map.on('dragstart', () => { follow = false })
+map.on('dragstart', () => { stopFollow() })
+function startFollow() {
+  if (!selected) return
+  follow = true
+  followTarget = Math.max(map.getZoom() + 1.5, 16.3); followZoom = followTarget
+  map.scrollZoom.disable()
+  map.flyTo({ center: selected.pos, zoom: followTarget, pitch: 62, duration: 1100, curve: 1.3 })
+}
+function stopFollow() { if (!follow) return; follow = false; map.scrollZoom.enable() }
+map.getCanvas().addEventListener('wheel', e => {
+  if (!follow) return
+  e.preventDefault()
+  followTarget = Math.max(13, Math.min(18, followTarget - e.deltaY * 0.0035))
+}, { passive: false })

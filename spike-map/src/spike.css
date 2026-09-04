@@ -78,3 +78,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 .ctx-item:hover { background: rgba(36,64,107,0.45); color: var(--accent); }
 .ctx-item.disabled { color: var(--dim); cursor: default; }
 .ctx-item.disabled:hover { background: none; color: var(--dim); }
+
+.drow { grid-template-columns: 1fr 90px 36px auto; }
+.drow .cold { color: var(--dim); font-size: 10px; white-space: nowrap; }

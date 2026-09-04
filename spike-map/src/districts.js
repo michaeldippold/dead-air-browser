@@ -1,29 +1,27 @@
-// Hand-traced spike districts over real Lexington neighborhoods. Rough on purpose:
-// the spike is judging the look and the position/state split, not the boundaries.
-// Real districts get traced properly once the landmarks are pinned.
+// Districts: the sim's unit of state. Geometry comes from the bake; everything here is
+// derived (which district a point is in, which roads and nodes are inside, patrol legs).
 import { graph, pointInRing, nearestNode, dist, route } from './graph.js'
+export const cold = {}   // district id -> true once no humans are left
 
-export const DISTRICTS = [
-  { id: 'downtown', label: 'Downtown', category: 'government',
-    ring: [[-84.5105, 38.0395], [-84.5105, 38.0555], [-84.4835, 38.0555], [-84.4835, 38.0395]] },
-  { id: 'uk', label: 'University of Kentucky', category: 'government',
-    ring: [[-84.5160, 38.0185], [-84.5160, 38.0395], [-84.4955, 38.0395], [-84.4955, 38.0185]] },
-  { id: 'chevychase', label: 'Chevy Chase', category: 'residential',
-    ring: [[-84.4955, 38.0185], [-84.4955, 38.0395], [-84.4700, 38.0395], [-84.4700, 38.0185]] },
-  { id: 'joyland', label: 'Joyland', category: 'residential',
-    ring: [[-84.5060, 38.0740], [-84.5060, 38.1010], [-84.4700, 38.1010], [-84.4700, 38.0740]] },
-  { id: 'redmile', label: 'The Red Mile', category: 'retail',
-    ring: [[-84.5300, 38.0250], [-84.5300, 38.0480], [-84.5105, 38.0480], [-84.5105, 38.0250]] },
-  { id: 'fayettemall', label: 'Fayette Mall', category: 'retail',
-    ring: [[-84.5190, 37.9740], [-84.5190, 37.9960], [-84.4930, 37.9960], [-84.4930, 37.9740]] },
-]
+// Baked by bake/districts.py: polygons that follow real roads, from named corridors.
+export const DISTRICTS = []
+export async function loadDistricts(url = '/data/districts.geojson') {
+  const fc = await (await fetch(url)).json()
+  DISTRICTS.length = 0
+  for (const f of fc.features) {
+    const ring = f.geometry.coordinates[0].slice(0, -1)
+    DISTRICTS.push({ id: f.properties.id, label: f.properties.label, category: f.properties.category, ring })
+    danger[f.properties.id] = 0
+  }
+  return DISTRICTS
+}
 
 export const CATEGORY_COLOR = {
   residential: '#4f7ac9', government: '#6f63c7', medical: '#c95c7d', retail: '#c9a04f', industrial: '#8a8f9a',
 }
 
 // Live per-district danger 0..1 (dev slider in the spike; district ratio in the game).
-export const danger = Object.fromEntries(DISTRICTS.map(d => [d.id, 0]))
+export const danger = {}
 
 export function districtAt(lonlat) {
   for (const d of DISTRICTS) if (pointInRing(lonlat, d.ring)) return d
@@ -77,12 +75,29 @@ export function patrolRoute(fromId, district) {
   return any ? { coords: any.geom, edges: [any], seconds: any.len / (any.kph / 3.6), metres: any.len } : null
 }
 
+// Area centroid of a ring (shoelace). Labels anchor here, once per district.
+export function centroid(ring) {
+  let a = 0, cx = 0, cy = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const f = ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
+    a += f; cx += (ring[j][0] + ring[i][0]) * f; cy += (ring[j][1] + ring[i][1]) * f
+  }
+  a *= 0.5
+  return a === 0 ? ring[0] : [cx / (6 * a), cy / (6 * a)]
+}
+export function districtLabelsGeoJSON() {
+  return { type: 'FeatureCollection', features: DISTRICTS.map(d => ({
+    type: 'Feature', id: d.id,
+    properties: { id: d.id, label: d.label, color: CATEGORY_COLOR[d.category], cold: !!cold[d.id] },
+    geometry: { type: 'Point', coordinates: centroid(d.ring) } })) }
+}
+
 export function districtsGeoJSON() {
   return {
     type: 'FeatureCollection',
     features: DISTRICTS.map(d => ({
       type: 'Feature', id: d.id,
-      properties: { id: d.id, label: d.label, category: d.category, color: CATEGORY_COLOR[d.category], danger: danger[d.id] },
+      properties: { id: d.id, label: d.label, category: d.category, color: CATEGORY_COLOR[d.category], danger: danger[d.id], cold: !!cold[d.id] },
       geometry: { type: 'Polygon', coordinates: [[...d.ring, d.ring[0]]] },
     })),
   }

@@ -41,8 +41,16 @@ for u, v, d in G.edges(data=True):
     ow = d.get("oneway", False)
     if isinstance(ow, list):
         ow = any(ow)
+    name = d.get("name")
+    if isinstance(name, list):
+        name = name[0]
+    ref = d.get("ref")
+    if isinstance(ref, list):
+        ref = ref[0]
     edges.append({
         "u": str(u), "v": str(v),
+        "name": name if isinstance(name, str) else None,
+        "ref": ref if isinstance(ref, str) else None,
         "len": round(float(d["length"]), 1),
         "kph": round(float(d["speed_kph"]), 1),
         "hw": hw,
