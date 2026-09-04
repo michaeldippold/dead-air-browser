@@ -108,13 +108,17 @@ export function attachInteraction(r) {
     closeCtx()
     const h = hit(e.point)
     const sel = r.selectedUnit()
-    if (h.unit) { on.selectUnit(h.unit === sel ? null : h.unit.id); return }
+    if (h.unit) { on.unitClick(h.unit.id, e.originalEvent?.detail ?? 1); return }
     if (h.place) { on.showPlace(h.place.id); if (sel) on.dispatch(sel.id, { placeId: h.place.id }); return }
     if (h.poi) { on.showPoi({ name: h.poi.properties.name, kind: h.poi.properties.kind, lonlat: h.poi.geometry.coordinates }); return }
     if (h.district && sel) { on.dispatch(sel.id, { districtId: h.district.id, activity: 'engage' }); return }
     if (h.district) { on.selectDistrict?.(h.district.id); return }
     if (sel) on.selectUnit(null)
   })
+
+  // Double-click on a car is the game's (details toggle, handled via click detail above); keep
+  // MapLibre's double-click zoom for everything else.
+  map.on('dblclick', e => { if (hit(e.point).unit) e.preventDefault() })
 
   // Right click: a context menu for whatever is under the cursor, with the explicit verb.
   function closeCtx() { ctxEl.hidden = true; ctxOpen = false }

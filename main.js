@@ -959,6 +959,7 @@ let mapRenderer = null
     },
     on: {
       selectUnit:     id => { if (id) selectUnit(id); else deselectUnit() },
+      unitClick:      (id, detail) => unitClick(id, detail),
       dispatch:       (unitId, target) => dispatchUnit(unitId, target),
       showPlace:      id => showPlaceDetail(placeById(id)),
       showPoi:        poi => showPoiDetail(poi),
@@ -1638,8 +1639,7 @@ document.getElementById('ddv-units').addEventListener('click', e => {
   if (e.target.closest('[data-item-key]')) return          // item tags keep their own behavior
   const card = e.target.closest('[data-unit-id]')
   if (!card) return
-  const id = card.dataset.unitId
-  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
+  unitClick(card.dataset.unitId, e.detail)
 })
 
 // One unit tag for both right-side cards (district + place): the badge-style card, lit when it is
@@ -1710,7 +1710,7 @@ document.getElementById('place-detail-panel').addEventListener('click', e => {
   if (e.target.closest('#btn-pdv-close')) { hidePlaceDetail(); return }
   if (e.target.closest('[data-item-key]')) return
   const unitRow = e.target.closest('[data-unit-id]')
-  if (unitRow) { const id = unitRow.dataset.unitId; if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id); return }
+  if (unitRow) { unitClick(unitRow.dataset.unitId, e.detail); return }
   const callerRow = e.target.closest('[data-contact-id]')
   if (callerRow) { if (winState['contacts']?.minimized) toggleMinimize('contacts'); bringToFront('contacts'); showContactDetail(callerRow.dataset.contactId); return }
   if (e.target.closest('#pdv-go') && state.selectedUnit && state.selectedPlace) {
@@ -1790,9 +1790,7 @@ function setContactsView(view) { contactsPanel.dataset.view = view || '' }
 unitsList.addEventListener('click', e => {
   const row = e.target.closest('[data-unit-id]')
   if (!row) return
-  const id = row.dataset.unitId
-  if (e.target.closest('.unit-row-details')) { openUnitDetail(id); return }
-  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
+  unitClick(row.dataset.unitId, e.detail)
 })
 
 unitsList.addEventListener('mouseover', e => {
@@ -1805,8 +1803,30 @@ unitsList.addEventListener('mouseleave', () => {
   mapRenderer.hoverUnitById?.(null)
 })
 
+// One click rule for every place a unit can be clicked (roster row, TRAVELING row, card tag, car on
+// the map): single click selects, clicking the selected unit again deselects, double-click toggles
+// its details. The browser's own double-click timing is used (event.detail); the deselect on a
+// second click is deferred a beat so a double-click never has to undo it.
+let _deselectTimer = null
+function unitClick(id, detail = 1) {
+  if (!state.units[id]) return
+  if (detail >= 2) {
+    clearTimeout(_deselectTimer); _deselectTimer = null
+    if (state.unitDetailOpen && state.selectedUnit?.unitId === id) closeUnitDetail()
+    else openUnitDetail(id)
+    return
+  }
+  if (state.selectedUnit?.unitId === id) {
+    clearTimeout(_deselectTimer)
+    _deselectTimer = setTimeout(() => { _deselectTimer = null; if (state.selectedUnit?.unitId === id) deselectUnit() }, 260)
+  } else {
+    clearTimeout(_deselectTimer); _deselectTimer = null
+    selectUnit(id)
+  }
+}
+
 // Selection is the thing the map verbs act on; details are a display that unfolds under the list.
-// Selecting never opens details (the row's button does); deselecting closes them.
+// Selecting never opens details (a double-click does); deselecting closes them.
 function selectUnit(unitId) {
   const unit = state.units[unitId]
   if (!unit) return
@@ -1853,6 +1873,7 @@ function renderUnitDetail(unit) {
 
   udvType.textContent = unit.label
   udvLocation.textContent = unitStatusText(unit)
+  syncFollowBtn()
 
   udvActivity.innerHTML = unit.activity === 'responding'
     ? `<div class="udv-responding">RESPONDING — on a call</div>`
@@ -2138,6 +2159,23 @@ function renderContactsPanel() {
 // ── EVENT LISTENERS ──
 
 btnUdvClose.addEventListener('click', closeUnitDetail)
+function toggleFollow() {
+  if (!state.selectedUnit) return
+  if (mapRenderer.isFollowing()) mapRenderer.stopFollow(); else mapRenderer.startFollow()
+  syncFollowBtn()
+}
+function syncFollowBtn() {
+  const btn = document.getElementById('btn-udv-follow')
+  const on = mapRenderer.isFollowing()
+  btn.textContent = on ? 'FOLLOWING' : 'FOLLOW'
+  btn.classList.toggle('active', on)
+}
+document.getElementById('btn-udv-follow').addEventListener('click', toggleFollow)
+window.addEventListener('keydown', e => {
+  if (e.key !== 'f' && e.key !== 'F') return
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target?.tagName)) return
+  toggleFollow()
+})
 btnCdvBack.addEventListener('click', hideContactDetail)
 btnCdvCallback.addEventListener('click', () => {
   if (state.selectedContact) callBackContact(state.selectedContact)
@@ -2601,7 +2639,7 @@ function renderUnitsPanel() {
   }).join('')
 }
 
-// [Unit] [★ leader] [map-aware status] [details]. Click selects; the button opens details.
+// [Unit] [★ leader] [map-aware status]. Click selects; double-click toggles details (unitClick).
 function renderUnitRow(unit) {
   const leader = state.people[unit.leaderPersonId]
   if (!leader) return ''
@@ -2611,7 +2649,6 @@ function renderUnitRow(unit) {
     <span class="unit-row-label">${unit.label.toUpperCase()}</span>
     <span class="unit-row-leader">${leaderStar(leader.role, woundState(leader))}<span class="unit-row-leader-name">${unitShortName(unit)}</span></span>
     <span class="unit-row-status unit-row-status--${unit.status}${unit.activity === 'responding' ? ' unit-row-status--responding' : ''}">${status}</span>
-    <button class="unit-row-details${state.unitDetailOpen && selected ? ' active' : ''}" title="Details">ⓘ</button>
   </div>`
 }
 
@@ -2724,8 +2761,7 @@ function renderTravelingPanel() {
 document.getElementById('traveling-panel').addEventListener('click', e => {
   const row = e.target.closest('[data-unit-id]')
   if (!row) return
-  const id = row.dataset.unitId
-  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
+  unitClick(row.dataset.unitId, e.detail)
 })
 
 function renderGodPanel() {
