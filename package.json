@@ -2,10 +2,12 @@
   "name": "dead-air",
   "version": "0.8.0",
   "private": true,
-  "description": "Dead Air — night-shift 911 dispatch during a zombie outbreak in Lexington, KY",
+  "description": "Dead Air \u2014 night-shift 911 dispatch during a zombie outbreak in Lexington, KY",
   "type": "module",
   "scripts": {
+    "predev": "node tools/copy-maplibre-worker.mjs",
     "dev": "vite",
+    "prebuild": "node tools/copy-maplibre-worker.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

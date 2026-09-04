@@ -16,6 +16,10 @@ export const CAMERA = { center: [-84.4977, 38.0406], zoom: 13.4, pitch: 52, bear
 
 let protocolRegistered = false
 
+// The worker is vendored into public/vendor/maplibre by tools/copy-maplibre-worker.mjs (see there
+// for why); resolving it through the bundle breaks in the build and is noisy in dev.
+maplibregl.setWorkerUrl('/vendor/maplibre/maplibre-gl-worker.mjs')
+
 // stage: the DOM element the map fills (position: relative). tipEl / ctxEl: tooltip and context
 // menu elements inside it. get: { units, unitName, unitStatus, places, placeContacts,
 // selectedUnitId, timeScale, districtStatus? }. on: { selectUnit, dispatch, showPlace, showPoi,

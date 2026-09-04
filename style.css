@@ -525,7 +525,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   display: flex;
   flex-direction: row;
   overflow: hidden;
-  background: var(--map-panel-bg);
+  background: #06101f;
 }
 
 /* Roster strip over the map (map-integration.md §5e) */
@@ -681,15 +681,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 #pdv-go:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
 
-/* Map SVG area */
-#map-svg-wrap {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  overflow: visible;
-  padding: 10px;
-}
-
 /* Traveling panel — units/callers currently in transit */
 #traveling-panel {
   position: absolute;
@@ -828,8 +819,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   gap: 3px;
 }
 
-#map-palette-select { display: none; }
-
 #dispatch-layout-select {
   font-size: 10px;
   padding: 1px 4px;
@@ -837,14 +826,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 #units-panel[data-view="unit-detail"] ~ #dispatch-layout-select,
 #units-panel[data-view="item-description"] ~ #dispatch-layout-select { display: none; }
-
-#city-map {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* Roster hover highlight on map — same darker fill as :hover and .selected, no stroke */
 
 /* ── Dispatch Roster — fills its own window ── */
 #units-panel {
@@ -1140,55 +1121,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #contacts-panel > #contacts-view                                   { display: flex; }
 #contacts-panel[data-view="contact-detail"] > #contacts-view       { display: none; }
 #contacts-panel[data-view="contact-detail"] > #contact-detail-view { display: flex; }
-
-/* ── Districts ── */
-#districts polygon {
-  stroke: var(--map-district-stroke, var(--bg));
-  stroke-width: 2;
-  stroke-linejoin: round;
-  cursor: pointer;
-  transition: fill 0.2s ease;
-}
-
-polygon[data-category="residential"] { fill: var(--col-res); }
-polygon[data-category="government"]  { fill: var(--col-gov); }
-polygon[data-category="medical"]     { fill: var(--col-med); }
-polygon[data-category="retail"]      { fill: var(--col-ret); }
-polygon[data-category="industrial"]  { fill: var(--col-ind); }
-
-polygon[data-category="residential"]:hover,
-polygon[data-category="residential"].roster-hover,
-polygon[data-category="residential"].selected { fill: var(--col-res-h); }
-polygon[data-category="government"]:hover,
-polygon[data-category="government"].roster-hover,
-polygon[data-category="government"].selected  { fill: var(--col-gov-h); }
-polygon[data-category="medical"]:hover,
-polygon[data-category="medical"].roster-hover,
-polygon[data-category="medical"].selected     { fill: var(--col-med-h); }
-polygon[data-category="retail"]:hover,
-polygon[data-category="retail"].roster-hover,
-polygon[data-category="retail"].selected      { fill: var(--col-ret-h); }
-polygon[data-category="industrial"]:hover,
-polygon[data-category="industrial"].roster-hover,
-polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
-
-/* ── SVG Text ── */
-.lbl-name {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 18px;
-  font-weight: bold;
-  fill: var(--map-label);
-  text-anchor: middle;
-  letter-spacing: 1.5px;
-}
-
-.lbl-cat {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 12px;
-  fill: var(--map-label-sub);
-  text-anchor: middle;
-  letter-spacing: 0.5px;
-}
 
 /* ── COMMS window: amber channel treatment ── */
 #win-radio {
@@ -2279,49 +2211,6 @@ polygon[data-category="industrial"].selected  { fill: var(--col-ind-h); }
 }
 
 
-/* ── Unit dots on SVG map ── */
-
-.unit-map-dot {
-  cursor: pointer;
-  stroke: rgba(0,0,0,0.55);
-  stroke-width: 1;
-  transition: r 0.1s;
-}
-
-.unit-map-dot:hover {
-  stroke: rgba(255,255,255,0.8);
-  stroke-width: 1.5;
-}
-
-.unit-map-dot--police   { fill: var(--unit-police); }
-.unit-map-dot--fire     { fill: var(--unit-fire); }
-.unit-map-dot--civilian { fill: var(--unit-civilian); }
-
-/* On a call — dashed gold ring marks a unit that's present but tied up (RESPONDING). */
-.unit-map-dot--responding { stroke: var(--leader-star); stroke-width: 2; stroke-dasharray: 3 2; }
-
-/* ── Drag-and-drop ── */
-
-polygon.drop-target {
-  animation: drop-pulse 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes drop-pulse {
-  from { opacity: 1; }
-  to   { opacity: 0.45; }
-}
-
-/* ── Contact location pulse ── */
-
-polygon.contact-district {
-  animation: contact-district-pulse 1.5s ease-in-out infinite alternate;
-}
-
-@keyframes contact-district-pulse {
-  from { fill: transparent; }
-  to   { fill: color-mix(in srgb, var(--accent) 28%, transparent); }
-}
-
 /* ── Unit activity picker (unit detail view) ── */
 
 #udv-activity {
@@ -2446,3 +2335,4 @@ polygon.contact-district {
   gap: 8px;
   justify-content: center;
 }
+

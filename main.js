@@ -10,10 +10,6 @@ import { createMapRenderer } from './src/map/index.js'
 
 // ── CONFIG & CONSTANTS ──
 
-// Map v3 escape hatch (map-integration.md §5a): `?map=2d` skips the MapLibre map and shows the
-// legacy SVG districts. Removed with the SVG in step §5i.
-const MAP_2D = new URLSearchParams(location.search).get('map') === '2d'
-
 const TICK_MS       = 3000
 const SPREAD_RATE   = 0.15  // SIR β — transmission coefficient, not per-zombie rate
 let spreadChance = 0.35
@@ -241,7 +237,7 @@ function completeResponse(unit) {
   unit.respondTimer = null
   unitReport(unit, `Task complete. Back in service.`)
   renderUnitsPanel()
-  renderUnitDots()
+  renderMapUnits()
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit?.unitId === unit.id) {
     renderUnitDetail(unit)
   }
@@ -937,13 +933,9 @@ const udvTarget   = document.getElementById('udv-target')
 
 // ── MAP RENDERER (Map v3) ──
 // Hooks in, not imports out: the renderer gets getters over sim state and emits intents. The sim
-// never reads a unit's position; the renderer never writes a district. `?map=2d` keeps the SVG.
+// never reads a unit's position; the renderer never writes a district.
 let mapRenderer = null
-if (MAP_2D) {
-  document.getElementById('map-gl').style.display = 'none'
-  document.getElementById('map-attrib').style.display = 'none'
-} else {
-  document.getElementById('map-svg-wrap').style.display = 'none'
+{
   mapRenderer = createMapRenderer({
     stage: document.getElementById('map-stage'),
     mapEl: document.getElementById('map-gl'),
@@ -978,6 +970,18 @@ if (MAP_2D) {
 
 // Dev hook: inspect the sim from the console (never read by game code).
 window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover }
+
+// Map settings (map-integration.md §5h): district boundaries strong (default) or subtle.
+{
+  const sel = document.getElementById('map-boundaries-select')
+  const saved = localStorage.getItem('dispatch-map-boundaries')
+  if (saved === 'strong' || saved === 'subtle') sel.value = saved
+  mapRenderer.setBoundaries(sel.value === 'strong')
+  sel.addEventListener('change', () => {
+    mapRenderer.setBoundaries(sel.value === 'strong')
+    localStorage.setItem('dispatch-map-boundaries', sel.value)
+  })
+}
 
 // The roster strip collapses to its header so the map can breathe.
 document.getElementById('roster-strip-toggle').addEventListener('click', () => {
@@ -1581,37 +1585,15 @@ function syncGodBtn() {
 
 // ── MAP ──
 
-document.querySelectorAll('#districts polygon').forEach(poly => {
-  poly.addEventListener('click', () => selectDistrict(poly.id))
-})
-
-document.getElementById('unit-dots').addEventListener('click', e => {
-  const dot = e.target.closest('.unit-map-dot')
-  if (!dot) return
-  e.stopPropagation()
-  const unitId = dot.dataset.unitId
-  if (!unitId || !state.units[unitId]) return
-  if (winState['dispatch']?.minimized) toggleMinimize('dispatch')
-  bringToFront('dispatch')
-  showUnitDetail(unitId)
-})
-
+// The district card (right side of the DISPATCH window). Clicking the same district again closes it.
 function selectDistrict(id) {
   hidePlaceDetail()
-  if (state.selected) {
-    const prev = document.getElementById(state.selected)
-    if (prev) prev.classList.remove('selected')
-  }
-
   if (state.selected === id) {
     state.selected = null
     delete mapContainer.dataset.view
     return
   }
-
   state.selected = id
-  const poly = document.getElementById(id)
-  if (poly) poly.classList.add('selected')
   mapContainer.dataset.view = 'district'
   renderDistrictDetail()
 }
@@ -1623,7 +1605,7 @@ const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station
                      school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
 function showPlaceDetail(place) {
   if (!place) return
-  if (state.selected) { document.getElementById(state.selected)?.classList.remove('selected'); state.selected = null }
+  state.selected = null
   state.selectedPlace = place.id
   const d       = state.districts[place.district]
   const here    = Object.values(state.units).filter(u => u.place === place.id && u.status === 'inside')
@@ -1651,7 +1633,7 @@ function showPlaceDetail(place) {
 
 function showPoiDetail(poi) {
   if (!poi) return
-  if (state.selected) { document.getElementById(state.selected)?.classList.remove('selected'); state.selected = null }
+  state.selected = null
   state.selectedPlace = null
   const d = districtAt(poi.lonlat)
   document.getElementById('pdv-name').textContent = poi.name ?? '—'
@@ -1762,15 +1744,11 @@ unitsList.addEventListener('click', e => {
 unitsList.addEventListener('mouseover', e => {
   const card = e.target.closest('[data-unit-id]')
   if (!card) return
-  document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
-  const poly = document.getElementById(card.dataset.districtId)
-  if (poly) poly.classList.add('roster-hover')
-  mapRenderer?.hoverUnitById?.(card.dataset.unitId)
+  mapRenderer.hoverUnitById?.(card.dataset.unitId)
 })
 
 unitsList.addEventListener('mouseleave', () => {
-  document.querySelectorAll('#districts polygon').forEach(p => p.classList.remove('roster-hover'))
-  mapRenderer?.hoverUnitById?.(null)
+  mapRenderer.hoverUnitById?.(null)
 })
 
 function showUnitDetail(unitId) {
@@ -1850,10 +1828,6 @@ function renderContactMeta(contact) {
   cdvMeta.style.display = ''
 }
 
-function _clearContactDistrictPulse() {
-  document.querySelectorAll('#districts polygon.contact-district').forEach(p => p.classList.remove('contact-district'))
-}
-
 // Green arcs = on the line, can still be called back. Red = disconnected for good — dead air
 // on their end. No blinking either way — same connection glyph used in the contact-detail
 // header and the contacts-list row (see renderContactsPanel), markup built once here so both
@@ -1884,11 +1858,6 @@ function showContactDetail(contactId) {
   renderContactMessages(contact)
   renderDispatchControl(contact)
   setContactsView('contact-detail')
-  _clearContactDistrictPulse()
-  if (contact.location) {
-    const poly = document.getElementById(contact.location)
-    if (poly) poly.classList.add('contact-district')
-  }
   // Caller pins appear on disclosure (§1 #14): opening the thread is when they tell us where they
   // are, so the first open flips it. Selecting a contact lights their footprint and flies to it.
   if (contact.placeId && contact.alive) {
@@ -1906,8 +1875,7 @@ function showContactDetail(contactId) {
 function hideContactDetail() {
   state.selectedContact = null
   setContactsView(null)
-  _clearContactDistrictPulse()
-  mapRenderer?.litPlace(null)
+  mapRenderer.litPlace(null)
 }
 
 // The game's core verb, surfaced inside the open call thread: pick an available unit and send it
@@ -2204,7 +2172,7 @@ function dispatchUnit(unitId, target, opts = {}) {
       unit.activity = tgt.activity
     }
     renderUnitsPanel()
-    renderUnitDots()
+    renderMapUnits()
     return
   }
   if (!unit.pos) return
@@ -2238,7 +2206,7 @@ function dispatchUnit(unitId, target, opts = {}) {
   director.emit('unit-departs', { unitId, srcId, destId: tgt.districtId })
   unitReport(unit, `10-4 dispatch, en route to ${destLabel}.`)
   renderUnitsPanel()
-  renderUnitDots()
+  renderMapUnits()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
@@ -2282,7 +2250,7 @@ function resolveTransits() {
   }
   state.transits = remaining
   renderUnitsPanel()
-  renderUnitDots()
+  renderMapUnits()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
   if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
@@ -2328,38 +2296,6 @@ btnUdvSend.addEventListener('click', () => {
   if (!destId || !unit || destId === unit.districtId) return
   dispatchUnit(state.selectedUnit.unitId, destId)
   hideUnitDetail()
-})
-
-// ── DRAG-AND-DROP DISPATCH ──
-
-unitsList.addEventListener('dragstart', e => {
-  const card = e.target.closest('[data-unit-id]')
-  if (!card) return
-  e.dataTransfer.setData('text/plain', card.dataset.unitId)
-  e.dataTransfer.effectAllowed = 'move'
-})
-
-document.querySelectorAll('#districts polygon').forEach(poly => {
-  poly.addEventListener('dragover', e => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  })
-  poly.addEventListener('dragenter', e => {
-    e.preventDefault()
-    poly.classList.add('drop-target')
-  })
-  poly.addEventListener('dragleave', () => {
-    poly.classList.remove('drop-target')
-  })
-  poly.addEventListener('drop', e => {
-    e.preventDefault()
-    poly.classList.remove('drop-target')
-    const unitId = e.dataTransfer.getData('text/plain')
-    if (unitId) {
-      dispatchUnit(unitId, poly.id)
-      if (state.selectedUnit?.unitId === unitId) hideUnitDetail()
-    }
-  })
 })
 
 // ── SIMULATION ──
@@ -2548,7 +2484,7 @@ function render() {
   timeDisplay.textContent = `DAY ${gameDay()} · ${gameTime()}`
   renderDistrictDetail()
   renderUnitsPanel()
-  renderUnitDots()
+  renderMapUnits()
   renderTravelingPanel()
   renderContactsPanel()
   renderGodPanel()
@@ -2630,7 +2566,7 @@ function renderUnitCard(unit, layout) {
     const membersEl = nonLeaders.length > 0
       ? `<div class="roster-members-dots">${memberDots}</div>`
       : `<div class="roster-alone">LONE OPERATOR</div>`
-    return `<div class="roster-card" draggable="true" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
+    return `<div class="roster-card" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
       <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
       <div class="roster-card-body">
         <div class="roster-card-headline">
@@ -2648,38 +2584,9 @@ function renderUnitCard(unit, layout) {
 
 }
 
-function renderUnitDots() {
-  if (mapRenderer) { mapRenderer.refresh(); return }   // Map v3: cars, badges, routes
-  const dotsGroup = document.getElementById('unit-dots')
-  if (!dotsGroup) return
-  dotsGroup.innerHTML = ''
-
-  for (const [districtId] of Object.entries(state.districts)) {
-    const units = unitsInDistrict(districtId)
-    if (units.length === 0) continue
-
-    const poly = document.getElementById(districtId)
-    if (!poly) continue
-
-    const bbox   = poly.getBBox()
-    const dotR   = 11
-    const dotGap = 26
-    const margin = 14
-
-    units.forEach((unit, i) => {
-      const leader = state.people[unit.leaderPersonId]
-      if (!leader) return
-
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-      circle.setAttribute('cx', bbox.x + margin + dotR + i * dotGap)
-      circle.setAttribute('cy', bbox.y + bbox.height - margin)
-      circle.setAttribute('r', dotR)
-      circle.dataset.unitId = unit.id
-      circle.classList.add('unit-map-dot', `unit-map-dot--${leader.role}`)
-      if (unit.activity === 'responding') circle.classList.add('unit-map-dot--responding')
-      dotsGroup.appendChild(circle)
-    })
-  }
+// Push cars, routes and place badges to the map after any sim change to units.
+function renderMapUnits() {
+  mapRenderer.refresh()
 }
 
 // Wall-clock ETA, refreshed on its own 1s interval (see startCountdownClock below) — kept
@@ -3130,87 +3037,7 @@ function setGlobalTheme(id) {
 setGlobalTheme(localStorage.getItem('dispatch-theme') || 'terminal-green')
 document.getElementById('theme-select').addEventListener('change', e => {
   setGlobalTheme(e.target.value)
-  setMapPalette(document.getElementById('map-palette-select').value)
-  applyMapLabelOverride(e.target.value)
 })
-
-// ── Map palette switcher ──
-
-const MAP_PALETTES = {
-  outline: {
-    '--map-panel-bg':          'transparent',
-    '--map-label':             '#ffffff',
-    '--map-label-sub':         'rgba(255,255,255,0.60)',
-    '--map-district-stroke':   'var(--accent)',
-    '--col-res': 'transparent', '--col-res-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-    '--col-gov': 'transparent', '--col-gov-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-    '--col-med': 'transparent', '--col-med-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-    '--col-ret': 'transparent', '--col-ret-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-    '--col-ind': 'transparent', '--col-ind-h': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-  },
-  tactical: {
-    '--map-panel-bg':          '#070b0e',
-    '--map-label':             'rgba(170,200,185,0.95)',
-    '--map-label-sub':         'rgba(110,148,130,0.78)',
-    '--map-district-stroke':   '#28383f',
-    '--col-res': '#1c1810', '--col-res-h': '#2a2419',
-    '--col-gov': '#0c1828', '--col-gov-h': '#102234',
-    '--col-med': '#0c1e14', '--col-med-h': '#10281c',
-    '--col-ret': '#1a1028', '--col-ret-h': '#231538',
-    '--col-ind': '#1c1008', '--col-ind-h': '#271808',
-  },
-  dusty: {
-    '--map-panel-bg':  'transparent',
-    '--map-label':     'rgba(40,30,25,0.85)',
-    '--map-label-sub': 'rgba(40,30,25,0.55)',
-    '--col-res': '#CEB3A8', '--col-res-h': '#BFA299',
-    '--col-gov': '#d3e0f5', '--col-gov-h': '#b8c8e0',
-    '--col-med': '#d3f5bf', '--col-med-h': '#b8dda0',
-    '--col-ret': '#fcf4b6', '--col-ret-h': '#e4dc90',
-    '--col-ind': '#f3dcfc', '--col-ind-h': '#dbc4e4',
-  },
-  paper: {
-    '--map-panel-bg':  'transparent',
-    '--map-label':     'rgba(35,25,20,0.85)',
-    '--map-label-sub': 'rgba(35,25,20,0.55)',
-    '--col-res': '#E0BAA5', '--col-res-h': '#D1A792',
-    '--col-gov': '#AADAEB', '--col-gov-h': '#99CADB',
-    '--col-med': '#B4E1C4', '--col-med-h': '#A2D1B2',
-    '--col-ret': '#DACCE3', '--col-ret-h': '#C8BBD1',
-    '--col-ind': '#F0C8CE', '--col-ind-h': '#E6B4BB',
-  }
-}
-
-function setMapPalette(key) {
-  const palette = MAP_PALETTES[key]
-  if (!palette) return
-  const root = document.documentElement
-  Object.entries(palette).forEach(([prop, val]) => root.style.setProperty(prop, val))
-}
-
-const MAP_LABEL_OVERRIDES = {
-  'windows-95': {
-    '--map-label':     '#000080',
-    '--map-label-sub': 'rgba(0,0,128,0.60)',
-  }
-}
-
-function applyMapLabelOverride(themeId) {
-  const overrides = MAP_LABEL_OVERRIDES[themeId]
-  if (!overrides) return
-  const root = document.documentElement
-  Object.entries(overrides).forEach(([k, v]) => root.style.setProperty(k, v))
-}
-
-document.getElementById('map-palette-select').addEventListener('change', e => {
-  setMapPalette(e.target.value)
-  applyMapLabelOverride(document.getElementById('theme-select').value)
-})
-
-const mapPaletteSelect = document.getElementById('map-palette-select')
-mapPaletteSelect.value = 'outline'
-setMapPalette('outline')
-applyMapLabelOverride(document.getElementById('theme-select').value)
 
 render()
 

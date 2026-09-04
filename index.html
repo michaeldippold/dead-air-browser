@@ -101,70 +101,9 @@
       <div class="win-body" id="map-container">
 
         <div id="map-stage">
-        <!-- Map v3: MapLibre renders into #map-gl (src/map/). The SVG below is the ?map=2d fallback. -->
+        <!-- Map v3: MapLibre renders into #map-gl (src/map/) -->
         <div id="map-gl"></div>
 
-        <!-- Map SVG -->
-        <div id="map-svg-wrap">
-        <select id="map-palette-select" class="game-select">
-          <option value="outline" selected>Map Outline</option>
-          <option value="tactical">Tactical Dark</option>
-          <option value="dusty">Post-it</option>
-          <option value="paper">Paper Map</option>
-        </select>
-        <svg id="city-map" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid meet"
-             xmlns="http://www.w3.org/2000/svg" overflow="visible">
-
-            <rect x="0" y="0" width="1200" height="900" fill="none" stroke="var(--border)" stroke-width="1.5"/>
-
-            <!-- ?map=2d fallback only (map-integration.md §5a/§5i): a schematic 3×3 of the nine real districts -->
-            <g id="districts">
-              <polygon id="westend" data-category="industrial"
-                points="0,0 400,0 400,300 0,300"/>
-              <polygon id="northside" data-category="residential"
-                points="400,0 800,0 800,300 400,300"/>
-              <polygon id="eastend" data-category="residential"
-                points="800,0 1200,0 1200,300 800,300"/>
-              <polygon id="redmile" data-category="retail"
-                points="0,300 300,300 300,600 0,600"/>
-              <polygon id="downtown" data-category="government"
-                points="300,300 600,300 600,600 300,600"/>
-              <polygon id="chevychase" data-category="residential"
-                points="600,300 900,300 900,600 600,600"/>
-              <polygon id="hamburg" data-category="retail"
-                points="900,300 1200,300 1200,600 900,600"/>
-              <polygon id="university" data-category="government"
-                points="0,600 500,600 500,900 0,900"/>
-              <polygon id="southside" data-category="retail"
-                points="500,600 1200,600 1200,900 500,900"/>
-            </g>
-
-            <g id="district-labels" pointer-events="none">
-              <text x="200" y="150" class="lbl-name">WEST END</text>
-              <text x="200" y="168" class="lbl-cat">Industrial</text>
-              <text x="600" y="150" class="lbl-name">NORTHSIDE</text>
-              <text x="600" y="168" class="lbl-cat">Residential</text>
-              <text x="1000" y="150" class="lbl-name">EAST END</text>
-              <text x="1000" y="168" class="lbl-cat">Residential</text>
-              <text x="150" y="450" class="lbl-name">RED MILE</text>
-              <text x="150" y="468" class="lbl-cat">Retail</text>
-              <text x="450" y="450" class="lbl-name">DOWNTOWN</text>
-              <text x="450" y="468" class="lbl-cat">Government</text>
-              <text x="750" y="450" class="lbl-name">CHEVY CHASE</text>
-              <text x="750" y="468" class="lbl-cat">Residential</text>
-              <text x="1050" y="450" class="lbl-name">HAMBURG</text>
-              <text x="1050" y="468" class="lbl-cat">Retail</text>
-              <text x="250" y="750" class="lbl-name">UNIVERSITY</text>
-              <text x="250" y="768" class="lbl-cat">Government</text>
-              <text x="850" y="750" class="lbl-name">SOUTHSIDE</text>
-              <text x="850" y="768" class="lbl-cat">Retail</text>
-            </g>
-
-            <g id="unit-dots" pointer-events="all"></g>
-
-          </svg>
-
-        </div><!-- #map-svg-wrap -->
 
           <!-- Unit roster: a collapsible strip over the map. Roster hover ↔ map hover, click → detail. -->
           <div id="roster-strip">
@@ -429,6 +368,11 @@
       ITEMS
     </button>
     <div style="flex:1"></div>
+    <label class="taskbar-label" for="map-boundaries-select">MAP</label>
+    <select id="map-boundaries-select" class="game-select" title="District boundaries">
+      <option value="strong" selected>Strong borders</option>
+      <option value="subtle">Subtle borders</option>
+    </select>
     <label class="taskbar-label" for="theme-select">THEME</label>
     <select id="theme-select" class="game-select">
       <option value="terminal-green" selected>Terminal Green</option>

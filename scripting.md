@@ -42,7 +42,10 @@ export default {
   name:        'Maria Reyes',    // the caller's name, shown in CONTACTS
   callerRole:  'civilian',       // 'civilian' | 'police' | 'fire' — affects their map dot + risk
   callerItems: [],               // items they're carrying (usually none for a civilian)
-  district:    'joyland',        // which district they're calling from (or null)
+  district:    'northside',      // which district they're calling from (or null)
+  place:       'castlewood-park', // optional: the authored place they're at (an id from public/data/places.json).
+                                 // Becomes their map pin once they've told you where they are (first opened line);
+                                 // a unit dispatched to them drives there and goes inside.
   sim:         false,            // false = protected (only the script ends their story); true = exposed, can die if unhelped
   trigger:     { type: 'game-time', hour: 23 },  // WHEN they call in (see Triggers). Omit = never auto-fires.
   once:        true,             // fire only once (default true)
@@ -121,9 +124,9 @@ The `trigger` field decides *when* the call arrives. It's polled by the game's D
 | Trigger | Fires when… |
 |---|---|
 | `{ type: 'game-time', hour: 23, min: 0 }` | the clock reaches that time (`min` optional) |
-| `{ type: 'zombie-presence', district: 'joyland' }` | that district has any zombies |
-| `{ type: 'humans-gone', district: 'joyland' }` | that district's population hits zero |
-| `{ type: 'unit-presence', district: 'joyland' }` | any unit is in that district |
+| `{ type: 'zombie-presence', district: 'northside' }` | that district has any zombies |
+| `{ type: 'humans-gone', district: 'northside' }` | that district's population hits zero |
+| `{ type: 'unit-presence', district: 'northside' }` | any unit is in that district |
 | `{ type: 'random', chance: 0.02 }` | a random roll passes (per poll) |
 
 Add `once: true` (the default) so they only call once. **Omit `trigger` entirely** and the script
@@ -142,12 +145,12 @@ the interface. You'll rarely need these in a normal caller — they're mostly fo
 here's the full set:
 
 ```js
-onEnter: (state, actions) => actions.revealWindow('map'),
+onEnter: (state, actions) => actions.revealWindow('dispatch'),
 ```
 
 | Action | Effect |
 |---|---|
-| `revealWindow(id)` | Show a window that was hidden/minimized |
+| `revealWindow(id)` | Show a window that was hidden/minimized. Ids: `contacts`, `dispatch` (the map + roster), `radio` (COMMS), `items`, `sitrep` |
 | `minimizeWindow(id)` / `maximizeWindow(id)` / `closeWindow(id)` | Window controls |
 | `bringToFront(id)` | Raise a window above the others |
 | `setWindowPosition(id, x, y)` | Move a window |
@@ -192,7 +195,7 @@ triggers your beat; later units are silent backup.
 
 Both `onEnter` and `onArrive` receive `state`, the whole game world. You can read anything:
 
-- `state.districts['joyland'].zombies` / `.humans` — the crowd in a district.
+- `state.districts['northside'].zombies` / `.humans` — the crowd in a district.
 - `state.tick` — how far into the night (use the clock, not raw ticks, when you can).
 - `state.units` — the units and where they are.
 - `state.people` — every named person, each carrying their own `districtId`, `name`, `role`,
@@ -204,7 +207,7 @@ instead. So "is a particular character in this district right now?" is a scan of
 ```js
 // is the caller from scripts/barbara.js currently in Joyland?
 const here = Object.values(state.people)
-  .some(p => p.scriptId === 'barbara' && p.districtId === 'joyland')
+  .some(p => p.scriptId === 'barbara' && p.districtId === 'northside')
 ```
 
 Key them by **`scriptId`** (or a saved person id), *not* by `name` — names aren't guaranteed
@@ -230,7 +233,7 @@ rule with **no `when` is the default** (put it last):
 ```js
 choices: [
   { label: "Tell her to run for it.", next: [
-    { when: { type: 'ratio-over', district: 'joyland', value: 0.5 }, goto: 'too-late' },
+    { when: { type: 'ratio-over', district: 'northside', value: 0.5 }, goto: 'too-late' },
     { goto: 'she-makes-it' },          // default — runs if the ratio isn't past half
   ] },
 ],
@@ -243,8 +246,8 @@ reached (give it `text: null` if it's purely a switch):
 'barbara-home': {
   text: null,
   then: [
-    { when: { type: 'person-in', scriptId: 'marcus', district: 'old-iron-works' }, goto: 'they-meet' },
-    { when: { type: 'ratio-over', district: 'joyland', value: 0.6 },               goto: 'rough-night' },
+    { when: { type: 'person-in', scriptId: 'marcus', district: 'westend' }, goto: 'they-meet' },
+    { when: { type: 'ratio-over', district: 'northside', value: 0.6 },               goto: 'rough-night' },
     { goto: 'settles-in' },            // default
   ],
 },

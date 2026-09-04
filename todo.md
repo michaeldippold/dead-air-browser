@@ -261,26 +261,28 @@ browser. Build order, each step visually verifiable:
 - [x] **Re-key the districts** *(2026-09-04, §5b)*: nine districts loaded from `districts.geojson`, adjacency
       computed from the polygons, new `DISTRICT_CODE`s, lose threshold 6 of 9, scripts on the new ids
       (Danny → northside, E. Novak → university, Marcus Webb → westend / Marathon terminal).
-- [ ] **Position vs state in the sim.** Units get a real road position; `districtId` becomes
-      derived (point-in-polygon per tick). Transit stays "no district." Travel time derived
-      from route length over road speed with per-district danger multipliers; the hop constant
-      retires. Units spawn at the real LPD HQ and Fire Station No. 1.
-- [ ] **Arrival behavior.** ENGAGE patrols (random walk on in-district roads at residential
-      speed), HIDE parks, SCAVENGE wanders between the district's businesses, named-location
-      dispatch parks on the footprint.
-- [ ] **Places, two tiers.** Authored named locations in our own GeoJSON layer (always
-      clickable, dispatch targets); every other named building from the tiles gets hover-name
-      and the same click card with an empty contacts section. Card: name, address, district,
-      units there/en route, named callers there with status. Bidirectional selection.
-- [ ] **Information rules on the map.** Danger paint from district ratio, gated by intel
-      (tint buildings, dim roads inside the boundary — not a flat fill). Caller pins on
-      disclosure; dashed last-known ring after Outside. ETAs per available unit on select.
-- [ ] **Layout merge.** DISPATCH + MAP become one window with a collapsible roster strip;
-      CONTACTS and COMMS are closable sidebars; wallpaper untouched. MapLibre needs a resize
-      observer inside a resizable window.
-- [ ] **Attribution.** "© OpenStreetMap contributors" visible. Non-negotiable.
-- [ ] **Retire the SVG map** once the above is playable (keep it reachable behind a query flag
-      as a debug view until then).
+- [x] **Position vs state in the sim** *(2026-09-04, §5c)*: units carry a road position only the renderer
+      reads; `districtId` is set by arrival / cleared by dispatch; travel time is the route's drive time
+      (danger slows it), arrival stays tick-driven with the car paced to the tick; hop constant retired;
+      units start inside LPD HQ, Fire Station #1 and the Government Center.
+- [x] **Arrival behavior** *(2026-09-04)*: ENGAGE = routed patrol laps inside the polygon, HIDE parks at the
+      entry node, a place = INSIDE with occupancy badges. **SCAVENGE wander still deferred** (parks like HIDE).
+- [x] **Places, two tiers** *(2026-09-04, §5f)*: 69 authored places with footprints, diamonds and badges; free
+      POIs hover + card, not dispatchable; place card with units inside / en route, disclosed callers, dispatch
+      button; roster <-> map hover, contact -> lit footprint + camera fly.
+- [x] **Information rules on the map** *(2026-09-04)*: streets heat + red boundary from the district ratio,
+      cold shroud + grey label at zero humans, all gated by radio / binoculars / god mode; caller pin (gold
+      ring) on disclosure. **Still owed:** dashed last-known ring (needs caller Outside travel), ETA readout for
+      every available unit on selecting a target (the hover ETA for the selected unit exists).
+- [x] **Layout merge** *(2026-09-04, §5e)*: one DISPATCH window: map with a collapsible roster strip, district
+      and place cards on the right; CONTACTS / COMMS sidebars; ResizeObserver; MAP taskbar/desktop entries gone.
+      Panels need design TLC (roster strip is big in Cards layout; cards' ENGAGE badge doesn't show PATROL/INSIDE).
+- [x] **Attribution** *(2026-09-04)*: "© OpenStreetMap contributors · Protomaps" in the map corner.
+- [x] **Retire the SVG map** *(2026-09-04, §5i)*: SVG, palettes, unit dots, drag-and-drop and `?map=2d` are gone.
+- [ ] **Map v3 follow-ups.** SCAVENGE wander (needs place kinds); caller Outside travel + last-known ring;
+      per-target ETA for every available unit; address pool for generic callers; blocked streets; a badge
+      digit that reads at overview zoom; heat-look tuning; per-building tint. Design pass on the roster strip
+      and cards (map-integration.md "As built" has the list).
 
 - [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive. *(Folds into Map v3's danger paint.)*
 - [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units. The "distinct COMMS language" piece here is already most of the way handled by the per-district COMMS degradation in 0.9.0 (an overrun district's scanner chatter is already breaking down) — extend that, don't build a second COMMS path.

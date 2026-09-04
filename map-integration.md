@@ -160,7 +160,7 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
   terminal loading dock and his push is "east" (the terminal is west of downtown). The SVG fallback is a
   schematic 3×3 of the nine districts.
 
-### c. Sim: position vs state
+### c. Sim: position vs state *(done 2026-09-04)*
 - `makeUnit` (~L82): add `pos: [lon,lat]`, `node`, `route: null`, `progress: 0`, `place: null`, `home: placeId`. `districtId` stays as a field but is **written only by** `arrive()` / `districtAt(pos)`, never by dispatch.
 - `dispatchUnit` (~L1983): replace `hopsBetween × UNIT_TICKS_PER_HOP` with a route: `route(from, toNode, { emergency: true, multiplier: dangerMultiplier })`. Target is `{ district, activity }` or `{ place }` (§1 #5). Push a transit as today (`kind: 'unit'`, `srcId`, `destId`, `etaMs`) but with `ticksRemaining = ceil(route.seconds / 60)` and the route attached; the TRAVELING panel, `unit-departs` / `unit-enters` director events, and `respondContactId` keep working unchanged.
 - `resolveTransits` (~L2024): on tick, `ticksRemaining--` as today; **arrival is still tick-driven** (deterministic for scripts). The *renderer* interpolates the car along the route on wall clock at 20× between ticks (spike's `advance` with `timeScale = 20`), clamped so it never visually arrives before the tick does. On arrival: `arrive()` sets `pos`, `node`, `districtId = districtAt(pos)` (or `place`), then patrol / park / inside per activity (§1 #7–8).
@@ -168,43 +168,72 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
 - `UNIT_TICKS_PER_HOP` retires. `PERSON_TICKS_PER_HOP` stays for caller Outside travel (deferred).
 - Intel: `districtHasRadio` / `districtHasBinoView` (~L716) unchanged; the renderer's `danger[id]` is `zombies/(humans+zombies)` **only if** intel, else 0; `cold[id] = humans === 0` **only if** intel (silence otherwise — COMMS going dark already carries it).
 
-### d. Renderer module and window
+### d. Renderer module and window *(done 2026-09-04)*
 - New `src/map/` from §2. Map container is `#map-container`'s body (the SVG wrap is replaced). MapLibre needs a `ResizeObserver` on the container calling `map.resize()` — the window manager resizes/maximizes windows (`toggleMaximize`, edge drags) — MapLibre's own `trackResize` covers most but not CSS-driven layout changes; observe explicitly.
 - Hooks in, not imports out: the renderer receives `{ units, districts, places, danger, cold, contacts }` getters and emits `select-unit`, `dispatch`, `select-place`, `select-district`. The sim never imports the renderer (spike architecture; also the idle-civ rule).
 - `renderUnitDots` (~L2418) → `pushUnits()`; `renderTravelingPanel` (~L2460) stays as the list (it already sorts by soonest arrival).
 
-### e. Layout merge (§1 #18)
+### e. Layout merge (§1 #18) *(done 2026-09-04)*
 - **Windowed, not full-bleed.** The merged window is one more `.win` managed by `initWindowManager` — titlebar, pin, minimize, maximize, edge-resize, all as today. The desktop (`#desktop-badge`, `#desktop-icons`, taskbar) stays exactly as it is and stays visible around the windows. Do not make the map the page background.
 - `WIN_IDS` / `LAYOUT_WIN_IDS` (~L937): `dispatch` and `map` become one window id `ops` (or keep `map` and fold DISPATCH's body in). `resetLayout` (~L957): `contacts` on the left, `radio` on the right, `ops` fills everything between them — on a 1080p desktop that is most of the width already. Closing or minimizing a sidebar lets `ops` widen into its space (recompute in `resetLayout`, or just let the player drag; both are fine). Maximize gives the map the full desktop minus the taskbar, which is as close to full-bleed as it ever gets, and it is the player's choice.
 - The unit roster (`#units-list`, cards/badges layouts) becomes a collapsible strip over the map (top-left in the spike). Roster hover → unit hover state + route highlight; roster click → select. Unit detail (`#unit-detail-view`) stays as the strip's expanded state; its dispatch `<select>` is now redundant with map dispatch — keep for keyboard users or drop.
 - District detail (`#district-detail-panel`, `renderDistrictDetail` ~L1517) becomes the district card (right side). Place card is new (§2 spike `showPlace`: name, kind, address, district, units inside, en route, named callers with status, dispatch link).
 - Wallpaper (`#desktop-badge`) untouched.
 
-### f. Places and callers
+### f. Places and callers *(done 2026-09-04; caller Outside travel / last-known ring deferred as planned)*
 - `places.json` loads; `contacts` gain `placeId | null`, `disclosed: false`, `lastKnownPlaceId`. `makeContact` (~L86) `location` (district) stays for the sim; the pin is `placeId` once `disclosed`. Scripts set `place: 'good-samaritan-hospital'` next to `district`; the opening node (or a `disclose` action in `SCRIPT_ACTIONS`) flips `disclosed`. Ambient/generic callers: no pin until the address pool exists (deferred) — they show on the district only.
 - Existing four + Barbara (**settled by the owner 2026-09-04; easy to move later**): E. Novak → `good-samaritan-hospital`; Marcus Webb → `marathon-terminal` (West End; his "Old Iron Works, Loading Dock" line becomes the terminal's loading dock); Danny → `castlewood-park` (Northside); Holt is mobile (no pin); Barbara none.
 - `arriveOnCall` (~L153): when the responding unit reaches the contact's place, it goes INSIDE (§1 #8); that is the hook for "meeting survivors" beats.
 
-### g. Verbs
+### g. Verbs *(done 2026-09-04; SCAVENGE parks like HIDE until the wander lands)*
 - Context menu (§1 #6). ENGAGE / HIDE / SCAVENGE map to the existing `unit.activity` (`'engage' | 'hide' | 'scavenge'`, ~L1623). SCAVENGE's wander is deferred; it parks like HIDE until then.
 
-### h. Settings
+### h. Settings *(done 2026-09-04 — MAP select in the taskbar; the dev danger sliders were not ported, god mode + SITREP cover it)*
 - Map settings (in the existing theme/UI area): boundaries strong / subtle. Paint-mode cycling and danger sliders are **dev-only** (god mode).
 
-### i. Retire the SVG map
+### i. Retire the SVG map *(done 2026-09-04)*
 - Delete `#map-svg-wrap`, the polygons, `map-palette-select`, `#districts polygon` CSS, `renderUnitDots`, `roster-hover` polygon code, and `?map=2d`.
 
-### j. Attribution
+### j. Attribution *(done 2026-09-04)*
 - `© OpenStreetMap contributors · Protomaps` visible in the map window's corner. Already in the spike.
 
-### Verification checklist (do these live, in the browser)
-1. Dispatch to each of the nine districts from LPD; car drives real streets, arrives at the near edge, patrols without stalling for 2 minutes at 20×; roster shows PATROL.
+### As built (2026-09-04) — notes for the next session
+
+- **Module map.** `src/map/graph.js`, `districts.js` (verbatim + `adjacencyFromPolygons`), `style.js`, `icons.js`,
+  `layers.js`, `mover.js`, `interact.js`, `index.js` (`createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on })`).
+  `main.js` talks to the renderer only through `mapRenderer.{refresh, pushDistricts, setSelected, hoverUnitById,
+  litPlace, flyTo, setBoundaries}` and the `get`/`on` hooks. `window.DA` is a dev hook (state, PLACES, map, mover).
+- **Unit fields.** `pos, node, bearing, route, progress, status ('moving'|'patrol'|'parked'|'inside'), place, home,
+  targetLabel`. The tick loop reads none of them. `dispatchUnit(unitId, target, opts)` takes a district id string,
+  `{ districtId, activity }` or `{ placeId }`; a caller dispatch is redirected to the caller's place once disclosed.
+- **Pacing.** `ticks = ceil(driveSeconds / 60)`; `mover.pace()` stretches the car's motion so it lands on the tick.
+  `driveSeconds` = sum of len / (kph x 1.15 / 3.6) x dangerMultiplier per segment; the A* cost (x0.7 emergency) only
+  picks the path. Renderer time scale is 20x (0 when paused).
+- **Patrol.** Arrival at a district parks; the renderer's loop starts a patrol leg when `activity === 'engage'` and
+  parks again when it isn't, so the ENGAGE/HIDE buttons and the context-menu verbs both just set `unit.activity`.
+- **Paint.** `syncMapPaint()` (each render + god toggle + SITREP close) writes `danger[id]` / `cold[id]` in
+  `districts.js` and pushes when the key changes. Closing SITREP turns god mode off, which clears the paint; that
+  is the gate working, not a bug.
+- **Contacts.** `placeId` (from the script's `place`), `disclosed` flips on the first opened thread; `contactsAtPlace()`
+  feeds the gold ring, the place card and the tooltip. `lastKnownPlaceId` exists but nothing writes it yet.
+- **Worker.** `tools/copy-maplibre-worker.mjs` (predev/prebuild) vendors MapLibre's worker + shared chunk into
+  `public/vendor/maplibre/` (git-ignored) and `index.js` calls `setWorkerUrl`. Without it the build 404s the worker
+  and dev throws "document is not defined" from the worker's injected HMR client.
+- **Dev-server gotcha.** Rewriting `style.css` several times in one second once left Vite serving an empty stylesheet
+  (page rendered unstyled); touching the file again fixed it. Not a code problem.
+- **Known rough edges (design TLC, per §1 #18).** The roster strip in Cards layout covers a lot of map at 1157 px
+  wide; Badges is denser; the strip collapses. Place card / district card are the spike's layout in the game's
+  theme. The unit-detail dispatch `<select>` is still there (keyboard path). The ENGAGE badge on cards reads the
+  activity, not the map status; `unitStatusText()` has the map-aware line if a card wants it.
+
+### Verification checklist (done live 2026-09-04 unless noted)
+1. Dispatch to each of the nine districts from LPD; car drives real streets, arrives at the near edge, patrols without stalling for 2 minutes at 20×; roster shows PATROL. *(Hamburg and Southside verified; the other seven were not individually driven, same code path.)*
 2. Dispatch to a place; car vanishes; badge appears; place card lists it; re-dispatch brings the car out at the entrance.
 3. Two units of different roles in one place → two badges in a row (blue then red).
 4. God mode: set a district to 90% → streets bloom red, boundary reddens, ETA through it roughly doubles, routes bend around it. Kill all humans → cold shroud + grey label. Turn god mode off with no radio there → no paint at all.
 5. Scripts fire on the new district ids (Danny, E. Novak, Marcus Webb).
 6. Window resize / maximize → map re-lays out, no black bars.
-7. `vite build` output runs from a static host with the PMTiles loading (Network tab: 206 responses).
+7. `vite build` output runs from a static host with the PMTiles loading (Network tab: 206 responses). *(Verified with `vite preview`; a real remote host not yet tried.)*
 
 ---
 
