@@ -279,6 +279,13 @@ browser. Build order, each step visually verifiable:
       Panels need design TLC (roster strip is big in Cards layout; cards' ENGAGE badge doesn't show PATROL/INSIDE).
 - [x] **Attribution** *(2026-09-04)*: "© OpenStreetMap contributors · Protomaps" in the map corner.
 - [x] **Retire the SVG map** *(2026-09-04, §5i)*: SVG, palettes, unit dots, drag-and-drop and `?map=2d` are gone.
+- [x] **Ops-window UI pass 1** *(2026-09-04)*: roster is thin rows grouped by district (EN ROUTE group on top;
+      cards/badges retired, CSS + `renderUnitCard` kept); row click selects, the (i) button unfolds details
+      beneath the list (the list never hides); dispatch dropdown gone (map verbs only); Escape closes the topmost
+      thing (menu, details, unit selection, district/place card + highlight); selected district keeps its hover
+      look; district/place cards float over the map; BORDERS · STRONG/SUBTLE floating toggle (testing); item
+      tags are one component that opens the ITEMS window scrolled to the entry. Still owed: district-card
+      interior tuning after playtesting.
 - [ ] **Map v3 follow-ups.** SCAVENGE wander (needs place kinds); caller Outside travel + last-known ring;
       per-target ETA for every available unit; address pool for generic callers; blocked streets; a badge
       digit that reads at overview zoom; heat-look tuning; per-building tint. Design pass on the roster strip

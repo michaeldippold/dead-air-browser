@@ -11,7 +11,7 @@ export function addLayers(map, initial) {
   map.addSource('districts', { type: 'geojson', data: initial.districts, promoteId: 'id' })
   map.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: {
     'fill-color': ['get', 'color'],
-    'fill-opacity': ['+', 0.2, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]],
+    'fill-opacity': ['+', 0.2, ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 0.08, 0]],
   } }, 'buildings')
 
   map.addSource('roads-overlay', { type: 'geojson', data: initial.roadsOverlay })
@@ -49,7 +49,7 @@ export function addLayers(map, initial) {
     'line-color': ['get', 'color'], 'line-width': 9, 'line-opacity': 0.3, 'line-blur': 4 } })
   map.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: {
     'line-color': ['interpolate', ['linear'], ['get', 'danger'], 0, ['get', 'color'], 1, '#ff3b3b'],
-    'line-width': ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 3.5, 3.2], ['get', 'danger']],
+    'line-width': ['+', ['case', ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]], 3.5, 3.2], ['get', 'danger']],
     'line-opacity': 0.95,
   } })
 
@@ -113,9 +113,10 @@ export function addLayers(map, initial) {
 
 // Strong (default) vs subtle district boundaries — a map setting, §1 #16.
 export function applyBoundary(map, strong) {
-  map.setPaintProperty('district-fill', 'fill-opacity', ['+', strong ? 0.2 : 0.09, ['case', ['boolean', ['feature-state', 'hover'], false], 0.08, 0]])
+  const lit = ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'selected'], false]]
+  map.setPaintProperty('district-fill', 'fill-opacity', ['+', strong ? 0.2 : 0.09, ['case', lit, 0.08, 0]])
   map.setPaintProperty('district-glow', 'line-opacity', strong ? 0.3 : 0.14)
-  map.setPaintProperty('district-line', 'line-width', ['+', ['case', ['boolean', ['feature-state', 'hover'], false], 3.5, strong ? 3.2 : 2.2], ['get', 'danger']])
+  map.setPaintProperty('district-line', 'line-width', ['+', ['case', lit, 3.5, strong ? 3.2 : 2.2], ['get', 'danger']])
 }
 
 // Route dash animation frame (called from the render loop).

@@ -128,6 +128,7 @@ export function attachInteraction(r) {
     ctxEl.style.top = Math.max(0, Math.min(point.y, h - ctxEl.offsetHeight - 4)) + 'px'
   }
   r.closeCtx = closeCtx
+  r.ctxOpen = () => ctxOpen
   map.on('contextmenu', e => {
     e.preventDefault?.(); e.originalEvent?.preventDefault?.()
     const h = hit(e.point)
@@ -166,12 +167,7 @@ export function attachInteraction(r) {
   })
   window.addEventListener('mousedown', e => { if (ctxOpen && !ctxEl.contains(e.target)) closeCtx() })
 
-  window.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target?.tagName)) return
-    if (ctxOpen) { closeCtx(); return }
-    if (r.selectedUnit()) on.selectUnit(null)
-  })
+  // Escape is handled by the game (one rule for everything selected); see main.js.
   map.on('dragstart', () => r.stopFollow())
 
   return { hit, hideTip, closeCtx, remainingSeconds, districtAt }

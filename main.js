@@ -238,7 +238,7 @@ function completeResponse(unit) {
   unitReport(unit, `Task complete. Back in service.`)
   renderUnitsPanel()
   renderMapUnits()
-  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit?.unitId === unit.id) {
+  if (state.unitDetailOpen && state.selectedUnit?.unitId === unit.id) {
     renderUnitDetail(unit)
   }
 }
@@ -802,6 +802,7 @@ const state = {
   godMode:         false,
   selected:        null,
   selectedUnit:    null,
+  unitDetailOpen:  false,   // the detail section under the roster list
   selectedContact: null,
   selectedPlace:   null,
   contacts:        [],
@@ -929,7 +930,6 @@ const udvLocation = document.getElementById('udv-location')
 const udvActivity = document.getElementById('udv-activity')
 const udvItems    = document.getElementById('udv-items')
 const udvMembers  = document.getElementById('udv-members')
-const udvTarget   = document.getElementById('udv-target')
 
 // ── MAP RENDERER (Map v3) ──
 // Hooks in, not imports out: the renderer gets getters over sim state and emits intents. The sim
@@ -958,7 +958,7 @@ let mapRenderer = null
       },
     },
     on: {
-      selectUnit:     id => { if (id) showUnitDetail(id); else hideUnitDetail() },
+      selectUnit:     id => { if (id) selectUnit(id); else deselectUnit() },
       dispatch:       (unitId, target) => dispatchUnit(unitId, target),
       showPlace:      id => showPlaceDetail(placeById(id)),
       showPoi:        poi => showPoiDetail(poi),
@@ -971,17 +971,55 @@ let mapRenderer = null
 // Dev hook: inspect the sim from the console (never read by game code).
 window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover }
 
-// Map settings (map-integration.md §5h): district boundaries strong (default) or subtle.
+// Map settings (map-integration.md §5h): district boundaries strong (default) or subtle. A floating
+// button on the map so the two looks can be compared quickly while testing; it may go away later.
 {
-  const sel = document.getElementById('map-boundaries-select')
-  const saved = localStorage.getItem('dispatch-map-boundaries')
-  if (saved === 'strong' || saved === 'subtle') sel.value = saved
-  mapRenderer.setBoundaries(sel.value === 'strong')
-  sel.addEventListener('change', () => {
-    mapRenderer.setBoundaries(sel.value === 'strong')
-    localStorage.setItem('dispatch-map-boundaries', sel.value)
-  })
+  const btn = document.getElementById('map-boundary-btn')
+  let strong = localStorage.getItem('dispatch-map-boundaries') !== 'subtle'
+  const apply = () => {
+    mapRenderer.setBoundaries(strong)
+    btn.textContent = `BORDERS · ${strong ? 'STRONG' : 'SUBTLE'}`
+    localStorage.setItem('dispatch-map-boundaries', strong ? 'strong' : 'subtle')
+  }
+  apply()
+  btn.addEventListener('click', () => { strong = !strong; apply() })
 }
+
+// ── ESCAPE ── one rule for everything selected: close the topmost thing.
+// Context menu → unit details → unit selection → district / place card (with its highlight).
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target?.tagName)) return
+  if (mapRenderer.ctxOpen?.()) { mapRenderer.closeCtx(); return }
+  if (state.unitDetailOpen)   { closeUnitDetail(); return }
+  if (state.selectedUnit)     { deselectUnit(); return }
+  if (state.selected)         { selectDistrict(state.selected); return }
+  if (state.selectedPlace || mapContainer.dataset.view === 'place') hidePlaceDetail()
+})
+
+// ── ITEM TAGS ── one component everywhere (roster, unit details, district card, SITREP). Clicking
+// any tag opens the ITEMS reference as its own window and scrolls to that entry; nothing else
+// ever gets hijacked to show an item description.
+function itemTag(key, full = false) {
+  const item = ITEMS[key]
+  const label = full ? (item?.name ?? key) : (ITEM_ABBREV[key] ?? key)
+  return `<span class="item-chip${full ? '' : ' item-chip--abbrev'} item-chip--${key}" data-item-key="${key}" title="${item?.name ?? key}">${label}</span>`
+}
+function openItemsReference(key) {
+  if (winState.items?.minimized) toggleMinimize('items')
+  bringToFront('items')
+  const entry = document.querySelector(`.item-ref-entry[data-item-key="${key}"]`)
+  if (!entry) return
+  entry.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  entry.classList.remove('item-ref-entry--flash')
+  void entry.offsetWidth
+  entry.classList.add('item-ref-entry--flash')
+}
+document.addEventListener('click', e => {
+  const tag = e.target.closest('[data-item-key]')
+  if (!tag || tag.closest('#items-panel')) return
+  openItemsReference(tag.dataset.itemKey)
+})
 
 // The roster strip collapses to its header so the map can breathe.
 document.getElementById('roster-strip-toggle').addEventListener('click', () => {
@@ -1030,16 +1068,12 @@ function syncMapPaint() {
   }
   if (key !== _paintKey) { _paintKey = key; mapRenderer.pushDistricts() }
 }
-const btnUdvSend  = document.getElementById('btn-udv-send')
-const btnUdvBack  = document.getElementById('btn-udv-back')
+const btnUdvClose = document.getElementById('btn-udv-close')
 const cdvName     = document.getElementById('cdv-name')
 const cdvMeta     = document.getElementById('cdv-meta')
 const cdvMessages = document.getElementById('cdv-messages')
 const btnCdvBack  = document.getElementById('btn-cdv-back')
 const btnCdvCallback = document.getElementById('btn-cdv-callback')
-const idvName     = document.getElementById('idv-name')
-const idvDesc     = document.getElementById('idv-description')
-const btnIdvBack  = document.getElementById('btn-idv-back')
 
 // ── WINDOW MANAGER ──
 
@@ -1591,12 +1625,15 @@ function selectDistrict(id) {
   if (state.selected === id) {
     state.selected = null
     delete mapContainer.dataset.view
+    mapRenderer.setSelectedDistrict(null)
     return
   }
   state.selected = id
   mapContainer.dataset.view = 'district'
+  mapRenderer.setSelectedDistrict(id)
   renderDistrictDetail()
 }
+document.getElementById('btn-ddv-close').addEventListener('click', () => { if (state.selected) selectDistrict(state.selected) })
 
 // ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
 // Name, kind, address, district, units inside / en route, named callers with a status line, and a
@@ -1606,6 +1643,7 @@ const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station
 function showPlaceDetail(place) {
   if (!place) return
   state.selected = null
+  mapRenderer.setSelectedDistrict(null)
   state.selectedPlace = place.id
   const d       = state.districts[place.district]
   const here    = Object.values(state.units).filter(u => u.place === place.id && u.status === 'inside')
@@ -1634,6 +1672,7 @@ function showPlaceDetail(place) {
 function showPoiDetail(poi) {
   if (!poi) return
   state.selected = null
+  mapRenderer.setSelectedDistrict(null)
   state.selectedPlace = null
   const d = districtAt(poi.lonlat)
   document.getElementById('pdv-name').textContent = poi.name ?? '—'
@@ -1655,7 +1694,7 @@ function hidePlaceDetail() {
 document.getElementById('place-detail-panel').addEventListener('click', e => {
   if (e.target.closest('#btn-pdv-close')) { hidePlaceDetail(); return }
   const unitRow = e.target.closest('[data-unit-id]')
-  if (unitRow) { if (winState['dispatch']?.minimized) toggleMinimize('dispatch'); bringToFront('dispatch'); showUnitDetail(unitRow.dataset.unitId); return }
+  if (unitRow) { selectUnit(unitRow.dataset.unitId); return }
   const callerRow = e.target.closest('[data-contact-id]')
   if (callerRow) { if (winState['contacts']?.minimized) toggleMinimize('contacts'); bringToFront('contacts'); showContactDetail(callerRow.dataset.contactId); return }
   if (e.target.closest('#pdv-go') && state.selectedUnit && state.selectedPlace) {
@@ -1682,7 +1721,7 @@ function renderDistrictDetail() {
   document.getElementById('ddv-cat').textContent  = d.category
 
   const hasIntel  = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
-  const revealHint = `<div class="ddv-reveal-hint">Reveal: <span class="roster-item-abbrev item-chip--radio">RAD</span><span class="roster-item-abbrev item-chip--binoculars">BNO</span></div>`
+  const revealHint = `<div class="ddv-reveal-hint">Reveal: ${itemTag('radio')}${itemTag('binoculars')}</div>`
   const unknown    = `<span class="ddv-status--unknown">UNKNOWN</span>${revealHint}`
 
   // Status
@@ -1721,10 +1760,7 @@ function renderDistrictDetail() {
     ddvLoot.innerHTML = '<span class="ddv-no-intel">None</span>'
   } else {
     const uniqueKeys = [...new Set(pool.map(e => e.item))]
-    ddvLoot.innerHTML = uniqueKeys.map(key => {
-      const item = ITEMS[key]
-      return `<div class="item-chip item-chip--${key}">${item?.name ?? key}</div>`
-    }).join('')
+    ddvLoot.innerHTML = uniqueKeys.map(key => itemTag(key, true)).join('')
   }
 }
 
@@ -1736,9 +1772,11 @@ function setUnitsView(view)    { unitsPanel.dataset.view    = view || '' }
 function setContactsView(view) { contactsPanel.dataset.view = view || '' }
 
 unitsList.addEventListener('click', e => {
-  const card = e.target.closest('[data-unit-id]')
-  if (!card) return
-  showUnitDetail(card.dataset.unitId)
+  const row = e.target.closest('[data-unit-id]')
+  if (!row) return
+  const id = row.dataset.unitId
+  if (e.target.closest('.unit-row-details')) { openUnitDetail(id); return }
+  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
 })
 
 unitsList.addEventListener('mouseover', e => {
@@ -1751,14 +1789,40 @@ unitsList.addEventListener('mouseleave', () => {
   mapRenderer.hoverUnitById?.(null)
 })
 
-function showUnitDetail(unitId) {
+// Selection is the thing the map verbs act on; details are a display that unfolds under the list.
+// Selecting never opens details (the row's button does); deselecting closes them.
+function selectUnit(unitId) {
   const unit = state.units[unitId]
   if (!unit) return
   state.selectedUnit = { unitId, districtId: unit.districtId }
+  mapRenderer.setSelected(unitId)
+  if (state.unitDetailOpen) renderUnitDetail(unit)
+  renderUnitsPanel()
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+}
+
+function deselectUnit() {
+  closeUnitDetail()
+  state.selectedUnit = null
+  mapRenderer.setSelected(null)
+  renderUnitsPanel()
+  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+}
+
+function openUnitDetail(unitId) {
+  if (state.selectedUnit?.unitId !== unitId) selectUnit(unitId)
+  const unit = state.units[unitId]
+  if (!unit) return
+  state.unitDetailOpen = true
   renderUnitDetail(unit)
   setUnitsView('unit-detail')
-  mapRenderer?.setSelected(unitId)
-  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+  renderUnitsPanel()
+}
+
+function closeUnitDetail() {
+  state.unitDetailOpen = false
+  setUnitsView(null)
+  renderUnitsPanel()
 }
 
 function renderUnitDetail(unit) {
@@ -1779,12 +1843,8 @@ function renderUnitDetail(unit) {
 
   const allItems = [...new Set(persons.flatMap(p => p.items))]
   udvItems.innerHTML = allItems.length === 0
-    ? ''
-    : allItems.map(key => {
-        const item = ITEMS[key]
-        if (!item) return ''
-        return `<div class="item-chip item-chip--${key}" data-item-key="${key}">${item.name}</div>`
-      }).join('')
+    ? '<span class="udv-no-items">none</span>'
+    : allItems.map(key => itemTag(key, true)).join('')
 
   udvMembers.innerHTML = persons.map(p => {
     const ws       = woundState(p)
@@ -1797,17 +1857,6 @@ function renderUnitDetail(unit) {
     </div>`
   }).join('')
 
-  udvTarget.innerHTML = Object.entries(state.districts)
-    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
-    .map(([nid, nd]) => `<option value="${nid}"${nid === unit.districtId ? ' selected' : ''}>${nd.label}</option>`)
-    .join('')
-}
-
-function hideUnitDetail() {
-  state.selectedUnit = null
-  setUnitsView(null)
-  mapRenderer?.setSelected(null)
-  if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
 function renderContactMeta(contact) {
@@ -1906,18 +1955,6 @@ function renderDispatchControl(contact) {
       <button id="cdv-dispatch-send">SEND</button>
     </div>`
   el.style.display = ''
-}
-
-function showItemDescription(key) {
-  const item = ITEMS[key]
-  if (!item) return
-  idvName.textContent = item.name
-  idvDesc.textContent = item.description
-  setUnitsView('item-description')
-}
-
-function hideItemDescription() {
-  setUnitsView('unit-detail')
 }
 
 // Always available, even on a resolved/lost contact — calling back is a player-initiated
@@ -2079,9 +2116,8 @@ function renderContactsPanel() {
 
 // ── EVENT LISTENERS ──
 
-btnUdvBack.addEventListener('click', hideUnitDetail)
+btnUdvClose.addEventListener('click', closeUnitDetail)
 btnCdvBack.addEventListener('click', hideContactDetail)
-btnIdvBack.addEventListener('click', hideItemDescription)
 btnCdvCallback.addEventListener('click', () => {
   if (state.selectedContact) callBackContact(state.selectedContact)
 })
@@ -2093,12 +2129,6 @@ document.getElementById('unit-detail-view').addEventListener('click', e => {
   if (!unit) return
   unit.activity = btn.dataset.activity
   renderUnitDetail(unit)
-})
-
-udvItems.addEventListener('click', e => {
-  const chip = e.target.closest('.item-chip')
-  if (!chip) return
-  showItemDescription(chip.dataset.itemKey)
 })
 
 document.getElementById('contacts-list').addEventListener('click', e => {
@@ -2253,7 +2283,7 @@ function resolveTransits() {
   renderMapUnits()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
-  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
+  if (state.unitDetailOpen && state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]
     if (unit) renderUnitDetail(unit)
   }
@@ -2283,20 +2313,12 @@ setInterval(processNarrativeCallers, TICK_MS)
 setInterval(() => {
   if (state.transits.length === 0) return
   renderTravelingPanel()
-  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
+  tickRosterStatus()
+  if (state.unitDetailOpen && state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]
     if (unit && !unit.districtId) renderUnitDetail(unit)
   }
 }, 1000)
-
-btnUdvSend.addEventListener('click', () => {
-  if (!state.selectedUnit) return
-  const destId = udvTarget.value
-  const unit = state.units[state.selectedUnit.unitId]
-  if (!destId || !unit || destId === unit.districtId) return
-  dispatchUnit(state.selectedUnit.unitId, destId)
-  hideUnitDetail()
-})
 
 // ── SIMULATION ──
 
@@ -2491,11 +2513,10 @@ function render() {
   renderRadio()
   syncMapPaint()
 
-  if (unitsPanel.dataset.view === 'unit-detail' && state.selectedUnit) {
-    const { unitId } = state.selectedUnit
-    const unit = state.units[unitId]
-    if (!unit) { hideUnitDetail() }
-    else        { renderUnitDetail(unit) }
+  if (state.selectedUnit) {
+    const unit = state.units[state.selectedUnit.unitId]
+    if (!unit) deselectUnit()                                  // disbanded while selected
+    else if (state.unitDetailOpen) renderUnitDetail(unit)
   }
 
   if (contactsPanel.dataset.view === 'contact-detail' && state.selectedContact) {
@@ -2524,35 +2545,64 @@ function renderUnitsPanel() {
     return
   }
 
-  const layout = document.getElementById('units-panel').dataset.cardLayout || 'cards'
+  // Thin rows grouped by district (units in transit sit in an EN ROUTE group on top), so the
+  // whole roster can always be skimmed. Cards / badges are retired (renderUnitCard + CSS kept).
+  const EN_ROUTE = '__enroute'
   const byDistrict = {}
   for (const unit of units) {
-    if (!unit.districtId) continue  // in transit — shown only in the TRAVELING panel
-    if (!byDistrict[unit.districtId]) byDistrict[unit.districtId] = []
-    byDistrict[unit.districtId].push(unit)
+    const key = unit.districtId ?? EN_ROUTE
+    ;(byDistrict[key] ??= []).push(unit)
   }
-  const sorted = Object.keys(byDistrict).sort((a, b) =>
-    (state.districts[a]?.label ?? a).localeCompare(state.districts[b]?.label ?? b)
-  )
+  const sorted = Object.keys(byDistrict).sort((a, b) => {
+    if (a === EN_ROUTE) return -1
+    if (b === EN_ROUTE) return 1
+    return (state.districts[a]?.label ?? a).localeCompare(state.districts[b]?.label ?? b)
+  })
 
-  unitsList.innerHTML = sorted.map(districtId => {
-    const d        = state.districts[districtId]
-    const inner    = byDistrict[districtId].map(u => renderUnitCard(u, layout)).join('')
-    const wrapCls  = 'district-cards'
+  unitsList.innerHTML = sorted.map(key => {
+    const header = key === EN_ROUTE ? 'En route' : (state.districts[key]?.label ?? key)
+    const inner  = byDistrict[key].map(u => renderUnitRow(u)).join('')
     return `<div class="district-group">
-      <div class="district-group-header">${d?.label ?? districtId}</div>
-      <div class="${wrapCls}">${inner}</div>
+      <div class="district-group-header">${header}</div>
+      <div class="unit-rows">${inner}</div>
     </div>`
   }).join('')
 }
 
+// [Unit] [★ leader] [map-aware status] [details]. Click selects; the button opens details.
+function renderUnitRow(unit) {
+  const leader = state.people[unit.leaderPersonId]
+  if (!leader) return ''
+  const selected = state.selectedUnit?.unitId === unit.id
+  const status   = unitStatusText(unit)
+  return `<div class="unit-row${selected ? ' selected' : ''}" data-unit-id="${unit.id}" data-district-id="${unit.districtId ?? ''}">
+    <span class="unit-row-label">${unit.label.toUpperCase()}</span>
+    <span class="unit-row-leader">${leaderStar(leader.role, woundState(leader))}<span class="unit-row-leader-name">${unitShortName(unit)}</span></span>
+    <span class="unit-row-status unit-row-status--${unit.status}${unit.activity === 'responding' ? ' unit-row-status--responding' : ''}">${status}</span>
+    <button class="unit-row-details${state.unitDetailOpen && selected ? ' active' : ''}" title="Details">ⓘ</button>
+  </div>`
+}
+
+// Cheap per-second refresh of the status column (EN ROUTE countdowns) without rebuilding rows.
+function tickRosterStatus() {
+  unitsList.querySelectorAll('.unit-row').forEach(row => {
+    const unit = state.units[row.dataset.unitId]
+    if (!unit) return
+    const el = row.querySelector('.unit-row-status')
+    const t = unitStatusText(unit)
+    if (el && el.textContent !== t) el.textContent = t
+  })
+}
+
+// Retired 2026-09-04 in favor of renderUnitRow — kept with its CSS (.roster-card, badges layout)
+// in case the card look comes back.
 function renderUnitCard(unit, layout) {
   const leader     = state.people[unit.leaderPersonId]
   if (!leader) return ''
   const persons    = personsInUnit(unit.id)
   const allItems   = [...new Set(persons.flatMap(p => p.items))]
   const itemsHtml  = allItems.map(k =>
-    `<span class="roster-item-abbrev item-chip--${k}">${ITEM_ABBREV[k] ?? k}</span>`
+    itemTag(k)
   ).join('')
   const leaderWs   = woundState(leader)
   const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
@@ -2642,7 +2692,7 @@ function renderTravelingPanel() {
 document.getElementById('traveling-panel').addEventListener('click', e => {
   const row = e.target.closest('[data-unit-id]')
   if (!row) return
-  showUnitDetail(row.dataset.unitId)
+  selectUnit(row.dataset.unitId)
 })
 
 function renderGodPanel() {
@@ -2670,7 +2720,7 @@ function renderGodPanel() {
       const suppressed = d.zombies > 0 && d.unitIds.length > 0
 
       const lootHtml = d.loot
-        .map(k => `<div class="gsr-chip item-chip--${k}">
+        .map(k => `<div class="gsr-chip item-chip--${k}" data-item-key="${k}">
             <span class="gsr-chip-abbrev">${ITEM_ABBREV[k]}</span>
             <span class="gsr-chip-name">${ITEMS[k]?.name ?? k}</span>
           </div>`)
@@ -2704,11 +2754,6 @@ function renderGodPanel() {
 
   table.innerHTML = rows
 }
-
-document.getElementById('dispatch-layout-select').addEventListener('change', e => {
-  document.getElementById('units-panel').dataset.cardLayout = e.target.value
-  renderUnitsPanel()
-})
 
 document.getElementById('btn-win-restart').addEventListener('click', () => location.reload())
 document.getElementById('btn-reset-ui').addEventListener('click', resetLayout)

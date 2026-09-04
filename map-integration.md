@@ -221,10 +221,12 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
   and dev throws "document is not defined" from the worker's injected HMR client.
 - **Dev-server gotcha.** Rewriting `style.css` several times in one second once left Vite serving an empty stylesheet
   (page rendered unstyled); touching the file again fixed it. Not a code problem.
-- **Known rough edges (design TLC, per §1 #18).** The roster strip in Cards layout covers a lot of map at 1157 px
-  wide; Badges is denser; the strip collapses. Place card / district card are the spike's layout in the game's
-  theme. The unit-detail dispatch `<select>` is still there (keyboard path). The ENGAGE badge on cards reads the
-  activity, not the map status; `unitStatusText()` has the map-aware line if a card wants it.
+- **UI pass 1 (2026-09-04, owner-directed).** Roster = thin rows (`renderUnitRow`, `unitStatusText` column),
+  selection (`selectUnit` / `deselectUnit`) is separate from details (`openUnitDetail` / `closeUnitDetail`,
+  unfolds under the list). No dispatch control in the details: the map is the only dispatch surface. One Escape
+  rule in main.js (menu → details → unit selection → district/place card + highlight). District selection is a
+  `selected` feature-state on the districts source. Cards float inside `#map-stage`. `itemTag()` + a document
+  click handler open the ITEMS window at the entry. `renderUnitCard` + card CSS kept but unused.
 
 ### Verification checklist (done live 2026-09-04 unless noted)
 1. Dispatch to each of the nine districts from LPD; car drives real streets, arrives at the near edge, patrols without stalling for 2 minutes at 20×; roster shows PATROL. *(Hamburg and Southside verified; the other seven were not individually driven, same code path.)*

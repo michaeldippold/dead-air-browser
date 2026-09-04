@@ -566,9 +566,44 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   padding: 2px 0;
 }
 #roster-strip-toggle:hover { color: var(--accent); }
-#roster-strip.collapsed #units-panel,
-#roster-strip.collapsed #dispatch-layout-select { display: none; }
+#roster-strip.collapsed #units-panel { display: none; }
 #roster-strip.collapsed { width: auto; }
+
+/* ── Roster rows ── [unit] [★ leader] [status] [details] */
+.unit-rows { display: flex; flex-direction: column; padding: 2px 6px 6px; }
+.unit-row {
+  display: grid;
+  grid-template-columns: 50px minmax(64px, 0.8fr) minmax(0, 1.2fr) 20px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+.unit-row:hover, .unit-row.roster-hover { border-color: var(--border-active); background: var(--btn-bg-hover); }
+.unit-row.selected { border-color: var(--accent); background: var(--btn-bg-active); }
+.unit-row.selected .unit-row-label { color: var(--accent); }
+.unit-row-label { font-weight: bold; letter-spacing: 0.06em; white-space: nowrap; }
+.unit-row-leader { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.unit-row-leader .leader-star { width: 12px; height: 12px; flex-shrink: 0; }
+.unit-row-leader-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit-row-status { font-size: 10px; letter-spacing: 0.04em; color: var(--text-dimmer); white-space: nowrap; text-align: right; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.unit-row-status--moving { color: var(--accent); }
+.unit-row-status--patrol { color: var(--text-dim); }
+.unit-row-status--responding { color: var(--status-lost); }
+.unit-row-details {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-dimmer);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 2px;
+  cursor: pointer;
+}
+.unit-row-details:hover, .unit-row-details.active { color: var(--accent); border-color: var(--border-active); }
 
 /* ── Map v3 stage (MapLibre) ── */
 #map-stage {
@@ -635,15 +670,44 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* Place card (right side, same shell as the district card) */
 #place-detail-panel {
-  width: 215px;
-  flex-shrink: 0;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 8;
+  width: 230px;
+  max-height: calc(100% - 20px);
   display: none;
   flex-direction: column;
   gap: 14px;
   padding: 14px 12px;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+/* Floating map controls (testing toggles live here) */
+.map-float-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 22px;
+  z-index: 8;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.map-float-btn:hover { color: var(--accent); border-color: var(--border-active); }
+
+/* ITEMS reference: the entry an item tag jumped to */
+.item-ref-entry--flash { animation: item-ref-flash 1.4s ease-out; }
+@keyframes item-ref-flash {
+  0%   { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { background: transparent; }
 }
 #map-container[data-view="place"] #place-detail-panel { display: flex; }
 .pdv-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
@@ -724,15 +788,20 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 
 /* District detail sidebar */
 #district-detail-panel {
-  width: 215px;
-  flex-shrink: 0;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 8;
+  width: 230px;
+  max-height: calc(100% - 20px);
   display: none;
   flex-direction: column;
   gap: 16px;
   padding: 14px 12px;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(3px);
 }
 
 .ddv-section {
@@ -819,39 +888,27 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   gap: 3px;
 }
 
-#dispatch-layout-select {
-  font-size: 10px;
-  padding: 1px 4px;
-}
-
-#units-panel[data-view="unit-detail"] ~ #dispatch-layout-select,
-#units-panel[data-view="item-description"] ~ #dispatch-layout-select { display: none; }
 
 /* ── Dispatch Roster — fills its own window ── */
 #units-panel {
   flex: 1;
   min-height: 0;
   width: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* View switching */
-#units-panel > div                                                   { display: none; }
-#units-panel > #units-view                                           { display: flex; flex: 1; }
-#units-panel[data-view="unit-detail"] > #units-view                  { display: none; }
-#units-panel[data-view="unit-detail"] > #unit-detail-view            { display: flex; }
-#units-panel[data-view="item-description"] > #units-view             { display: none; }
-#units-panel[data-view="item-description"] > #item-description-view  { display: flex; }
+/* The list is always there; details unfold beneath it. */
+#units-panel > #units-view                                { display: flex; flex: none; }
+#units-panel > #unit-detail-view                          { display: none; }
+#units-panel[data-view="unit-detail"] > #unit-detail-view { display: flex; }
 
 
 #units-view {
-  flex: 1;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 8px 0;
-  min-height: 0;
+  overflow: visible;
+  padding: 4px 0;
   flex-direction: column;
 }
 
@@ -1047,11 +1104,12 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #unit-detail-view {
   display: none;
   flex-direction: column;
-  gap: 15px;
-  padding: 14px 12px 12px;
-  min-height: 0;
-  overflow-y: auto;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
 }
+#udv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+#udv-headline { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
 #udv-header {
   flex-shrink: 0;
@@ -1806,7 +1864,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   color: var(--text-dimmer);
 }
 
-/* ── Item chips ── */
+/* ── Item chips ── one component: click opens the ITEMS reference at that entry */
+.item-chip--abbrev {
+  padding: 1px 4px;
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 0.3px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
 .item-chip {
   display: inline-flex;
   align-items: center;
@@ -1833,15 +1898,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .item-chip--binoculars { border-color: var(--chip-bno-border); background: var(--chip-bno-bg); color: var(--chip-bno-color); }
 
 /* ── Item description view ── */
-#item-description-view {
-  display: none;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  height: 100%;
-  overflow: auto;
-}
 
 #idv-name {
   font-size: 16px;

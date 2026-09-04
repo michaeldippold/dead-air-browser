@@ -118,6 +118,15 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     followTarget = Math.max(13, Math.min(18, followTarget - e.deltaY * 0.0035))
   }, { passive: false })
 
+  // The selected district keeps its hover look while its card is open.
+  let selectedDistrict = null
+  r.setSelectedDistrict = id => {
+    if (!r.ready || selectedDistrict === id) return
+    if (selectedDistrict) map.setFeatureState({ source: 'districts', id: selectedDistrict }, { selected: false })
+    selectedDistrict = id
+    if (selectedDistrict) map.setFeatureState({ source: 'districts', id: selectedDistrict }, { selected: true })
+  }
+
   // Light a place's footprint (contact selected in CONTACTS → its pin).
   let litPlace = null
   r.litPlace = id => {
