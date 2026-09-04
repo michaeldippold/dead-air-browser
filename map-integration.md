@@ -92,7 +92,7 @@ Explicitly *deferred* (not blockers, don't build them first): per-building tint 
 | `roads.json` (7 MB) | `bake/roads.py` (osmnx 2.x) | Drivable graph: strongly-connected, directed, per-edge `len`, `kph`, `hw`, `name`, `ref`, `oneway`, `geom`. 11 264 nodes / 27 363 edges. |
 | `landmarks.json` (0.5 MB) | `bake/landmarks.py` | 887 named OSM features a story could care about (hospitals, schools, parks, stadiums, malls, churches, industrial…), with footprints (≤120 pts) and addresses. **The authoring pool.** |
 | `districts.geojson` | `bake/districts.py` | Nine road-following polygons. |
-| `places.json` | `bake/districts.py` | The 69 authored places (`id, name, kind, osm, lonlat, district, footprint?, addr?`). |
+| `places.json` | `bake/districts.py` | The 68 authored places (`id, name, kind, osm, lonlat, district, footprint?, addr?`). |
 | `pois.json` | `bake/roads.py` | Legacy; superseded by `places.json`. Delete when convenient. |
 | `config.json` | hand | bbox, center, build URL. Every script and the runtime read it. |
 
@@ -106,7 +106,7 @@ Explicitly *deferred* (not blockers, don't build them first): per-building tint 
 
 | id | Label | Category | km² | Adjacent to | Places (n) |
 |---|---|---|---|---|---|
-| `downtown` | Downtown | government | 3.7 | northside, eastend, chevychase, university, redmile, westend | 10 — Rupp Arena, LFUCG Government Center, Central Library, LPD HQ, Transylvania, Kentucky Theatre, Thoroughbred Park, Opera House, BCTC, Fire Station #3 |
+| `downtown` | Downtown | government | 3.7 | northside, eastend, chevychase, university, redmile, westend | 9 — Rupp Arena, LFUCG Government Center, LPD HQ, Transylvania, Kentucky Theatre, Thoroughbred Park, Opera House, BCTC, Fire Station #3 |
 | `northside` | Northside | residential | 8.2 | downtown, eastend, westend | 6 — Castlewood Park, Legends Field, Lexmark, Fire Station #1, LFD Station 2, FedEx |
 | `eastend` | East End | residential | 5.9 | downtown, northside, chevychase, hamburg | 5 — Idle Hour CC, Idle Hour Park, Breckinridge ES, Johnson Heights Park, Kentucky Ballet Theatre |
 | `chevychase` | Chevy Chase | residential | 11.8 | downtown, eastend, university, southside, hamburg | 6 — Ashland (Henry Clay Estate), Woodland Park, Henry Clay HS, Kentucky Children's, Ecton Park, Fire Station #9 |

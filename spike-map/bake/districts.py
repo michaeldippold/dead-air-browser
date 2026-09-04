@@ -24,7 +24,7 @@ DISTRICTS = [
     {"id": "downtown", "label": "Downtown", "category": "government",
      "legs": [["Newtown Pike", "Oliver Lewis Way"], ["West Loudon Avenue", "East Loudon Avenue"], ["North Limestone"],
               ["East Third Street"], ["Midland Avenue"], ["East High Street", "West High Street"]],
-     "places": ["Rupp Arena", "Lexington-Fayette Urban County Government Center", "Lexington Public Library - Central Branch",
+     "places": ["Rupp Arena", "Lexington-Fayette Urban County Government Center",   # Central Library dropped 2026-09-04: same block as LPD HQ, the two fought for label space
                 "Lexington Police Department", "Fire Station #1", "Transylvania University", "Kentucky Theatre", "Thoroughbred Park",
                 "Lexington Opera House"]},
     {"id": "northside", "label": "Northside", "category": "residential",

@@ -242,7 +242,7 @@ browser. Build order, each step visually verifiable:
       "see it with your own eyes" gate before anything below starts.
 - [x] **Landmarks first** *(spike, 2026-09-04)*: `spike-map/bake/landmarks.py` pulls every named
       OSM feature a story could care about (887 in the box) with footprints and addresses; the
-      authored list is hand-picked from it in `bake/districts.py` — 68 places, 5–10 per district,
+      authored list is hand-picked from it in `bake/districts.py` — 68 places, 5–10 per district (Central Library dropped 2026-09-04: it shares LPD HQ's block),
       real stations and hospitals included. Still owed: pinning the four scripted callers and
       Barbara to specific ones, and story-only named locations (a loading dock, a bar) that OSM
       doesn't carry.
@@ -267,7 +267,7 @@ browser. Build order, each step visually verifiable:
       units start inside LPD HQ, Fire Station #1 and the Government Center.
 - [x] **Arrival behavior** *(2026-09-04)*: ENGAGE = routed patrol laps inside the polygon, HIDE parks at the
       entry node, a place = INSIDE with occupancy badges. **SCAVENGE wander still deferred** (parks like HIDE).
-- [x] **Places, two tiers** *(2026-09-04, §5f)*: 69 authored places with footprints, diamonds and badges; free
+- [x] **Places, two tiers** *(2026-09-04, §5f)*: 68 authored places with footprints, diamonds and badges; free
       POIs hover + card, not dispatchable; place card with units inside / en route, disclosed callers, dispatch
       button; roster <-> map hover, contact -> lit footprint + camera fly.
 - [x] **Information rules on the map** *(2026-09-04)*: streets heat + red boundary from the district ratio,
