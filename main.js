@@ -2292,14 +2292,14 @@ function dispatchUnit(unitId, target, opts = {}) {
 
   // Travel time is derived from the route (§1 #10): drive time at lights-and-sirens speed over
   // real roads, slowed through dangerous districts. Arrival stays tick-driven (deterministic for
-  // scripts); the car is paced to land on the tick, never before it.
-  const ticks = Math.max(1, Math.ceil(plan.seconds / (60 * MINS_PER_TICK)))
-  mover.pace(unit, ticks * 60 * MINS_PER_TICK)
+  // scripts); the car is paced to land exactly on that fire of the transit clock, never before it.
+  const { ticks, etaMs } = transitArrival(plan.seconds)
+  mover.pace(unit, (etaMs - Date.now()) / 1000 * 20)
   state.transits.push({
     id: `t${++_transitCounter}`, kind: 'unit', refId: unitId,
     srcId, destId: tgt.districtId, placeId: place?.id ?? null,
     ticksRemaining: ticks, totalTicks: ticks,
-    etaMs: Date.now() + ticks * TICK_MS,
+    etaMs,
     respondContactId: contactId,   // set => caller dispatch: arrive into RESPONDING + fire arrival
   })
 
@@ -2358,12 +2358,32 @@ function resolveTransits() {
     if (unit) renderUnitDetail(unit)
   }
 }
-setInterval(resolveTransits, TICK_MS)
+// The transit clock. Arrival is tick-driven, so a car's ETA has to be measured against *this*
+// interval's phase, not "ticks × TICK_MS from now" — otherwise a dispatch made just before a fire
+// loses up to a whole tick of driving and the car snaps the rest of the way. While paused the
+// clock skips fires and pushes every ETA out by the same amount, so nothing arrives under pause.
+let _transitClockAt = Date.now()
+setInterval(() => {
+  _transitClockAt = Date.now()
+  if (gamePaused) { for (const t of state.transits) t.etaMs += TICK_MS; renderTravelingPanel(); return }
+  resolveTransits()
+}, TICK_MS)
+
+// Fires of the transit clock needed to cover `seconds` of sim time (20×), and the wall-clock
+// moment of that fire. `seconds` must fit — the mover is then paced to land exactly on it.
+function transitArrival(seconds) {
+  const now = Date.now()
+  const needMs = seconds / 20 * 1000
+  let ticks = 1
+  while (_transitClockAt + ticks * TICK_MS - now < needMs) ticks++
+  return { ticks, etaMs: _transitClockAt + ticks * TICK_MS }
+}
 
 // Generic-path responses auto-complete after a fixed window; authored scripts that manage their
 // own completion never set respondTimer, so they're untouched. Unconditional like resolveTransits,
 // so tutorial practice dispatches (pre-game, tick loop idle) still resolve.
 setInterval(() => {
+  if (gamePaused) return
   for (const unit of Object.values(state.units)) {
     if (unit.activity === 'responding' && typeof unit.respondTimer === 'number') {
       unit.respondTimer--
@@ -2375,7 +2395,7 @@ setInterval(() => {
 // Unconditional, like resolveTransits above — narrative scripts (timers AND choice reply-delays)
 // need to advance before state.started is ever true, so the tutorial can use completely normal
 // script authoring (no special-cased event-driven-only advancement).
-setInterval(processNarrativeCallers, TICK_MS)
+setInterval(() => { if (!gamePaused) processNarrativeCallers() }, TICK_MS)
 
 // Refreshes only the displayed countdowns every real second — decoupled from TICK_MS so the
 // TRAVELING panel and EN ROUTE label count down 0:11, 0:10, 0:09... instead of jumping in
@@ -2835,6 +2855,12 @@ document.getElementById('btn-pause').addEventListener('click', () => {
     tickInterval = null
   } else {
     tickInterval = setInterval(tick, TICK_MS)
+    // ETAs moved by whole clock fires while the pause lasted a fraction more: re-time each car so
+    // it still lands exactly on its (shifted) fire instead of snapping the last few percent.
+    for (const t of state.transits) {
+      const unit = t.kind === 'unit' && state.units[t.refId]
+      if (unit?.route) mover.repace(unit, (t.etaMs - Date.now()) / 1000 * 20)
+    }
   }
   document.getElementById('btn-pause').textContent = gamePaused ? 'RESUME' : 'PAUSE'
 })

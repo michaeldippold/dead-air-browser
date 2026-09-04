@@ -149,16 +149,24 @@ export function startPatrolLeg(u, district) {
   u.targetNode = r.edges[r.edges.length - 1].v
 }
 
-// Remaining sim-seconds on the current route (for hover ETAs).
-export function remainingSeconds(u) {
+// Remaining sim-seconds on the current route (for hover ETAs); `natural` ignores the pacing.
+export function remainingSeconds(u, natural = false) {
   const r = u.route; if (!r) return 0
   let s = 0
   for (let i = r.seg; i < r.coords.length - 1; i++) {
     const segLen = r.cum[i + 1] - r.cum[i]
     const covered = i === r.seg ? u.progress - r.cum[i] : 0
-    s += (segLen - covered) / (segSpeed(u, r.kph[i] || 40, r.mult[i]) * (r.pace ?? 1))
+    s += (segLen - covered) / (segSpeed(u, r.kph[i] || 40, r.mult[i]) * (natural ? 1 : (r.pace ?? 1)))
   }
   return s
+}
+
+// Re-time a car mid-route so what is left of it takes exactly `secondsLeft` of sim time (used
+// when the arrival moment moves, e.g. after a pause). May run a hair over road speed.
+export function repace(u, secondsLeft) {
+  const r = u.route; if (!r) return
+  const natural = remainingSeconds(u, true)
+  r.pace = secondsLeft > 0 && natural > 0 ? natural / secondsLeft : 1
 }
 
 // ETA preview without touching the unit: what a transit from here to `target` would take.
