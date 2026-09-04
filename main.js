@@ -1815,6 +1815,7 @@ function selectUnit(unitId) {
   if (state.unitDetailOpen) renderUnitDetail(unit)
   renderUnitsPanel()
   renderDistrictDetail()
+  renderTravelingPanel()
   unitsList.querySelector('.unit-row.selected')?.scrollIntoView({ block: 'nearest' })
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
@@ -1825,6 +1826,7 @@ function deselectUnit() {
   mapRenderer.setSelected(null)
   renderUnitsPanel()
   renderDistrictDetail()
+  renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
 }
 
@@ -2226,12 +2228,23 @@ function dispatchUnit(unitId, target, opts = {}) {
   }
   if (!unit.pos) return
 
+  // Already driving there: don't queue a second transit, just take the activity change.
+  const current = state.transits.find(t => t.kind === 'unit' && t.refId === unitId)
+  if (current && current.destId === tgt.districtId && (current.placeId ?? null) === (place?.id ?? null) && current.respondContactId === contactId) {
+    if (tgt.activity && unit.activity !== 'responding') unit.activity = tgt.activity
+    renderUnitsPanel()
+    return
+  }
+
   const district = DISTRICTS.find(d => d.id === tgt.districtId)
   const plan = mover.planTransit(unit, place ? { place } : { district })
   if (!plan) { unitReport(unit, `Dispatch, no route to ${destLabel} from here.`); return }
 
-  const srcId = unit.districtId
-  const src   = state.districts[srcId]
+  // A re-dispatch mid-route replaces the old transit (the mover already continues from the far
+  // end of the current edge — no teleport). The origin code stays the district it left.
+  const srcId = unit.districtId ?? current?.srcId ?? null
+  if (current) state.transits = state.transits.filter(t => t !== current)
+  const src   = state.districts[unit.districtId]
   if (src) src.unitIds = src.unitIds.filter(id => id !== unitId)
   unit.districtId  = null   // in transit a unit belongs to no district (§1 #9)
   unit.place       = null
@@ -2688,7 +2701,7 @@ function renderTravelingPanel() {
       const unit   = state.units[t.refId]
       const leader = unit && state.people[unit.leaderPersonId]
       if (!leader) return ''
-      return `<div class="traveling-row" data-unit-id="${unit.id}">
+      return `<div class="traveling-row${state.selectedUnit?.unitId === unit.id ? ' selected' : ''}" data-unit-id="${unit.id}">
         <span class="traveling-dot traveling-dot--${leader.role} traveling-dot--siren"></span>
         <span class="traveling-name">${leader.name}</span>
         <span class="traveling-route">[${srcCode}→${destCode}]</span>
@@ -2711,7 +2724,8 @@ function renderTravelingPanel() {
 document.getElementById('traveling-panel').addEventListener('click', e => {
   const row = e.target.closest('[data-unit-id]')
   if (!row) return
-  selectUnit(row.dataset.unitId)
+  const id = row.dataset.unitId
+  if (state.selectedUnit?.unitId === id) deselectUnit(); else selectUnit(id)
 })
 
 function renderGodPanel() {

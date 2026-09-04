@@ -776,7 +776,10 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   gap: 8px;
   font-size: 12px;
 }
-.traveling-row[data-unit-id] { cursor: pointer; }
+.traveling-row[data-unit-id] { cursor: pointer; padding: 1px 4px; margin: 0 -4px; border: 1px solid transparent; }
+.traveling-row[data-unit-id]:hover { border-color: var(--border-active); background: var(--btn-bg-hover); }
+.traveling-row.selected { border-color: var(--accent); background: var(--btn-bg-active); }
+.traveling-row.selected .traveling-name { color: var(--accent); }
 .traveling-name {
   flex: 1;
   overflow: hidden;
