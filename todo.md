@@ -229,6 +229,12 @@ The core loop is operational. Key systems in place:
 > number, the nine districts with adjacency and places, and the build order with `main.js`
 > touchpoints. A fresh session starts there and builds; nothing in it is up for relitigation.
 > The checklist below is the summary; the handoff is the spec.
+>
+> **Status 2026-09-04 (end of the integration day): the map is done enough.** Owner ruling: stop fussing
+> with the map and go back to story and game design. Everything below through "Residences" shipped in one
+> session and is verified; the follow-ups list is real but none of it blocks writing. The tools for story
+> are in place — callers at named places or anonymous houses, dispatch drives there, `onArrive` fires,
+> `unit-at` polls co-location — so the next sessions are scripts and playtesting, not layers.
 
 The flat SVG never earned its job as the main information surface. Replacing it with a real
 Lexington map (MapLibre GL + self-hosted PMTiles + our own baked road graph and A* routing), with
@@ -296,7 +302,9 @@ browser. Build order, each step visually verifiable:
       and no `place` gets a transient "Private residence" place (small diamond, real 3D building lit on
       disclosure, dispatchable, no loot/address). Danny lives in a random Northside house each run. HOUSES
       test button lights the whole pool; hover a house for its OSM id, click copies it — paste ids into
-      `public/data/residence-exclude.json` and re-run the bake to curate. Owed: per-house status later.
+      `public/data/residence-exclude.json` and re-run the bake to curate. Dispatch to a house works like any
+      place (unit drives there, goes INSIDE, `onArrive` fires); new `when` condition `unit-at` (scriptId) for
+      "a unit is in the same place as this caller." Owed: per-house status later.
 - [ ] **Map v3 follow-ups.** SCAVENGE wander (needs place kinds); caller Outside travel + last-known ring;
       per-target ETA for every available unit; address pool for *generic* callers (the residence pool is the
       obvious source); blocked streets; a badge

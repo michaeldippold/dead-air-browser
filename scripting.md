@@ -270,6 +270,7 @@ reached (give it `text: null` if it's purely a switch):
 | `{ type: 'ratio-over', district, value }` | the zombie share (0–1) is over `value` |
 | `{ type: 'humans-gone', district }` | the district's population has hit zero |
 | `{ type: 'unit-in', district }` | any unit is in that district |
+| `{ type: 'unit-at', scriptId }` | any unit is **inside the place** that script's caller is at — their named place or their anonymous residence (the "we're in the same room" moment; `onArrive` fires at the same instant) |
 | `{ type: 'person-in', scriptId, district }` | that script's character is in that district (co-location) |
 | `{ type: 'all', of: [ … ] }` | **every** listed condition is true |
 | `{ type: 'any', of: [ … ] }` | **at least one** listed condition is true |

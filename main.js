@@ -441,6 +441,12 @@ function evalRouteCond(cond, state) {
     }
     case 'humans-gone':   return (state.districts[cond.district]?.humans ?? 1) === 0
     case 'unit-in':       return Object.values(state.units).some(u => u.districtId === cond.district)
+    // Co-location at a place: any unit is INSIDE the place that script's caller is at (a named place
+    // or their anonymous residence). The unit's arrival there also fires the script's onArrive.
+    case 'unit-at': {
+      const c = state.contacts.find(c => c.scriptId === cond.scriptId)
+      return !!c?.placeId && Object.values(state.units).some(u => u.place === c.placeId && u.status === 'inside')
+    }
     case 'person-in':     return Object.values(state.people).some(p =>
                                   p.scriptId === cond.scriptId && p.districtId === cond.district)
     case 'all':           return (cond.of ?? []).every(c => evalRouteCond(c, state))
@@ -995,7 +1001,7 @@ let mapRenderer = null
 }
 
 // Dev hook: inspect the sim from the console (never read by game code).
-window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover }
+window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover, evalRouteCond }
 
 // Map settings (map-integration.md §5h): district boundaries strong (default) or subtle. A floating
 // button on the map so the two looks can be compared quickly while testing; it may go away later.
