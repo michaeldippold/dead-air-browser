@@ -48,7 +48,7 @@ const ITEMS = {
   'gun':         { weight: 2, name: 'Gun',           description: 'Attack hit chance: 70%. Ranged — unit engages before contact, reducing counterattack exposure. Standard issue for Police.' },
   'fire-axe':    { weight: 4, name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
   'first-aid':   { weight: 5, name: 'First Aid Kit', description: 'Civilian automatically heals the most critically wounded unit in the district when any unit drops to 50 HP or below. Restores 20 HP. Single use — consumed on use.' },
-  'radio':       { weight: 3, name: 'Radio',         description: 'While a Civilian carrying a Radio is present in a district, live human and infected counts are visible in the info panel. Intel is lost if the Civilian dies or redeploys.' },
+  'radio':       { weight: 3, name: 'Radio',         description: 'While any unit member carrying a Radio is present in a district, live human and infected counts are visible in the info panel and the map paints its danger. Intel is lost if the carrier dies or the unit leaves.' },
   'rations':     { weight: 8, name: 'Food - Nonperishable', description: 'Passively restores 5 HP per tick to the carrying unit. Not consumed — provides sustained recovery for units in prolonged engagements.' },
   'binoculars':  { weight: 2, name: 'Binoculars',    description: 'While any unit carrying Binoculars is present in a district, adjacent districts\' human and infected counts are also visible in the info panel. Position strategically to extend your intel range.' },
 }
@@ -731,8 +731,10 @@ function pickCounterTarget(persons) {
   return eligible[eligible.length - 1]
 }
 
+// Intel is a low bar by ruling (2026-09-04): any unit member carrying a Radio, whatever their role.
+// (Was civilian-only.) Radios still matter — patrolling alone does not give intel.
 function districtHasRadio(districtId) {
-  return personsInDistrict(districtId).some(p => p.role === 'civilian' && p.items.includes('radio'))
+  return personsInDistrict(districtId).some(p => p.items.includes('radio'))
 }
 
 function districtHasBinoView(districtId) {
@@ -1064,8 +1066,11 @@ function contactsAtPlace(placeId) {
   return state.contacts.filter(c => c.placeId === placeId && c.disclosed && c.type !== 'unit')
 }
 
-// Danger paint and the cold shroud are gated by intel exactly like the sidebar (§1 #12):
-// no radio / binoculars / god mode there, no paint. One number per district, nothing finer.
+// Danger paint is gated by intel exactly like the sidebar (§1 #12): no radio / binoculars / god
+// mode there, no heat. The cold shroud is NOT gated (ruled 2026-09-04): once a district has fallen
+// it looks fallen no matter what. "Fallen" is fewer than COLD_HUMANS left — the last few are hiding
+// best and are hard to find by design. One number per district, nothing finer.
+const COLD_HUMANS = 10
 let _paintKey = ''
 function syncMapPaint() {
   if (!mapRenderer) return
@@ -1074,7 +1079,7 @@ function syncMapPaint() {
     const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
     const total = d.humans + d.zombies
     danger[id] = intel && total > 0 ? d.zombies / total : 0
-    cold[id]   = intel && d.humans === 0
+    cold[id]   = d.humans < COLD_HUMANS
     key += `${id}:${danger[id].toFixed(3)}:${cold[id] ? 1 : 0};`
   }
   if (key !== _paintKey) { _paintKey = key; mapRenderer.pushDistricts() }
