@@ -34,7 +34,7 @@ DISTRICTS = [
     {"id": "eastend", "label": "East End", "category": "residential",
      "legs": [["Winchester Road"], NC, ["Richmond Road", "East Main Street"], ["Midland Avenue"]],
      "places": ["Idle Hour Country Club", "Idle Hour Park", "Breckinridge Elementary School", "Johnson Heights Park", "Kentucky Ballet Theatre"]},
-    {"id": "chevychase", "label": "Chevy Chase", "category": "residential",
+    {"id": "lakeview", "label": "Lakeview Acres"   # was Chevy Chase (renamed 2026-09-04), "category": "residential",
      "legs": [["Richmond Road", "East Main Street"], NC, ["Tates Creek Road"], ["East High Street"]],
      "places": ["Ashland - The Henry Clay Estate", "Woodland Park", "Henry Clay High School", "Kentucky Children's Richmond Road",
                 "Ecton Park", "Fire Station #9", "Lexington Ice Center"]},

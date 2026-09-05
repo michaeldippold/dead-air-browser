@@ -249,7 +249,7 @@ browser. Build order, each step visually verifiable:
 - [x] **Redraw districts** *(spike, 2026-09-04)*: nine districts built by `bake/districts.py` from
       named road corridors — each is a clockwise loop of street-name legs; the tool finds the
       junctions, routes along each named road between them (short off-name detours at a penalty),
-      and emits polygons that follow the real streets. Downtown, Northside, East End, Chevy Chase,
+      and emits polygons that follow the real streets. Downtown, Northside, East End, Lakeview Acres,
       University, Southside, Red Mile, West End, Hamburg. The old hospital/station/government
       "districts" are places inside these now. **Still owed in the game proper:** recompute
       adjacency from the polygons; update `main.js` district IDs, loot pools, `DISTRICT_CODE`, and

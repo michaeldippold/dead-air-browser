@@ -18,7 +18,7 @@
 |---|---|---|
 | 1 | **Stack: MapLibre GL JS + self-hosted PMTiles + our own baked road graph and A\* + a small authored GeoJSON.** | 911 Operator look; MapLibre already does tiles, labels, styling, pitch. three.js rejected. |
 | 2 | **District = the sim's unit of *state*. Road position = the unit of *place*.** A unit always has a real position; its `districtId` is *derived* by point-in-polygon. | Kills "everyone lives in one apartment in the middle of the district." |
-| 3 | **Nine districts, built from named road corridors, drawn by the map not the other way round.** Downtown, Northside, East End, Chevy Chase, University, Southside, Red Mile, West End, Hamburg. Names and count were declared non-sacred and this set was accepted as "naturalistic, dictated by the map." | The old 14 were a compromise for a flat SVG. |
+| 3 | **Nine districts, built from named road corridors, drawn by the map not the other way round.** Downtown, Northside, East End, Lakeview Acres, University, Southside, Red Mile, West End, Hamburg. Names and count were declared non-sacred and this set was accepted as "naturalistic, dictated by the map." | The old 14 were a compromise for a flat SVG. |
 | 4 | **Two tiers of places.** *Authored* (baked footprints, always drawn, always clickable, dispatch targets) and *free* (any named building from the tiles: hover name + card, **not** a dispatch target). | The map tells you where; callers tell you what. |
 | 5 | **Only two dispatch targets: a district, or an authored place.** Bare map never dispatches. | Sending to the wrong place can gimp a run; be explicit. |
 | 6 | **Left-click = select / dispatch-with-default. Right-click = context menu with the explicit verb** (district: ENGAGE / HIDE / SCAVENGE; place: dispatch / show; unit: select / follow / return to station). **Middle-drag = rotate + pitch. Left-drag = pan. Esc = close menu, then deselect. Clicking bare map deselects.** | Owner: "a MUCH more intuitive way to do it." |
@@ -106,24 +106,24 @@ Explicitly *deferred* (not blockers, don't build them first): per-building tint 
 
 | id | Label | Category | km² | Adjacent to | Places (n) |
 |---|---|---|---|---|---|
-| `downtown` | Downtown | government | 3.7 | northside, eastend, chevychase, university, redmile, westend | 9 — Rupp Arena, LFUCG Government Center, LPD HQ, Transylvania, Kentucky Theatre, Thoroughbred Park, Opera House, BCTC, Fire Station #3 |
+| `downtown` | Downtown | government | 3.7 | northside, eastend, lakeview, university, redmile, westend | 9 — Rupp Arena, LFUCG Government Center, LPD HQ, Transylvania, Kentucky Theatre, Thoroughbred Park, Opera House, BCTC, Fire Station #3 |
 | `northside` | Northside | residential | 8.2 | downtown, eastend, westend | 6 — Castlewood Park, Legends Field, Lexmark, Fire Station #1, LFD Station 2, FedEx |
-| `eastend` | East End | residential | 5.9 | downtown, northside, chevychase, hamburg | 5 — Idle Hour CC, Idle Hour Park, Breckinridge ES, Johnson Heights Park, Kentucky Ballet Theatre |
-| `chevychase` | Chevy Chase | residential | 11.8 | downtown, eastend, university, southside, hamburg | 6 — Ashland (Henry Clay Estate), Woodland Park, Henry Clay HS, Kentucky Children's, Ecton Park, Fire Station #9 |
-| `university` | University | government | 8.0 | downtown, chevychase, southside, redmile | 10 — Kroger Field, Chandler Hospital, Good Samaritan, Memorial Coliseum, VA, W.T. Young Library, Fire Station #5, Fire Station #6, Picadome ES, Lafayette HS |
-| `southside` | Southside | retail | 22.8 | chevychase, university | 10 — Fayette Mall, Shillito Park, Baptist Health, UK Arboretum, Lexington Christian, Zandale Park, Tates Creek Library, Fire Station #15, The Summit, Kirklevington Park |
+| `eastend` | East End | residential | 5.9 | downtown, northside, lakeview, hamburg | 5 — Idle Hour CC, Idle Hour Park, Breckinridge ES, Johnson Heights Park, Kentucky Ballet Theatre |
+| `lakeview` | Lakeview Acres | residential | 11.8 | downtown, eastend, university, southside, hamburg | 6 — Ashland (Henry Clay Estate), Woodland Park, Henry Clay HS, Kentucky Children's, Ecton Park, Fire Station #9 |
+| `university` | University | government | 8.0 | downtown, lakeview, southside, redmile | 10 — Kroger Field, Chandler Hospital, Good Samaritan, Memorial Coliseum, VA, W.T. Young Library, Fire Station #5, Fire Station #6, Picadome ES, Lafayette HS |
+| `southside` | Southside | retail | 22.8 | lakeview, university | 10 — Fayette Mall, Shillito Park, Baptist Health, UK Arboretum, Lexington Christian, Zandale Park, Tates Creek Library, Fire Station #15, The Summit, Kirklevington Park |
 | `redmile` | Red Mile | retail | 11.1 | downtown, university, westend | 5 — Red Mile, Saint Joseph Hospital, Turfland Mall, Cardinal Hill, Gay Brewer Golf Course |
 | `westend` | West End | industrial | 11.5 | downtown, northside, redmile | 8 — Calvary Cemetery, Cove Haven Cemetery, McConnell Springs, Douglass Park, Marathon Terminal, Kentucky Utilities, Cardinal Valley ES, Marksbury Library |
-| `hamburg` | Hamburg | retail | 15.5 | eastend, chevychase | 9 — Hamburg Pavilion, Costco, Meijer, Walmart, Baptist Health Hamburg, Sam's Club, Frederick Douglass HS, Regal Cinemas, Target |
+| `hamburg` | Hamburg | retail | 15.5 | eastend, lakeview | 9 — Hamburg Pavilion, Costco, Meijer, Walmart, Baptist Health Hamburg, Sam's Club, Frederick Douglass HS, Regal Cinemas, Target |
 
 Adjacency above is *derived from the polygons* (shared boundary > 300 m). **Compute it at load from the geometry**; don't hand-maintain a table. Ground outside every district (beyond New Circle except Southside/Hamburg) is *outside coverage*: rendered, hoverable, never a dispatch target, never simulated.
 
 **Old → new id mapping** (for scripts, loot, seeds):
-`northgate`, `millbrook` → `northside` · `eastridge` → `eastend` · `westgate`, `memorial` → `university` · `police-hq`, `fire-station`, `city-hall`, `market` → `downtown` · `ironworks`, `industrial` → `westend` · `riverside` → `chevychase` · `commerce` → `hamburg` · `southend` → `redmile`.
+`northgate`, `millbrook` → `northside` · `eastridge` → `eastend` · `westgate`, `memorial` → `university` · `police-hq`, `fire-station`, `city-hall`, `market` → `downtown` · `ironworks`, `industrial` → `westend` · `riverside` → `lakeview` (was `chevychase` / Chevy Chase until 2026-09-04; renamed for a neutral name — both neighborhoods are in it) · `commerce` → `hamburg` · `southend` → `redmile`.
 
-**Two-letter codes** (`DISTRICT_CODE`): DT, NS, EE, CC, UN, SS, RM, WE, HB. (`TU` for the tutorial pseudo-source still needed, per todo.md.)
+**Two-letter codes** (`DISTRICT_CODE`): DT, NS, EE, LA, UN, SS, RM, WE, HB. (`TU` for the tutorial pseudo-source still needed, per todo.md.)
 
-**Starting humans** (same ~11k total as today, roughly by real population; tune later): downtown 900, northside 1400, eastend 1100, chevychase 1500, university 1300, southside 1800, redmile 1000, westend 900, hamburg 1100.
+**Starting humans** (same ~11k total as today, roughly by real population; tune later): downtown 900, northside 1400, eastend 1100, lakeview 1500, university 1300, southside 1800, redmile 1000, westend 900, hamburg 1100.
 
 **Lose threshold**: `DISTRICTS_LOST_LIMIT` is 10 of 14 (71%). Make it **6 of 9** (67%).
 

@@ -820,7 +820,7 @@ const DISTRICT_SEED = {
   downtown:   { humans: 900,  loot: 3 },
   northside:  { humans: 1400, loot: 2 },
   eastend:    { humans: 1100, loot: 2 },
-  chevychase: { humans: 1500, loot: 2 },
+  lakeview: { humans: 1500, loot: 2 },
   university: { humans: 1300, loot: 3 },
   southside:  { humans: 1800, loot: 3 },
   redmile:    { humans: 1000, loot: 2 },
@@ -909,7 +909,7 @@ const adjacency = adjacencyFromPolygons()
 let _transitCounter = 0
 
 const DISTRICT_CODE = {
-  downtown: 'DT', northside: 'NS', eastend: 'EE', chevychase: 'CC', university: 'UN',
+  downtown: 'DT', northside: 'NS', eastend: 'EE', lakeview: 'LA', university: 'UN',
   southside: 'SS', redmile: 'RM', westend: 'WE', hamburg: 'HB',
 }
 
