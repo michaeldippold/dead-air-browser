@@ -716,7 +716,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .compass-n { fill: var(--accent); }
 .compass-s { fill: var(--text-dimmer); opacity: 0.6; }
 .compass-label { font-family: inherit; font-size: 7px; font-weight: bold; fill: var(--text-dim); text-anchor: middle; letter-spacing: 0.05em; }
-#map-compass-needle { transition: transform 0.08s linear; transform-origin: 20px 20px; }
+#map-compass-needle { transform-box: view-box; transform-origin: 20px 20px; transition: transform 0.08s linear; }
 .map-float-btn {
   font-family: inherit;
   font-size: 10px;

@@ -991,7 +991,7 @@ window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover 
 // and bearing, and it drops follow.
 {
   const needle = document.getElementById('map-compass-needle')
-  mapRenderer.onBearing(b => { needle.setAttribute('transform', `rotate(${-b} 20 20)`) })
+  mapRenderer.onBearing(b => { needle.style.transform = `rotate(${-b}deg)` })
   document.getElementById('map-compass').addEventListener('click', () => mapRenderer.northUp())
   document.getElementById('map-reset-btn').addEventListener('click', () => mapRenderer.overview())
 }
