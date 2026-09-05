@@ -46,6 +46,9 @@ export default {
   place:       'castlewood-park', // optional: the authored place they're at (an id from public/data/places.json).
                                  // Becomes their map pin once they've told you where they are (first opened line);
                                  // a unit dispatched to them drives there and goes inside.
+  location:    'residence',      // optional exposure class: 'outside' | 'business' | 'residence'. With no `place`,
+                                 // 'residence' also puts them in a random anonymous house in their district — a
+                                 // small diamond, the real building lights up, no address is ever shown.
   sim:         false,            // false = protected (only the script ends their story); true = exposed, can die if unhelped
   trigger:     { type: 'game-time', hour: 23 },  // WHEN they call in (see Triggers). Omit = never auto-fires.
   once:        true,             // fire only once (default true)

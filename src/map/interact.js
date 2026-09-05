@@ -5,6 +5,7 @@
 import { DISTRICTS, districtAt } from './districts.js'
 import { previewSeconds, remainingSeconds } from './mover.js'
 import { KIND_LABEL } from './icons.js'
+import { TILE_WAY_OFFSET } from './index.js'
 
 export const fmt = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
 const districtOf = id => DISTRICTS.find(d => d.id === id)
@@ -47,10 +48,16 @@ export function attachInteraction(r) {
     const feats = map.queryRenderedFeatures(point, { layers: ['units', 'place-badge-0', 'place-badge-1', 'place-badge-2', 'places', 'footprint-fill', 'poi-hit', 'district-fill'] })
     const f = id => feats.find(x => x.layer.id === id)
     const unitF = f('units'), placeF = f('place-badge-0') ?? f('place-badge-1') ?? f('place-badge-2') ?? f('places') ?? f('footprint-fill'), poiF = f('poi-hit'), distF = f('district-fill')
+    // HOUSES test view: buildings in the residence pool become hoverable (id readout) — never otherwise.
+    let house = null
+    if (r.housesDebug) {
+      const b = map.queryRenderedFeatures(point, { layers: ['buildings'] })[0]
+      if (b && map.getFeatureState({ source: 'protomaps', sourceLayer: 'buildings', id: b.id })?.house) house = { wayId: b.id - TILE_WAY_OFFSET, tileId: b.id }
+    }
     return {
       unit: unitF && get.units().find(u => u.id === unitF.properties.id),
       place: placeF && get.places().find(p => p.id === placeF.properties.id),
-      poi: poiF, district: distF && districtOf(distF.properties.id),
+      poi: poiF, district: distF && districtOf(distF.properties.id), house,
     }
   }
 
@@ -90,6 +97,7 @@ export function attachInteraction(r) {
       return
     }
     if (h.poi) { const p = h.poi.properties; showTip(`<b>${esc(p.name)}</b> <span class="dim">${esc(p.kind ?? '')}</span>`, e.point); return }
+    if (h.house) { showTip(`<b>house #${h.house.wayId}</b> <span class="dim">residence pool · click to copy the id</span>`, e.point); return }
     if (h.district) {
       const d = h.district
       if (sel) {
@@ -111,6 +119,7 @@ export function attachInteraction(r) {
     if (h.unit) { on.unitClick(h.unit.id, e.originalEvent?.detail ?? 1); return }
     if (h.place) { on.showPlace(h.place.id); if (sel) on.dispatch(sel.id, { placeId: h.place.id }); return }
     if (h.poi) { on.showPoi({ name: h.poi.properties.name, kind: h.poi.properties.kind, lonlat: h.poi.geometry.coordinates }); return }
+    if (h.house) { navigator.clipboard?.writeText(String(h.house.wayId)); showTip(`<b>house #${h.house.wayId}</b> <span class="dim">copied</span>`, e.point); return }
     if (h.district && sel) { on.dispatch(sel.id, { districtId: h.district.id, activity: 'engage' }); return }
     if (h.district) { on.selectDistrict?.(h.district.id); return }
     if (sel) on.selectUnit(null)

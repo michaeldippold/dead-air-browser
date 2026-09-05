@@ -49,6 +49,10 @@ python bake/landmarks.py
 
 # districts from named road corridors + the hand-picked authored places
 python bake/districts.py
+
+# anonymous residence pool (house-shaped buildings per district, ids + centroids); curate via
+# ../public/data/residence-exclude.json (ids from the in-game HOUSES view) and re-run
+python bake/residences.py
 ```
 
 `roads.json` is the drivable graph (strongly connected component, directed, per-edge speed,

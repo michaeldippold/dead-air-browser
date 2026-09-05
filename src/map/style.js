@@ -36,7 +36,11 @@ export function buildStyle(tilesUrl) {
     if (l.id === 'buildings') {
       l.type = 'fill-extrusion'; l.minzoom = 13.5
       l.paint = {
-        'fill-extrusion-color': '#152c50',
+        // lit = a disclosed caller's house; house = the residence pool (HOUSES test view)
+        'fill-extrusion-color': ['case',
+          ['boolean', ['feature-state', 'lit'], false], '#ffd24a',
+          ['boolean', ['feature-state', 'house'], false], '#4a86d8',
+          '#152c50'],
         'fill-extrusion-height': ['coalesce', ['get', 'height'], 7],
         'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13.5, 0, 14.5, 0.9],
         'fill-extrusion-vertical-gradient': true,

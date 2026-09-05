@@ -498,7 +498,7 @@ function spawnScript(scriptId) {
     script.name,
     script.callerRole  ?? 'civilian',
     script.callerItems ?? [],
-    { sim: script.sim ?? false, districtId: script.district ?? null, scriptId }
+    { sim: script.sim ?? false, districtId: script.district ?? null, scriptId, location: script.location }
   )
   state.people[person.id] = person
 
@@ -508,6 +508,10 @@ function spawnScript(scriptId) {
   contact.scriptId = scriptId
   contact.personId = person.id
   contact.placeId  = script.place ?? null
+  // "At home" callers get an anonymous house in their district (scripting.md: location: 'residence').
+  if (!contact.placeId && script.location === 'residence' && script.district) {
+    contact.placeId = spawnResidence(script.district)?.id ?? null
+  }
   state.contacts.push(contact)
 
   if (scriptId === 'tutorial') {
@@ -838,6 +842,24 @@ tagEdges()
 const PLACES = (await (await fetch('/data/places.json')).json()).map(p => ({ ...p, node: nearestNode(p.lonlat) }))
 const placeById = id => PLACES.find(p => p.id === id) ?? null
 
+// Residence pool (baked once by bake/residences.py): anonymous houses per district for callers who
+// are "at home". A transient place is minted from it when such a caller spawns — a small diamond,
+// the real 3D building lights on disclosure, no address is ever shown, no loot, gone with the story.
+async function loadJSON(url, fallback) { try { return await (await fetch(url)).json() } catch { return fallback } }
+const RESIDENCES = await loadJSON('/data/residences.json', { districts: {} })
+const RESIDENCE_EXCLUDE = new Set(await loadJSON('/data/residence-exclude.json', []))
+function spawnResidence(districtId) {
+  const used = new Set(PLACES.map(p => p.buildingId).filter(Boolean))
+  const pool = (RESIDENCES.districts[districtId] ?? []).filter(r => !RESIDENCE_EXCLUDE.has(r.id) && !used.has(r.id))
+  if (!pool.length) return null
+  const r = pool[Math.floor(Math.random() * pool.length)]
+  const place = { id: `res-${r.id}`, name: 'Private residence', kind: 'residence', lonlat: r.c, node: nearestNode(r.c),
+                  district: districtId, buildingId: r.id, transient: true, addr: null, footprint: null }
+  PLACES.push(place)
+  mapRenderer?.pushPlaces()
+  return place
+}
+
 for (const d of DISTRICTS) {
   const seed = DISTRICT_SEED[d.id] ?? { humans: 1000, loot: 2 }
   state.districts[d.id] = {
@@ -953,6 +975,7 @@ let mapRenderer = null
       placeContacts:  id => contactsAtPlace(id),
       selectedUnitId: () => state.selectedUnit?.unitId ?? null,
       timeScale:      () => (gamePaused ? 0 : 20),   // 1 tick = 3 s real = 1 game minute
+      residencePool:  () => Object.values(RESIDENCES.districts).flat().map(r => r.id).filter(id => !RESIDENCE_EXCLUDE.has(id)),
       districtStatus: id => {
         const d = state.districts[id]; if (!d) return ''
         const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
@@ -996,6 +1019,15 @@ window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover 
   mapRenderer.onBearing(b => { needle.style.transform = `rotate(${-b}deg)` })
   document.getElementById('map-compass').addEventListener('click', () => mapRenderer.northUp())
   document.getElementById('map-reset-btn').addEventListener('click', () => mapRenderer.overview())
+  // Testing: light every building in the residence pool so the pool can be skimmed and curated.
+  // Hover a lit house for its OSM id, click to copy it into public/data/residence-exclude.json.
+  const housesBtn = document.getElementById('map-houses-btn')
+  let houses = false
+  housesBtn.addEventListener('click', () => {
+    houses = !houses
+    housesBtn.classList.toggle('active', houses)
+    mapRenderer.setHousesDebug(houses)
+  })
 }
 
 // ── ESCAPE ── one rule for everything selected: close the topmost thing.
@@ -1669,7 +1701,7 @@ function unitTag(unit, badge = null) {
 // ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
 // Name, kind, address, district, units inside / en route, named callers with a status line, and a
 // dispatch link for the selected unit. A free-tier POI gets the same card, minus the dispatch.
-const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
+const KIND_LABEL = { residence: 'Residence', hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
                      school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
 function showPlaceDetail(place) {
   if (!place) return
@@ -1685,7 +1717,7 @@ function showPlaceDetail(place) {
   document.getElementById('pdv-name').textContent = place.name
   document.getElementById('pdv-kind').textContent = KIND_LABEL[place.kind] ?? place.kind ?? ''
   document.getElementById('pdv-meta').innerHTML = [
-    ['ADDRESS',  place.addr ?? '—'],
+    ['ADDRESS',  place.kind === 'residence' ? 'withheld' : (place.addr ?? '—')],
     ['DISTRICT', d?.label ?? 'outside coverage'],
   ].map(([k, v]) => `<div class="pdv-row"><span class="pdv-k">${k}</span><span class="pdv-v">${v}</span></div>`).join('')
   document.getElementById('pdv-units').innerHTML =

@@ -13,6 +13,8 @@ import { DISTRICTS, danger, districtsGeoJSON, districtLabelsGeoJSON } from './di
 import { advance, park, startPatrolLeg } from './mover.js'
 
 export const CAMERA = { center: [-84.4977, 38.0406], zoom: 13.4, pitch: 52, bearing: -12 }
+// Protomaps tile feature ids for OSM ways are the way id plus this offset (verified live 2026-09-04).
+export const TILE_WAY_OFFSET = 2 ** 45
 
 let protocolRegistered = false
 
@@ -73,6 +75,7 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
       for (const role of ROLE_ORDER) { const n = inside.filter(u => get.unitRole(u) === role).length; if (n) badges['badge' + slot++] = `badge-${role}-${Math.min(n, 9)}` }
       return { type: 'Feature', id: p.id, properties: {
         id: p.id, name: p.name, kind: p.kind, icon: KIND_COLOR[p.kind] ? 'place-' + p.kind : 'place-other', color: KIND_COLOR[p.kind] ?? '#e8e2c9',
+        sz: p.kind === 'residence' ? 0.72 : 1,
         contacts: get.placeContacts(p.id).length, inside: inside.length, ...badges },
         geometry: { type: 'Point', coordinates: p.lonlat } }
     }) }
@@ -129,13 +132,27 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     if (selectedDistrict) map.setFeatureState({ source: 'districts', id: selectedDistrict }, { selected: true })
   }
 
-  // Light a place's footprint (contact selected in CONTACTS → its pin).
+  // Light a place (contact selected in CONTACTS → its pin): the authored footprint, or for a
+  // residence the actual 3D building from the tiles (its feature id is the OSM way id + TILE_WAY_OFFSET).
+  const buildingFS = (wayId, state) => map.setFeatureState({ source: 'protomaps', sourceLayer: 'buildings', id: TILE_WAY_OFFSET + wayId }, state)
   let litPlace = null
   r.litPlace = id => {
     if (!r.ready || litPlace === id) return
-    if (litPlace) map.setFeatureState({ source: 'footprints', id: litPlace }, { lit: false })
+    const off = litPlace && get.places().find(p => p.id === litPlace)
+    if (off?.buildingId) buildingFS(off.buildingId, { lit: false })
+    else if (litPlace) map.setFeatureState({ source: 'footprints', id: litPlace }, { lit: false })
     litPlace = id
-    if (litPlace) map.setFeatureState({ source: 'footprints', id: litPlace }, { lit: true })
+    const on = litPlace && get.places().find(p => p.id === litPlace)
+    if (on?.buildingId) buildingFS(on.buildingId, { lit: true })
+    else if (litPlace) map.setFeatureState({ source: 'footprints', id: litPlace }, { lit: true })
+  }
+
+  // HOUSES test view: light the whole residence pool; hover shows the OSM id, click copies it.
+  r.housesDebug = false
+  r.setHousesDebug = on => {
+    if (!r.ready) return
+    r.housesDebug = on
+    for (const id of get.residencePool?.() ?? []) buildingFS(id, { house: on })
   }
 
   // ── Load ──

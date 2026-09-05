@@ -222,6 +222,12 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
   honor pause too. A re-dispatch replaces the unit's transit (same target = activity change only).
 - **Contacts.** `placeId` (from the script's `place`), `disclosed` flips on the first opened thread; `contactsAtPlace()`
   feeds the gold ring, the place card and the tooltip. `lastKnownPlaceId` exists but nothing writes it yet.
+- **Residences.** `bake/residences.py` → `public/data/residences.json` (`districts[id] = [{id: osmWayId, c, a}]`,
+  300 per district, seeded). `spawnResidence(districtId)` mints a transient place (`kind: 'residence'`,
+  `buildingId`, `transient: true`) into `PLACES`. Tile building features are addressable as
+  `osmWayId + 2**45` (`TILE_WAY_OFFSET`, verified on 5/5 buildings) via feature-state on source
+  `protomaps` / source-layer `buildings`: `lit` (gold, disclosed caller) and `house` (blue, HOUSES test view).
+  `public/data/residence-exclude.json` is the hand-curated drop list, read by the bake and the runtime.
 - **Worker.** `tools/copy-maplibre-worker.mjs` (predev/prebuild) vendors MapLibre's worker + shared chunk into
   `public/vendor/maplibre/` (git-ignored) and `index.js` calls `setWorkerUrl`. Without it the build 404s the worker
   and dev throws "document is not defined" from the worker's injected HMR client.

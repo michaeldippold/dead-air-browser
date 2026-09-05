@@ -1,4 +1,4 @@
-// Danny — Northside, Joyland neighborhood (last name unknown)
+// Danny — at home somewhere in Northside (last name unknown)
 // A child on a landline. Parents went to get grandma and haven't come back.
 // Trigger: zombies reach Northside.
 // Arc: he followed his dad's instructions to the letter. He's scared but not panicking.
@@ -13,7 +13,7 @@ export default {
   callerRole:  'civilian',
   callerItems: [],
   district:    'northside',
-  place:       'castlewood-park',           // settled 2026-09-04; easy to move
+  location:    'residence',                 // at home: an anonymous house in Northside is picked each run
   trigger:     { type: 'zombie-presence', district: 'northside' },
   once:        true,
 

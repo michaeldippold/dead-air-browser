@@ -291,8 +291,15 @@ browser. Build order, each step visually verifiable:
       BORDERS · STRONG/SUBTLE toggle (testing) at the bottom right of the map; a re-dispatch mid-route
       replaces the transit instead of queueing another. Still owed: district-card interior tuning after
       playtesting.
+- [x] **Residences** *(2026-09-04)*: `bake/residences.py` samples 300 house-shaped OSM buildings per district
+      (ids + centroids, no addresses) into `public/data/residences.json`; a script with `location: 'residence'`
+      and no `place` gets a transient "Private residence" place (small diamond, real 3D building lit on
+      disclosure, dispatchable, no loot/address). Danny lives in a random Northside house each run. HOUSES
+      test button lights the whole pool; hover a house for its OSM id, click copies it — paste ids into
+      `public/data/residence-exclude.json` and re-run the bake to curate. Owed: per-house status later.
 - [ ] **Map v3 follow-ups.** SCAVENGE wander (needs place kinds); caller Outside travel + last-known ring;
-      per-target ETA for every available unit; address pool for generic callers; blocked streets; a badge
+      per-target ETA for every available unit; address pool for *generic* callers (the residence pool is the
+      obvious source); blocked streets; a badge
       digit that reads at overview zoom; heat-look tuning; per-building tint. Design pass on the roster strip
       and cards (map-integration.md "As built" has the list).
 

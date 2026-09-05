@@ -523,6 +523,15 @@ dispatched to — outside coverage. Dead air, literally.
   place, usually with an empty contacts section. That empty state is doing work: the map tells
   you where, callers tell you what.
 
+- **Residences (ruled 2026-09-04).** A scripted caller who is "at home" (`location: 'residence'`
+  with no named place) is put in a random anonymous house in their district, drawn from a baked
+  pool of house-shaped OSM buildings. It gets a small diamond and, on disclosure, the actual 3D
+  building lights up and the camera flies to it, exactly like a named place. It is a dispatch
+  target (the responding unit goes inside) but not a full location: no loot table, no address —
+  the card says "Private residence." Real people live in these houses, so the game never shows
+  a street address. Per-house status (cleared, barricaded) is a later layer on the same building
+  id, not a need now. The pool is curated by hand via an exclusion list.
+
 The place card shows: name, address, district, units there or en route, and the **named callers
 currently there** with a status line each. Sim people never appear. Clicking a caller's row opens
 their thread; clicking a contact in CONTACTS flies the camera to their pin and lights the

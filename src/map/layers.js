@@ -76,7 +76,7 @@ export function addLayers(map, initial) {
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 8, 16, 18], 'circle-color': '#ffd24a', 'circle-opacity': 0.12,
     'circle-stroke-color': '#ffd24a', 'circle-stroke-width': 1.5, 'circle-stroke-opacity': 0.9 } })
   map.addLayer({ id: 'places', type: 'symbol', source: 'places', layout: {
-    'icon-image': ['get', 'icon'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 1.35],
+    'icon-image': ['get', 'icon'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, ['*', 0.8, ['get', 'sz']], 16, ['*', 1.35, ['get', 'sz']]],
     'icon-allow-overlap': true, 'icon-ignore-placement': true,
     'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 12.5, 'text-offset': [0, 1.25], 'text-anchor': 'top', 'text-optional': true,
     'text-max-width': 11,

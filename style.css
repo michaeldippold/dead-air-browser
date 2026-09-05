@@ -727,7 +727,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   border: 1px solid var(--border);
   cursor: pointer;
 }
-.map-float-btn:hover { color: var(--accent); border-color: var(--border-active); }
+.map-float-btn:hover, .map-float-btn.active { color: var(--accent); border-color: var(--border-active); }
 
 /* ITEMS reference: the entry an item tag jumped to */
 .item-ref-entry--flash { animation: item-ref-flash 1.4s ease-out; }

@@ -3,9 +3,9 @@ import { MAP_BG } from './style.js'
 
 export const ROLE_COLOR = { police: '#4ea3ff', fire: '#ff5a4e', civilian: '#e8e2c9' }
 export const ROLE_ORDER = ['police', 'fire', 'civilian']
-export const KIND_COLOR = { hospital: '#e07a9a', police: '#4ea3ff', fire: '#ff5a4e', venue: '#ffd24a', retail: '#e0b25a', park: '#6fcf8a',
+export const KIND_COLOR = { residence: '#e8e2c9', hospital: '#e07a9a', police: '#4ea3ff', fire: '#ff5a4e', venue: '#ffd24a', retail: '#e0b25a', park: '#6fcf8a',
                             school: '#b39ddb', campus: '#b39ddb', civic: '#9fb6e0', industrial: '#a0a8b8', landmark: '#e8e2c9' }
-export const KIND_LABEL = { hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
+export const KIND_LABEL = { residence: 'Residence', hospital: 'Hospital', police: 'Police', fire: 'Fire station', venue: 'Venue', retail: 'Retail', park: 'Park',
                             school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
 export const ACCENT = '#ffd24a'
 
