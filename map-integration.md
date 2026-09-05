@@ -201,8 +201,9 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
 
 - **Module map.** `src/map/graph.js`, `districts.js` (verbatim + `adjacencyFromPolygons`), `style.js`, `icons.js`,
   `layers.js`, `mover.js`, `interact.js`, `index.js` (`createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on })`).
-  `main.js` talks to the renderer only through `mapRenderer.{refresh, pushDistricts, setSelected, hoverUnitById,
-  litPlace, flyTo, setBoundaries}` and the `get`/`on` hooks. `window.DA` is a dev hook (state, PLACES, map, mover).
+  `main.js` talks to the renderer only through `mapRenderer.{refresh, pushDistricts, setSelected, setSelectedDistrict,
+  hoverUnitById, litPlace, flyTo, overview, northUp, onBearing, startFollow, stopFollow, isFollowing, setBoundaries,
+  closeCtx, ctxOpen}` and the `get`/`on` hooks (`on.unitClick(id, detail)` carries the browser's click count). `window.DA` is a dev hook (state, PLACES, map, mover).
 - **Unit fields.** `pos, node, bearing, route, progress, status ('moving'|'patrol'|'parked'|'inside'), place, home,
   targetLabel`. The tick loop reads none of them. `dispatchUnit(unitId, target, opts)` takes a district id string,
   `{ districtId, activity }` or `{ placeId }`; a caller dispatch is redirected to the caller's place once disclosed.
@@ -214,6 +215,11 @@ Each step leaves the game playable. Line numbers are from `main.js` @ commit `3f
 - **Paint.** `syncMapPaint()` (each render + god toggle + SITREP close) writes `danger[id]` / `cold[id]` in
   `districts.js` and pushes when the key changes. Closing SITREP turns god mode off, which clears the paint; that
   is the gate working, not a bug.
+- **Transit clock.** `resolveTransits` runs on its own `setInterval`; `_transitClockAt` records its last fire and
+  `transitArrival(seconds)` picks the first fire that fits the drive time, so the tick count and ETA are phase-
+  aligned and `mover.pace()` lands the car on that fire. Pause skips fires and pushes every ETA out by one tick
+  each; resume calls `mover.repace()` so the last few percent don't jump. The responding and narrative timers
+  honor pause too. A re-dispatch replaces the unit's transit (same target = activity change only).
 - **Contacts.** `placeId` (from the script's `place`), `disclosed` flips on the first opened thread; `contactsAtPlace()`
   feeds the gold ring, the place card and the tooltip. `lastKnownPlaceId` exists but nothing writes it yet.
 - **Worker.** `tools/copy-maplibre-worker.mjs` (predev/prebuild) vendors MapLibre's worker + shared chunk into

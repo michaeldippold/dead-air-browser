@@ -29,19 +29,19 @@ This identity does real work:
 
 **The town:** Lexington, Kentucky — picked as the real-world setting. The game's title is
 **Dead Air** (topbar shows this, not the city or "Dispatch"); the desktop background is a
-Lexington-Fayette Urban County Police badge, recolored to match whatever theme is active. District
-labels are now real Lexington-flavored names (Joyland, Winburn, Castlewood, University of
-Kentucky, LPD HQ, Station No. 1, LFUCG Govt Center, Good Samaritan Hospital, Old Iron Works,
-Kendrick Ave, Market St, Newtown Commerce, The Red Mile, Lexington Quarry) — internal district IDs
-are unchanged, only the `label` field and map text. University of Kentucky and The Red Mile are
-classified `government` and `retail` respectively (not `residential`), which feeds their loot
-table and COMMS flavor. **Neither the names nor the count of these districts is a sacred cow**
-(ruled 2026-09-04): the current fourteen were a compromise made to get a flat SVG working, and the
-names are fun facts pulled from the real city. When the map becomes real Lexington (see The Map),
-districts get redrawn — renamed, merged, split, added — to match the actual geography, keeping the
-count modest. Still open: deciding what the city's declining industry was
-(steel, auto parts, textiles, tobacco) — that detail should flavor caller voice and district identity,
-not just the skyline.
+Lexington-Fayette Urban County Police badge, recolored to match whatever theme is active. The city
+is the real one (see The Map): **nine districts** drawn from named road corridors — Downtown
+(government), Northside, East End and Lakeview Acres (residential), University (government),
+Southside, Red Mile and Hamburg (retail), West End (industrial) — with real hospitals, stations,
+parks and malls as the named places inside them. The category feeds each district's loot table and
+COMMS flavor. **Neither the names nor the count of these districts is a sacred cow** (ruled
+2026-09-04): the earlier fourteen were a compromise for a flat SVG; the nine were accepted as
+"naturalistic, dictated by the map." Move a boundary by naming a road in the bake; don't add
+districts without a ruling. Lakeview Acres was Chevy Chase until 2026-09-04 — both neighborhoods
+are in it, and the neutral name was preferred; the basemap still shows the real neighborhood
+labels, which is fine. Still open: deciding what the city's declining industry was (steel, auto
+parts, textiles, tobacco) — that detail should flavor caller voice and district identity, not just
+the skyline.
 
 **The timeframe:** a single overnight shift, **20:00–08:00**. Not open-ended. The original
 vision was an open-ended sim, but that conflicts directly with being a narrative game — finite
@@ -158,9 +158,9 @@ does not touch named Persons.
 
 ### Locations within a district
 
-Districts are too coarse a unit to make "where, exactly" feel real, and a building-level map is
-out of scope. The middle ground: every district has a small set of **locations** a Person can
-occupy.
+Districts are too coarse a unit to make "where, exactly" feel real, and a building-level
+*simulation* is out of scope (the map itself is building-level now — see The Map). The middle
+ground: every district has a small set of **locations** a Person can occupy.
 
 - **General categories**, identical rules everywhere: **Outside**, **Private Residence**,
   **Business**. These need no authoring — they work the same in every district from day one.
@@ -170,7 +170,7 @@ occupy.
 
 Location *is* rendered on the map, but only once the caller has disclosed it (see The Map,
 "What the map is allowed to show"). Mechanically it stays metadata — a modifier on exposure and a
-label in contact text ("Marcus Webb — Old Iron Works, Loading Dock"). Named story locations are
+label in contact text ("Marcus Webb — Marathon Terminal, Loading Dock"). Named story locations are
 real buildings with real footprints; the general categories are real addresses drawn from the
 city's address pool.
 
@@ -463,9 +463,9 @@ doesn't telegraph which. Reading the name is the only way to know.
 one static file, HTTP range requests, no tile server, no API key), styled from a cut-down
 Protomaps dark flavor. On top of it: a **baked road graph** with our own A* routing (edge cost is
 time, with per-district danger multipliers — owning the graph is what lets the outbreak edit the
-roads later), and a small **authored GeoJSON** of district polygons and named locations. Units are
-a symbol layer; caller pins are DOM markers so the terminal aesthetic carries over without a
-second art pipeline.
+roads later), and a small **authored GeoJSON** of district polygons and named locations. Units,
+places, badges and caller pins are all symbol/circle layers on the map (the pin is a gold ring on
+the place's diamond); the terminal aesthetic lives in the DOM panels around it.
 
 Rejected: three.js from scratch (would reimplement tile loading, label placement and styling that
 MapLibre already does; the gloss ceiling — no bloom or ambient occlusion — is accepted, and
@@ -487,8 +487,8 @@ road position is the unit of place.** A unit always has a real position on the r
 district is derived by point-in-polygon. The sim reads the district; the map reads the position.
 
 - **Dispatch to a district lands wherever the road takes you** — the destination is the nearest
-  routable node inside the polygon to where the unit currently is. A car sent to Joyland from
-  downtown pulls in at Joyland's near edge, not its middle. A big district is closer on its near
+  routable node inside the polygon to where the unit currently is. A car sent to Hamburg from
+  downtown pulls in at Hamburg's near edge, not its middle. A big district is closer on its near
   side than its far side, which is how cities work.
 - **Arrival behavior follows the unit's activity.** ENGAGE means **patrol**: the unit drifts along
   roads inside the polygon at residential speed, a random walk that stays in bounds. HIDE means
@@ -562,6 +562,16 @@ closable so the map can take most of the screen. The badge wallpaper and the des
 untouched behind it all. Target is a desktop PC; the two sidebars together already fill most of a
 1080p screen, which is fine.
 
+**The map is the only dispatch surface; the panels are display** (ruled 2026-09-04 after the first
+play with the real map). Left-click a district or place with a unit selected to send it, right-click
+for the explicit verb; there is no dispatch dropdown anywhere. The roster is thin rows that never
+hide — selection is one click, details unfold beneath the list on a double-click, and the same
+click rule applies to a unit wherever it appears (roster, TRAVELING list, a card's unit tag, the
+car itself). One Escape rule closes the topmost thing: menu, details, unit selection, then the
+district or place card with its highlight. Item tags are one component that opens the ITEMS window
+at that entry rather than hijacking a panel. The more interaction that moves onto the map surface,
+the better; the panels exist to show what you selected.
+
 ---
 
 ## Win / Lose
@@ -577,8 +587,9 @@ failure*, and it gives each loss a specific cause the player can feel responsibl
 - **Lose** — several distinct conditions, each anchored to a concrete, legible circumstance so the
   player can always name what went wrong:
   - **All units dead** — you spent your people.
-  - **Ten or more districts at critical infection** — the city was physically overrun; this is the
-    *breadth* failure, the price of concentrating force too narrowly.
+  - **Six of the nine districts at critical infection** — the city was physically overrun; this is
+    the *breadth* failure, the price of concentrating force too narrowly. (Was ten of fourteen
+    before Map v3; same two-thirds.)
   - **Too many units disbanded** — attrition ground you down.
   - **Failing the job** — too many calls left unanswered or unresolved over the night: the purest
     dispatcher failure, where you didn't have to lose the city, you just stopped doing the work.

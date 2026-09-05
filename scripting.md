@@ -133,7 +133,7 @@ Add `once: true` (the default) so they only call once. **Omit `trigger` entirely
 won't auto-fire at all — it has to be spawned by game code (this is how the tutorial works, and
 it's rare; for a normal caller, give them a trigger).
 
-> **Not available yet:** combining conditions in one trigger (e.g. "after 1 AM *and* Joyland is
+> **Not available yet:** combining conditions in one trigger (e.g. "after 1 AM *and* Northside is
 > falling"). If a beat needs that, flag it — it's a small addition.
 
 ---
@@ -205,14 +205,17 @@ Both `onEnter` and `onArrive` receive `state`, the whole game world. You can rea
 instead. So "is a particular character in this district right now?" is a scan of `state.people`:
 
 ```js
-// is the caller from scripts/barbara.js currently in Joyland?
+// is the caller from scripts/barbara.js currently in Northside?
 const here = Object.values(state.people)
   .some(p => p.scriptId === 'barbara' && p.districtId === 'northside')
 ```
 
 Key them by **`scriptId`** (or a saved person id), *not* by `name` — names aren't guaranteed
-unique or stable. Units work the same way: `state.units[id].districtId` tells you where a unit is,
-and `state.districts[id].unitIds` lists the units in a district.
+unique or stable. Units work the same way: `state.units[id].districtId` tells you where a unit is
+(`null` while it is driving between districts), `state.units[id].place` is the authored place id
+while it is inside one (a station, a hospital), and `state.districts[id].unitIds` lists the units
+in a district. A unit's road position (`pos`, `route`, `status`) belongs to the map renderer —
+scripts and the sim should never read it; the district and the place are the facts.
 
 **Two notes:**
 - You can now **route the conversation on any of this** — see "Branching on game state" just below.

@@ -1,8 +1,10 @@
 # spike-map — Dead Air real-Lexington map spike
 
 Throwaway spike for the Map v3 decision (see `design.md` "The Map" and `todo.md` "Map v3").
-**Owner-approved 2026-09-04.** The integration handoff is `../map-integration.md`; this code is
-its reference implementation — port the modules, don't rewrite them from memory.
+**Owner-approved and integrated 2026-09-04** — the game now runs the ported modules from `src/map/`
+(see `../map-integration.md`). What stays useful here is the **bake** (`bake/`, below) and the
+sandbox itself for trying a look before touching the game. The district named Chevy Chase in this
+spike is "Lakeview Acres" in the game.
 Judging: the dark real-city look, units driving real roads, district = state / position =
 geography, hover/click, danger paint. Not production code.
 
