@@ -689,12 +689,35 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   backdrop-filter: blur(3px);
 }
 
-/* Floating map controls (testing toggles live here) */
-.map-float-btn {
+/* Floating map controls, bottom right: compass over a row of buttons */
+#map-controls {
   position: absolute;
   right: 10px;
   bottom: 22px;
   z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.map-controls-row { display: flex; gap: 6px; }
+#map-compass {
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+#map-compass:hover { border-color: var(--border-active); }
+#map-compass svg { width: 100%; height: 100%; display: block; }
+.compass-ring { fill: none; stroke: var(--border); stroke-width: 1; }
+.compass-n { fill: var(--accent); }
+.compass-s { fill: var(--text-dimmer); opacity: 0.6; }
+.compass-label { font-family: inherit; font-size: 7px; font-weight: bold; fill: var(--text-dim); text-anchor: middle; letter-spacing: 0.05em; }
+#map-compass-needle { transition: transform 0.08s linear; transform-origin: 20px 20px; }
+.map-float-btn {
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 0.08em;

@@ -111,6 +111,8 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
   }
   r.stopFollow = () => { if (!follow) return; follow = false; map.scrollZoom.enable() }
   r.overview = () => { r.stopFollow(); map.flyTo({ ...CAMERA, duration: 1200 }) }
+  r.northUp = () => map.easeTo({ bearing: 0, duration: 500 })
+  r.onBearing = cb => { map.on('rotate', () => cb(map.getBearing())); cb(map.getBearing()) }
   r.flyTo = (lonlat, zoom = 16) => { r.stopFollow(); map.flyTo({ center: lonlat, zoom: Math.max(map.getZoom(), zoom), duration: 900 }) }
   map.getCanvas().addEventListener('wheel', e => {
     if (!follow) return

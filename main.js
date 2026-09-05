@@ -986,6 +986,16 @@ window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover 
   btn.addEventListener('click', () => { strong = !strong; apply() })
 }
 
+// Camera controls: the compass needle tracks the map bearing (a real map deserves one); clicking
+// it squares the map to north. RESET VIEW is the camera's "Reset UI": opening center, zoom, pitch
+// and bearing, and it drops follow.
+{
+  const needle = document.getElementById('map-compass-needle')
+  mapRenderer.onBearing(b => { needle.setAttribute('transform', `rotate(${-b} 20 20)`) })
+  document.getElementById('map-compass').addEventListener('click', () => mapRenderer.northUp())
+  document.getElementById('map-reset-btn').addEventListener('click', () => mapRenderer.overview())
+}
+
 // ── ESCAPE ── one rule for everything selected: close the topmost thing.
 // Context menu → unit details → unit selection → district / place card (with its highlight).
 window.addEventListener('keydown', e => {
