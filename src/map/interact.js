@@ -120,7 +120,7 @@ export function attachInteraction(r) {
     if (h.place) { on.showPlace(h.place.id); if (sel) on.dispatch(sel.id, { placeId: h.place.id }); return }
     if (h.poi) { on.showPoi({ name: h.poi.properties.name, kind: h.poi.properties.kind, lonlat: h.poi.geometry.coordinates }); return }
     if (h.house) { navigator.clipboard?.writeText(String(h.house.wayId)); showTip(`<b>house #${h.house.wayId}</b> <span class="dim">copied</span>`, e.point); return }
-    if (h.district && sel) { on.dispatch(sel.id, { districtId: h.district.id, activity: 'engage' }); return }
+    if (h.district && sel) { on.dispatch(sel.id, { districtId: h.district.id }); return }
     if (h.district) { on.selectDistrict?.(h.district.id); return }
     if (sel) on.selectUnit(null)
   })
@@ -166,10 +166,11 @@ export function attachInteraction(r) {
     }
     if (h.district) {
       const d = h.district
+      // ENGAGE / HIDE / SCAVENGE are gone (design.md, Explicitly Out of Scope) — dispatching to a
+      // district just sends the unit there; it parks. Check / Hold / Stage verbs land in todo.md
+      // v0.9.0 steps 2/4/7.
       return openCtx([
-        { label: `ENGAGE — ${who} patrols ${d.label}${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { districtId: d.id, activity: 'engage' }) },
-        { label: `HIDE — ${who} holds at the edge${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { districtId: d.id, activity: 'hide' }) },
-        { label: `SCAVENGE — ${who} searches ${d.label}${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { districtId: d.id, activity: 'scavenge' }) },
+        { label: `Dispatch ${who} here${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { districtId: d.id }) },
         { label: 'District info', run: () => on.selectDistrict?.(d.id) },
       ], e.point, d.label)
     }

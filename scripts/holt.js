@@ -11,7 +11,6 @@ export default {
   id:          'holt',
   name:        'Dep. Dir. Holt',
   callerRole:  'civilian',
-  callerItems: [],
   district:    null,   // not tied to a district — he calls from wherever he is
   trigger:     { type: 'game-time', hour: 21 },
   once:        true,

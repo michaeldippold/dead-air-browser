@@ -11,7 +11,6 @@ export default {
   id:          'danny',
   name:        'Unknown — Child',
   callerRole:  'civilian',
-  callerItems: [],
   district:    'northside',
   location:    'residence',                 // at home: an anonymous house in Northside is picked each run
   trigger:     { type: 'zombie-presence', district: 'northside' },

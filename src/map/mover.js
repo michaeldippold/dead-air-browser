@@ -2,15 +2,14 @@
 //
 // The sim owns *state*: `unit.districtId`, `unit.place`, `unit.activity`, and when a transit
 // arrives (tick-driven, deterministic). This module owns *place*: `unit.pos`, `unit.node`,
-// `unit.bearing`, `unit.route`, `unit.progress`, `unit.status` ('moving' | 'patrol' | 'parked' |
-// 'inside'). Nothing in the tick loop reads any of those. A transit is paced so the car reaches the
-// end of its route exactly when the sim's tick count runs out (never visually early); patrol legs
-// are pure renderer motion that never leaves the district polygon.
+// `unit.bearing`, `unit.route`, `unit.progress`, `unit.status` ('moving' | 'parked' | 'inside').
+// Nothing in the tick loop reads any of those. A transit is paced so the car reaches the end of
+// its route exactly when the sim's tick count runs out (never visually early). Patrol (ENGAGE laps
+// around a district) is retired (design.md, Explicitly Out of Scope) — arrival always parks.
 import { graph, route, dist, bearingDeg } from './graph.js'
-import { entryNode, patrolRoute, dangerMultiplier } from './districts.js'
+import { entryNode, dangerMultiplier } from './districts.js'
 
 export const MOVING_FACTOR = 1.15   // lights and sirens: edge kph × 1.15
-export const PATROL_MAX_KPH = 30    // residential cruise while patrolling
 
 // A route the mover can walk: coords, cumulative metres, per-segment kph and danger multiplier,
 // and which edge each segment belongs to (so a re-dispatch mid-edge continues from the edge's far
@@ -42,7 +41,7 @@ export function nextNodeAndRemainder(u) {
 }
 
 // Metres per second on a segment, for the unit's current status.
-const segSpeed = (u, kph, mult) => (u.status === 'patrol' ? Math.min(kph, PATROL_MAX_KPH) : kph * MOVING_FACTOR) / 3.6 / (mult || 1)
+const segSpeed = (u, kph, mult) => (kph * MOVING_FACTOR) / 3.6 / (mult || 1)
 
 function setRoute(u, r, prefix) {
   const parts = routeToParts(r)
@@ -94,8 +93,8 @@ export function pace(u, seconds) {
   u.route.pace = seconds > 0 && natural > 0 ? Math.min(1, natural / seconds) : 1
 }
 
-// Advance a unit along its route by `simDt` sim-seconds. Transits stop at the end and wait for the
-// sim to arrive them; patrol legs chain into the next leg (or park when the activity changed).
+// Advance a unit along its route by `simDt` sim-seconds. A transit stops at the end and waits for
+// the sim to arrive it.
 export function advance(u, simDt) {
   const r = u.route; if (!r) return false
   const i = Math.min(r.seg, r.kph.length - 1)
@@ -107,18 +106,11 @@ export function advance(u, simDt) {
   const t = span > 0 ? (u.progress - r.cum[r.seg]) / span : 1
   u.pos = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
   if (a !== b) u.bearing = bearingDeg(a, b)
-  if (u.progress >= r.length && u.status === 'patrol') {
-    u.node = u.targetNode ?? u.node
-    u.pos = graph.nodes[u.node]
-    u.route = null
-    if (u.activity === 'engage' && u.patrolDistrict) startPatrolLeg(u, u.patrolDistrict)
-    else park(u)
-  }
   return true
 }
 
 // Sim-side arrival: snap to the target node and clear the transit route. The caller then sets the
-// sim facts (districtId / place) and picks patrol / park / inside.
+// sim facts (districtId / place) and picks park / inside.
 export function arrive(u) {
   u.node = u.targetNode ?? u.node
   u.pos = graph.nodes[u.node]
@@ -130,23 +122,11 @@ export function arrive(u) {
 export function park(u) {
   u.status = 'parked'
   u.route = null
-  u.patrolDistrict = null
 }
 
 export function goInside(u) {
   u.status = 'inside'
   u.route = null
-  u.patrolDistrict = null
-}
-
-// ENGAGE at a district: routed laps to random interior nodes, never leaving the polygon.
-export function startPatrolLeg(u, district) {
-  const r = patrolRoute(u.node, district)
-  if (!r || !r.edges.length) { park(u); u.patrolDistrict = district; return }
-  u.status = 'patrol'
-  u.patrolDistrict = district
-  setRoute(u, r, null)
-  u.targetNode = r.edges[r.edges.length - 1].v
 }
 
 // Remaining sim-seconds on the current route (for hover ETAs); `natural` ignores the pacing.

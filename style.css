@@ -100,14 +100,6 @@
   --unit-fire:     #b83030;
   --unit-civilian: #EEE8D9;
 
-  /* ── Item chip colors (semantic — survive theme changes) ── */
-  --chip-gun-border:      #7a6828;  --chip-gun-bg:      #1c1808;  --chip-gun-color:      #c09848;
-  --chip-axe-border:      #7a4018;  --chip-axe-bg:      #1c1008;  --chip-axe-color:      #c07040;
-  --chip-fak-border:      #903020;  --chip-fak-bg:      #200808;  --chip-fak-color:      #d06050;
-  --chip-rad-border:      #3a5a3a;  --chip-rad-bg:      #0e1a0e;  --chip-rad-color:      #5a9a5a;
-  --chip-rat-border:      #3a6030;  --chip-rat-bg:      #0a180a;  --chip-rat-color:      #70a858;
-  --chip-bno-border:      #284878;  --chip-bno-bg:      #080e1c;  --chip-bno-color:      #4888d8;
-
   /* ── Map labels + panel bg ── */
   --map-panel-bg:  transparent;
   --map-label:     rgba(255,255,255,0.82);
@@ -323,72 +315,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   mask-size: contain;
 }
 
-/* The items (gun) icon reads visibly smaller/thinner than the others at the same box size */
-.items-btn {
-  padding: 4px 16px;
-  gap: 0px;
-}
-
-.task-btn[data-win="items"] .task-btn-glyph {
-  width: 26px;
-  height: 26px;
-}
-
 .task-btn:hover               { background: var(--btn-bg-hover);   color: var(--text-dim); border-color: var(--btn-border-hover); }
 .task-btn:not(.win-minimized) { background: var(--btn-bg-active);  color: var(--text-dim); border-color: var(--btn-border-active); }
-
-/* Items panel */
-#items-panel {
-  padding: clamp(12px, 1.5vw, 28px) clamp(14px, 2vw, 36px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.item-ref-entry {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(6px, 0.6vw, 12px);
-  padding: clamp(14px, 1.8vh, 30px) 0;
-  border-bottom: 1px solid var(--border);
-  scroll-margin-top: clamp(14px, 1.8vh, 30px);   /* an item tag jump lands with the title clear of the top */
-}
-
-.item-ref-entry:last-child { border-bottom: none; }
-
-/* Title row: NAME [TAG] — the tag sits with its name instead of in a column of its own */
-.item-ref-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.item-ref-name {
-  font-size: clamp(14px, 1.4vw, 22px);
-  font-weight: bold;
-  color: var(--text-dim);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin: 0;
-}
-
-.item-ref-desc {
-  margin: 0;
-  font-size: clamp(12px, 1vw, 16px);
-  color: var(--text-dim);
-  line-height: 1.75;
-  max-width: 90ch;
-  opacity: 0.7;
-}
-
-#items-panel .item-chip {
-  font-size: 11px;
-  padding: 2px 6px;
-  cursor: default;
-  pointer-events: none;
-}
-
 
 #btn-reset-ui {
   padding: 7px 14px;
@@ -729,12 +657,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 .map-float-btn:hover, .map-float-btn.active { color: var(--accent); border-color: var(--border-active); }
 
-/* ITEMS reference: the entry an item tag jumped to */
-.item-ref-entry--flash { animation: item-ref-flash 1.4s ease-out; }
-@keyframes item-ref-flash {
-  0%   { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-  100% { background: transparent; }
-}
 #map-container[data-view="place"] #place-detail-panel { display: flex; }
 .pdv-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
 #pdv-name {
@@ -887,17 +809,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   color: #ffffff;
 }
 
-.ddv-reveal-hint {
-  font-size: 10px;
-  font-weight: normal;
-  letter-spacing: 0.5px;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-}
-
 #ddv-units, #pdv-units {
   display: flex;
   flex-direction: column;
@@ -909,15 +820,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 #ddv-units .roster-card.selected, #pdv-units .roster-card.selected { border-color: var(--accent); }
 #ddv-units .roster-card.selected .roster-unit-label, #pdv-units .roster-card.selected .roster-unit-label { color: var(--accent); }
 #ddv-units .roster-card:hover, #pdv-units .roster-card:hover    { transform: none; }
-#ddv-units .roster-portrait, #pdv-units .roster-portrait      { width: 9px; height: unset; min-height: unset; align-self: stretch; flex-shrink: 0; overflow: hidden; }
-#ddv-units .roster-portrait svg, #pdv-units .roster-portrait svg  { display: none; }
 #ddv-units .roster-card-body, #pdv-units .roster-card-body     { flex: 1; min-width: 0; overflow: hidden; padding: 7px 10px; gap: 4px; justify-content: center; }
-
-#ddv-loot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
 
 
 /* ── Dispatch Roster — fills its own window ── */
@@ -1046,10 +949,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .leader-star[data-role="police"]   { fill: var(--unit-police); }
 .leader-star[data-role="fire"]     { fill: var(--unit-fire); }
 .leader-star[data-role="civilian"] { fill: var(--unit-civilian); }
-.leader-star.ws-healthy,
-.leader-star.ws-wounded,
-.leader-star.ws-critical { background: transparent; color: inherit; }
-.leader-star.ws-critical { animation: pulse-crit 1s infinite; }
 
 /* Member dots — colored by role */
 .member-dot {
@@ -1192,16 +1091,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 #udv-dispatch #btn-udv-send { flex-shrink: 0; }
-
-.udv-ws-badge {
-  font-size: 11px;
-  letter-spacing: 1px;
-  padding: 1px 4px;
-  border-radius: 2px;
-}
-.ws-healthy  { color: var(--accent);      background: rgba(80,200,80,0.1); }
-.ws-wounded  { color: var(--radio-t0);    background: rgba(200,160,50,0.1); }
-.ws-critical { color: var(--status-lost); background: rgba(200,60,60,0.1); }
 
 /* ── Contacts panel view switching ── */
 #contacts-view { display: flex; flex-direction: column; padding: 16px; }
@@ -1450,33 +1339,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 .gsr-inf.danger   { color: var(--inf-danger); }
 .gsr-inf.critical { color: var(--inf-critical); }
 .gsr-inf.overrun  { color: var(--inf-overrun); }
-
-.gsr-loot {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.gsr-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border: 1px solid;
-  border-radius: 0;
-  font-size: 11px;
-  cursor: default;
-  user-select: none;
-}
-
-.gsr-chip-abbrev {
-  font-weight: bold;
-  letter-spacing: 0.1em;
-}
-
-.gsr-chip-name {
-  opacity: 0.75;
-}
 
 .gsr-persons {
   font-size: 13px;
@@ -1890,45 +1752,6 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   border-top: 1px solid var(--border);
 }
 
-.udv-no-items {
-  font-size: 11px;
-  color: var(--text-dimmer);
-}
-
-/* ── Item chips ── one component: click opens the ITEMS reference at that entry */
-.item-chip--abbrev {
-  padding: 1px 4px;
-  font-size: 10px;
-  font-weight: normal;
-  letter-spacing: 0.3px;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-.item-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border: 1px solid;
-  border-radius: 2px;
-  font-size: 11px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: filter 0.1s;
-  user-select: none;
-}
-
-.item-chip:hover  { filter: brightness(1.5); }
-.item-chip:active { filter: brightness(1.9); }
-
-.item-chip--gun       { border-color: var(--chip-gun-border); background: var(--chip-gun-bg); color: var(--chip-gun-color); }
-.item-chip--fire-axe  { border-color: var(--chip-axe-border); background: var(--chip-axe-bg); color: var(--chip-axe-color); }
-.item-chip--first-aid { border-color: var(--chip-fak-border); background: var(--chip-fak-bg); color: var(--chip-fak-color); }
-.item-chip--radio      { border-color: var(--chip-rad-border); background: var(--chip-rad-bg); color: var(--chip-rad-color); }
-.item-chip--rations    { border-color: var(--chip-rat-border); background: var(--chip-rat-bg); color: var(--chip-rat-color); }
-.item-chip--binoculars { border-color: var(--chip-bno-border); background: var(--chip-bno-bg); color: var(--chip-bno-color); }
-
-/* ── Item description view ── */
 
 #idv-name {
   font-size: 16px;
@@ -2298,7 +2121,8 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 
 
-/* ── Unit activity picker (unit detail view) ── */
+/* ── Unit status line (unit detail view) ── ENGAGE/HIDE/SCAVENGE buttons are gone; #udv-activity
+   now just holds the plain AVAILABLE / RESPONDING line (.udv-responding, below). */
 
 #udv-activity {
   display: flex;
@@ -2308,54 +2132,7 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   padding: 6px 0;
 }
 
-.activity-label {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: var(--text-dimmer);
-  opacity: 0.55;
-}
-
-.activity-btns {
-  display: flex;
-  gap: 4px;
-}
-
-.activity-btn {
-  flex: 1;
-  padding: 8px 6px;
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--text);
-  border-color: var(--border-sub);
-  background: var(--bg);
-  opacity: 0.6;
-  cursor: pointer;
-}
-
-.activity-btn:hover { opacity: 1; }
-
-.activity-btn--active[data-activity="engage"] {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(168,234,168,0.04);
-  opacity: 1;
-}
-
-.activity-btn--active[data-activity="hide"] {
-  color: var(--radio-t0);
-  border-color: var(--radio-t0);
-  background: rgba(224,184,64,0.04);
-  opacity: 1;
-}
-
-.activity-btn--active[data-activity="scavenge"] {
-  color: var(--chip-bno-color);
-  border-color: var(--chip-bno-border);
-  background: rgba(72,136,216,0.04);
-  opacity: 1;
-}
-
-/* ── Activity badge on roster cards ── */
+/* ── Activity badge — the shared unitTag() badge on district/place cards ── */
 
 .roster-activity {
   font-size: 10px;
@@ -2368,26 +2145,14 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
   text-transform: uppercase;
 }
 
-.roster-activity--engage {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(168,234,168,0.08);
-}
-
-.roster-activity--hide {
-  color: var(--radio-t0);
-  border-color: var(--radio-t0);
-  background: rgba(224,184,64,0.08);
-}
-
-.roster-activity--scavenge {
-  color: var(--chip-bno-color);
-  border-color: var(--chip-bno-border);
-  background: rgba(72,136,216,0.08);
+.roster-activity--available {
+  color: var(--text-dimmer);
+  border-color: var(--border);
+  background: rgba(255,255,255,0.03);
 }
 
 /* RESPONDING reads as actively busy — filled accent + pulse, distinct from the outlined idle
-   activity badges. The unit is tied up on a call, not free to retask. */
+   badge. The unit is tied up on a call, not free to retask. */
 .roster-activity--responding, .roster-activity--enroute {
   color: var(--bg);
   background: var(--accent);

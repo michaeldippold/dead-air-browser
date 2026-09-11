@@ -9,7 +9,6 @@ export default {
   id:          'marcus-webb',
   name:        'Marcus Webb',
   callerRole:  'civilian',
-  callerItems: [],
   district:    'westend',
   place:       'marathon-terminal',         // the loading dock
   trigger:     { type: 'zombie-presence', district: 'westend' },

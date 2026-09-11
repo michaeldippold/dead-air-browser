@@ -1,6 +1,6 @@
 // Districts: the sim's unit of state. Geometry comes from the bake; everything here is
 // derived (which district a point is in, which roads and nodes are inside, patrol legs).
-import { graph, pointInRing, nearestNode, dist, route } from './graph.js'
+import { graph, pointInRing, nearestNode, dist } from './graph.js'
 export const cold = {}   // district id -> true once no humans are left
 
 // Baked by bake/districts.py: polygons that follow real roads, from named corridors.
@@ -54,25 +54,6 @@ export function entryNode(district, fromLonlat) {
     if (d < bd) { bd = d; best = id }
   }
   return best
-}
-
-// A patrol leg: a routed lap to a random interior node at least 150 m away, never leaving
-// the district. A one-edge random walk ping-pongs at dead ends and stalls at the boundary;
-// a routed leg reads as a car cruising the neighborhood.
-export function patrolRoute(fromId, district) {
-  const pool = interior[district.id] ?? []
-  if (!pool.length) return null
-  const from = graph.nodes[fromId]
-  const inside = e => graph.edgeDistrict[e.id] === district.id ? 1 : Infinity
-  for (let tries = 0; tries < 10; tries++) {
-    const to = pool[Math.floor(Math.random() * pool.length)]
-    if (to === fromId || dist(from, graph.nodes[to]) < 150) continue
-    const r = route(fromId, to, { multiplier: inside })
-    if (r && r.edges.length) return r
-  }
-  // Boxed in (a node whose in-district roads are all one-way out): take any road out.
-  const any = (graph.out[fromId] ?? [])[0]
-  return any ? { coords: any.geom, edges: [any], seconds: any.len / (any.kph / 3.6), metres: any.len } : null
 }
 
 // Adjacency derived from the geometry (map-integration.md §4: never hand-maintain it). The rings

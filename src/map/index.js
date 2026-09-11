@@ -9,8 +9,8 @@ import { registerIcons, ROLE_COLOR, ROLE_ORDER, KIND_COLOR } from './icons.js'
 import { addLayers, applyBoundary, animateDash, emptyFC } from './layers.js'
 import { attachInteraction } from './interact.js'
 import { graph } from './graph.js'
-import { DISTRICTS, danger, districtsGeoJSON, districtLabelsGeoJSON } from './districts.js'
-import { advance, park, startPatrolLeg } from './mover.js'
+import { danger, districtsGeoJSON, districtLabelsGeoJSON } from './districts.js'
+import { advance } from './mover.js'
 
 export const CAMERA = { center: [-84.4977, 38.0406], zoom: 13.4, pitch: 52, bearing: -12 }
 // Protomaps tile feature ids for OSM ways are the way id plus this offset (verified live 2026-09-04).
@@ -181,16 +181,10 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     const simDt = wallDt * (get.timeScale?.() ?? 20)
     let moved = false
     if (graph.ready && simDt > 0) {
+      // Patrol (ENGAGE laps) is retired — a unit is either driving a transit or parked/inside.
       for (const u of get.units()) {
         if (!u.pos || u.status === 'inside') continue
-        if (u.status === 'moving') { if (advance(u, simDt)) moved = true }
-        else if (u.status === 'patrol') {
-          if (u.activity !== 'engage') { park(u); moved = true }
-          else if (advance(u, simDt)) moved = true
-        } else if (u.status === 'parked' && u.activity === 'engage' && u.districtId && !u.place) {
-          const d = DISTRICTS.find(x => x.id === u.districtId)
-          if (d) { startPatrolLeg(u, d); moved = true }
-        }
+        if (u.status === 'moving' && advance(u, simDt)) moved = true
       }
     }
     if (moved) r.pushUnits()

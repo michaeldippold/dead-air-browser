@@ -85,10 +85,6 @@
         <span class="desktop-icon-glyph" style="mask-image:url('/images/comms.svg'); -webkit-mask-image:url('/images/comms.svg');"></span>
         <span class="desktop-icon-label">COMMS</span>
       </button>
-      <button class="desktop-icon" data-win="items">
-        <span class="desktop-icon-glyph" style="mask-image:url('/images/items.svg'); -webkit-mask-image:url('/images/items.svg');"></span>
-        <span class="desktop-icon-label">ITEMS</span>
-      </button>
     </div>
 
     <!-- Window: DISPATCH — the map with the unit roster over it (map-integration.md §1 #18, §5e).
@@ -131,8 +127,6 @@
                 <div id="udv-activity"></div>
                 <div class="udv-section-header">ROSTER</div>
                 <div id="udv-members"></div>
-                <div class="udv-section-header">ITEMS</div>
-                <div id="udv-items"></div>
               </div>
             </div>
           </div>
@@ -196,10 +190,6 @@
             <div class="udv-section-header">UNITS HERE</div>
             <div id="ddv-units"></div>
           </div>
-          <div class="ddv-section">
-            <div class="udv-section-header">POSSIBLE LOOT</div>
-            <div id="ddv-loot"></div>
-          </div>
         </div>
         </div><!-- #map-stage -->
 
@@ -246,51 +236,6 @@
     </div>
 
 
-    <!-- Window: Items Reference -->
-    <div class="win" id="win-items">
-      <div class="win-titlebar">
-        <span class="win-title">ITEMS</span>
-        <div class="win-controls">
-          <button class="win-btn win-min-btn" data-win="items">_</button>
-          <button class="win-btn win-max-btn" data-win="items">□</button>
-          <button class="win-btn win-close-btn" data-win="items">×</button>
-        </div>
-      </div>
-      <div class="win-body" id="items-panel">
-
-        <div class="item-ref-entry" data-item-key="gun">
-          <div class="item-ref-title"><span class="item-ref-name">Gun</span><span class="item-chip item-chip--abbrev item-chip--gun">GUN</span></div>
-            <p class="item-ref-desc">Your best tool for putting down zombies. Units armed with a Gun have a strong chance to score a kill each engagement, and their range lets them open fire before contact — meaning they take less return damage. Police units start with one. Rare everywhere else.</p>
-        </div>
-
-        <div class="item-ref-entry" data-item-key="fire-axe">
-          <div class="item-ref-title"><span class="item-ref-name">Fire Axe</span><span class="item-chip item-chip--abbrev item-chip--fire-axe">AXE</span></div>
-            <p class="item-ref-desc">A solid close-quarters weapon. Slightly less effective than a firearm, but far better than going in empty-handed. Fire units start with one, and they turn up often in industrial areas. Good to have; great if a Gun isn't available.</p>
-        </div>
-
-        <div class="item-ref-entry" data-item-key="first-aid">
-          <div class="item-ref-title"><span class="item-ref-name">First Aid Kit</span><span class="item-chip item-chip--abbrev item-chip--first-aid">AID</span></div>
-            <p class="item-ref-desc">Emergency triage. When any unit in the district falls to critically low health, a Civilian carrying an AID kit will automatically patch them up — restoring a meaningful chunk of health before they go down. One kit, one use: it's consumed in the process. Best carried by Civilians who sit just behind your fighters.</p>
-        </div>
-
-        <div class="item-ref-entry" data-item-key="radio">
-          <div class="item-ref-title"><span class="item-ref-name">Radio</span><span class="item-chip item-chip--abbrev item-chip--radio">RAD</span></div>
-            <p class="item-ref-desc">Intel from the ground. While any unit member carrying a Radio is in a district, that district's live human and infected counts appear in the district card and the map paints its danger. No Radio means no numbers — you're making decisions blind. The intel cuts out if the carrier dies or the unit leaves.</p>
-        </div>
-
-        <div class="item-ref-entry" data-item-key="rations">
-          <div class="item-ref-title"><span class="item-ref-name">Rations</span><span class="item-chip item-chip--abbrev item-chip--rations">RAT</span></div>
-            <p class="item-ref-desc">Slow recovery, never runs out. Any unit carrying Rations heals a small amount each tick, passively, for as long as they hold it. The Rations are never consumed. Best suited for units in prolonged engagements who can't be pulled back for rest.</p>
-        </div>
-
-        <div class="item-ref-entry" data-item-key="binoculars">
-          <div class="item-ref-title"><span class="item-ref-name">Binoculars</span><span class="item-chip item-chip--abbrev item-chip--binoculars">BNO</span></div>
-            <p class="item-ref-desc">See farther, react sooner. While any unit carrying Binoculars is stationed in a district, the human and infected counts of every neighboring district also appear in your District Info panel. A single unit in the right position becomes an early warning system for threats you don't yet have eyes on.</p>
-        </div>
-
-      </div>
-    </div>
-
     <!-- Window: COMMS (radio feed) -->
     <div class="win" id="win-radio">
       <div class="win-titlebar">
@@ -310,10 +255,11 @@
       </div>
     </div>
 
-    <!-- Window: Situation Report (debug) -->
+    <!-- Window: Situation Report — a dev tool, never player-facing (design.md, Design Philosophy:
+         the exact per-district zombie counts must never be player-visible). -->
     <div class="win" id="win-sitrep">
       <div class="win-titlebar">
-        <span class="win-title">SITUATION REPORT</span>
+        <span class="win-title">SITUATION REPORT (DEV)</span>
         <div class="win-controls">
           <button class="win-btn win-min-btn" data-win="sitrep">_</button>
           <button class="win-btn win-max-btn" data-win="sitrep">□</button>
@@ -355,10 +301,6 @@
     <button class="task-btn" data-win="radio">
       <span class="task-btn-glyph" style="mask-image:url('/images/comms.svg'); -webkit-mask-image:url('/images/comms.svg');"></span>
       COMMS
-    </button>
-    <button class="task-btn items-btn" data-win="items">
-      <span class="task-btn-glyph" style="mask-image:url('/images/items.svg'); -webkit-mask-image:url('/images/items.svg');"></span>
-      ITEMS
     </button>
     <div style="flex:1"></div>
     <label class="taskbar-label" for="theme-select">THEME</label>

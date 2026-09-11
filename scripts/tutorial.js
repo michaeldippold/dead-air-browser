@@ -15,7 +15,6 @@ export default {
   id:          'tutorial',
   name:        'Barbara West',
   callerRole:  'civilian',
-  callerItems: [],
   district:    null,
 
   nodes: {

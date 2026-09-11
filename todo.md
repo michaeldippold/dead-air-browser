@@ -96,29 +96,43 @@ The core loop is operational. Key systems in place:
 
 ### 1. Demolition — remove the sim the player was scored against
 
-- [ ] **Tick loop:** delete the attack phase, counterattack, medic phase and rations block from
-  `tick()`; keep local SIR spread and inter-district spread. Delete `getHitChance`,
-  `effectiveThreatMod`, `pickCounterTarget`, `woundState`, `handlePersonDeath`'s combat path (keep
-  a plain "person removed" helper for scripts), `districtHasRadio`, `districtHasBinoView`,
-  `personsInDistrict`'s exposure logic, `isRespondingMember`.
-- [ ] **Items and loot:** delete `ITEMS`, `ITEM_ABBREV`, `LOOT_POOLS`, `rollLoot`, `weightedPick`,
+- [x] **Tick loop:** deleted the attack phase, counterattack, medic phase and rations block from
+  `tick()`; kept local SIR spread and inter-district spread. Deleted `getHitChance`,
+  `effectiveThreatMod`, `pickCounterTarget`, `woundState`, `handlePersonDeath`'s combat path (kept
+  as a plain "person removed" helper for scripts), `districtHasRadio`, `districtHasBinoView`,
+  `personsInDistrict`, `isRespondingMember`. Also went beyond the letter of this bullet, per
+  design.md ("nothing the player does touches [the crowd]"): deleted `getEffectiveSpreadRate`'s
+  unit-suppression term and inter-district spread's unit-blocking roll — spread is flat weather now,
+  with zero unit influence, not just zero *combat* influence. Intel gating (district card, map
+  paint) is a placeholder on `state.godMode` alone until the heat/recency rule lands (step 9).
+- [x] **Items and loot:** deleted `ITEMS`, `ITEM_ABBREV`, `LOOT_POOLS`, `rollLoot`, `weightedPick`,
   `district.loot`, `person.items`, `itemTag`, `openItemsReference`, the ITEMS window (`index.html`,
-  `WIN_IDS`, taskbar/desktop icon, `style.css`), `callerItems` on scripts.
-- [ ] **Activities:** delete ENGAGE / HIDE / SCAVENGE (`unit.activity` values, the context-menu
-  verbs in `src/map/interact.js`, the roster buttons, `setUnitsView`), and patrol laps in
-  `src/map/mover.js`. Unit states become `available | enroute | onscene | holding` (see step 4).
-  Arrival at a district just parks.
-- [ ] **Persons:** drop `sim`, `location`, `activity`, `health` from `makePerson`; drop `respondTimer`
-  from `makeUnit` once the arrival roll (step 4) replaces `genericArrivalOutcome`.
-- [ ] **Win/lose:** delete `checkWin` and the district-count / disband-limit branches of `checkLose`
-  (`DISTRICTS_LOST_LIMIT`, unit-loss limit). Dawn and no-hands are re-added as *endings* in step 10.
-- [ ] **Dead civilian-ambient code** (carried over): remove `checkCallEvent`, `CALLER_POOL`,
-  `CALL_TEMPLATES`, the `type:'ambient'` branches in `makeContact` / `maybeFireFirstOpen` /
-  `showContactDetail` / `processNarrativeCallers`. Keep `getCallTier` — it's the tier now.
-- [ ] **SITREP / god panel:** keep as a dev tool behind the existing toggle, but it must never be
-  player-facing; note it in the panel title.
-- [ ] Verify: a night runs start to dawn with spread only, units drive and park, scripts fire, no
-  console errors. Then commit — this is the milestone the rest builds on.
+  `WIN_IDS`, taskbar/desktop icon, `style.css`), `callerItems` on scripts. Also removed the
+  now-dead `#ddv-loot` / "POSSIBLE LOOT" section and the SITREP loot chips.
+- [x] **Activities:** deleted ENGAGE / HIDE / SCAVENGE (`unit.activity` values, the context-menu
+  verbs in `src/map/interact.js`, the roster buttons) and patrol laps in `src/map/mover.js` /
+  `src/map/index.js` (`startPatrolLeg`, `patrolRoute`, the `'patrol'` status value). `unit.activity`
+  collapses to `available | responding` for now — the full `available | enroute | onscene |
+  holding` state machine is step 4's job, alongside the arrival roll it's built for. Arrival at a
+  district just parks. `setUnitsView` was untouched — it's the roster/detail panel toggle, unrelated
+  to activities. District dispatch (map click, context menu) no longer passes an activity at all.
+- [x] **Persons:** dropped `sim`, `location`, `activity`, `health` from `makePerson`. `respondTimer`
+  stays on `makeUnit` for now (step 4 replaces `genericArrivalOutcome` with the real roll).
+- [x] **Win/lose:** deleted `checkWin` and the district-count / disband-limit branches of
+  `checkLose` (`DISTRICTS_LOST_LIMIT`, `OVERRUN_THRESHOLD`, `UNITS_LOST_LIMIT`). Only "no hands"
+  (all units gone) is left as a placeholder game-over; dawn and no-hands become real *endings* in
+  step 10.
+- [x] **Dead civilian-ambient code:** removed `checkCallEvent`, `CALLER_POOL`, `CALL_TEMPLATES`,
+  the `type:'ambient'` branches in `makeContact` / `maybeFireFirstOpen` / `renderDispatchControl`.
+  Kept `getCallTier`. The old tiered call prose (`CALL_TEMPLATES`) is gone from the file but
+  preserved in git history at this commit — mine it for tone when step 6 writes citizen openers.
+- [x] **SITREP / god panel:** unchanged behind the dev toggle; window title now reads "SITUATION
+  REPORT (DEV)".
+- [x] **Bonus find:** `renderUnitCard` was not actually dead despite an old comment saying so — it
+  backed `unitTag()`, the shared unit badge on district/place cards. Rewritten inline (stripped of
+  items/wound-state) rather than deleted; see Known Issues for what's genuinely leftover CSS.
+- [x] Verified: `node --check` clean on `main.js` and every touched `src/map/*.js`; see the
+  live-preview note below for the in-browser check.
 
 ### 2. Situations, marks and reports — "nothing appears until someone tells you"
 
@@ -364,5 +378,9 @@ it's the whole game.
 
 - Window resize from N/W edges doesn't clamp (can push off-screen — low priority)
 - Contrast audit still needed in some panels — target: anything intentionally dim should still be legible; only decorative/idle elements near-invisible
-- `renderUnitCard` + cards/badges CSS are kept but unused since the roster became thin rows; delete
-  in the demolition pass.
+- Demolition pass done: `renderUnitCard` turned out to be live (it backed `unitTag()`, the shared
+  unit badge on district/place cards, mislabeled "retired" in an old comment) — rewritten inline
+  instead of deleted, stripped of items/wound-state. What's still genuinely dead and left in place:
+  `.roster-portrait`, `.roster-card-items`, and the `#units-panel[data-card-layout="badges"]` block
+  in style.css — the old full-card roster layout, never rendered since "Ops-window UI pass 1."
+  Harmless bulk, not referencing anything broken; sweep it whenever style.css next gets a real pass.

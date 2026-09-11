@@ -42,20 +42,7 @@ const DIFFICULTIES = {
 let tickInterval = null
 let gamePaused   = false
 
-// ── ITEMS ──
-
-const ITEMS = {
-  'gun':         { weight: 2, name: 'Gun',           description: 'Attack hit chance: 70%. Ranged — unit engages before contact, reducing counterattack exposure. Standard issue for Police.' },
-  'fire-axe':    { weight: 4, name: 'Fire Axe',      description: 'Attack hit chance: 65%. Close-quarters weapon, effective in confined spaces. Standard issue for Fire units.' },
-  'first-aid':   { weight: 5, name: 'First Aid Kit', description: 'Civilian automatically heals the most critically wounded unit in the district when any unit drops to 50 HP or below. Restores 20 HP. Single use — consumed on use.' },
-  'radio':       { weight: 3, name: 'Radio',         description: 'While any unit member carrying a Radio is present in a district, live human and infected counts are visible in the info panel and the map paints its danger. Intel is lost if the carrier dies or the unit leaves.' },
-  'rations':     { weight: 8, name: 'Food - Nonperishable', description: 'Passively restores 5 HP per tick to the carrying unit. Not consumed — provides sustained recovery for units in prolonged engagements.' },
-  'binoculars':  { weight: 2, name: 'Binoculars',    description: 'While any unit carrying Binoculars is present in a district, adjacent districts\' human and infected counts are also visible in the info panel. Position strategically to extend your intel range.' },
-}
-
 // ── FACTORIES ──
-
-const ITEM_ABBREV = { 'gun': 'GUN', 'fire-axe': 'AXE', 'first-aid': 'AID', 'radio': 'RAD', 'rations': 'FOOD', 'binoculars': 'BNO' }
 
 const PERSON_NAMES = {
   police:   ['Jack Sullivan', 'Maria Chen', 'Dave Kowalski', 'Frank Diaz', 'Linda Brooks', 'Ray Kim'],
@@ -71,20 +58,17 @@ function nextPersonName(role) {
 let _uid = 0
 const uid = () => `u${++_uid}`
 
-function makePerson(name, role, items = [], opts = {}) {
+function makePerson(name, role, opts = {}) {
   return {
-    id: uid(), name, role, health: 100, items, unitId: null,
-    sim:        opts.sim        ?? true,   // false = protected from sim combat/death
+    id: uid(), name, role, unitId: null,
     districtId: opts.districtId ?? null,   // standalone location when not in a unit
     scriptId:   opts.scriptId   ?? null,   // links Person to their Script
-    location:   opts.location   ?? 'business',  // outside | business | residence — exposure modifier
-    activity:   opts.activity   ?? 'default',   // hide | default | scavenge — exposure modifier
   }
 }
 
 function makeUnit(label, districtId, personIds = [], leaderPersonId = null) {
   return {
-    id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'engage', respondTimer: null,
+    id: uid(), label, districtId, personIds, leaderPersonId: leaderPersonId ?? personIds[0] ?? null, activity: 'available', respondTimer: null,
     // Map v3 (map-integration.md §5c): district is the sim's unit of *state*; road position is the
     // renderer's unit of *place*. `districtId` is written only by arrival (districtAt(pos)) or a
     // dispatch clearing it; the tick loop never reads pos/node/route/status.
@@ -101,7 +85,7 @@ const makeContact = (name, districtId = null) => ({
   location:    districtId,
   status:      districtId ? 'hiding' : null,
   alive:       true,
-  type:        'ambient',
+  type:        null,   // 'narrative' | 'unit' — always set explicitly right after creation
   phase:       0,
   timer:       null,
   scriptId:    null,
@@ -151,13 +135,6 @@ function unitReport(unit, text) {
   return contact
 }
 
-// A unit member is insulated from the sim while their unit is RESPONDING to a call — see the
-// combat loop and getEffectiveSpreadRate. "Dispatch to a caller is a story move": the unit is
-// tied up with that person, neither killing zombies nor killable, until the call resolves.
-function isRespondingMember(person) {
-  const u = state.units[person.unitId]
-  return !!u && u.activity === 'responding'
-}
 
 // Arrival at a targeted caller: drop into RESPONDING, then hand off to authored content if the
 // caller's script defines onArrive (which can branch on the unit and its composition), otherwise
@@ -229,11 +206,11 @@ function genericArrivalOutcome(unit, caller, firstResponder) {
   unit.respondTimer = 4   // ticks until auto-completion (see the responding interval)
 }
 
-// Mark a call done and return the unit to ENGAGE. The mechanical home for "task complete" — called
-// by a script's resolution beat (SCRIPT_ACTIONS.completeResponse) or by the responding timer.
+// Mark a call done and free the unit up. The mechanical home for "task complete" — called by a
+// script's resolution beat (SCRIPT_ACTIONS.completeResponse) or by the responding timer.
 function completeResponse(unit) {
   if (!unit || unit.activity !== 'responding') return
-  unit.activity     = 'engage'
+  unit.activity     = 'available'
   unit.respondTimer = null
   unitReport(unit, `Task complete. Back in service.`)
   renderUnitsPanel()
@@ -243,20 +220,11 @@ function completeResponse(unit) {
   }
 }
 
-const CALLER_POOL = [
-  'Unknown Caller',
-  'Unknown Caller',
-  'Sandra Hill',
-  'Officer Torres',
-  'Unknown Caller',
-  'David Park',
-  'J. Reyes',
-  'Unknown Caller',
-  'Ana Voss',
-]
-let _callerIdx = 0
-
-// Tiered by zombie count — vague by design, no numbers surface to the player
+// Tiered by zombie count — vague by design, no numbers surface to the player. Reused by
+// emitPoliceChatter's reports (main.js) and, from todo.md v0.9.0 step 6 on, by generated citizen
+// callers. The old CALL_TEMPLATES prose (tiered civilian call flavor, retired with the rest of the
+// ambient-caller system this pass) is preserved in git history at this commit — mine it for tone
+// when step 6 writes CITIZEN_OPENERS.
 function getCallTier(zombies) {
   if (zombies >= 51) return 4
   if (zombies >= 26) return 3
@@ -265,57 +233,9 @@ function getCallTier(zombies) {
   return 0
 }
 
-const CALL_TEMPLATES = [
-  // Tier 0: Minimal (1–3) — uncertain, could be nothing
-  [
-    d => `I don't want to overreact but I saw something near ${d.label}. One of my neighbors. I've locked my door.`,
-    d => `This is probably nothing. But I'm in ${d.label} and I heard something I can't explain. Wanted someone to know.`,
-    d => `Can someone check on ${d.label}? I think there's a person outside — something isn't right with them.`,
-    d => `I saw one of them, I think. Just the one. I'm near ${d.label}. I'm inside now.`,
-    d => `I might be wrong. I hope I'm wrong. But something happened at the corner near ${d.label}. Be careful.`,
-    d => `There's something wrong. I don't know how to describe it. Calling from ${d.label}. Please send someone.`,
-  ],
-  // Tier 1: Low (4–10) — confirmed, limited, contained panic
-  [
-    d => `There's a small group of them outside. I can still count them from the window. ${d.label}, please hurry.`,
-    d => `I can hear them. More than one. I've locked everything I can. Calling from ${d.label}.`,
-    d => `We're not going outside. There's a handful of infected near ${d.label}. It's getting worse.`,
-    d => `My kids are upstairs. I can see them from the second floor. A few of those things. ${d.label}. Please.`,
-    d => `We barricaded the front door. There are a few of them in the street near ${d.label}. Not many yet.`,
-    d => `I counted them before I stopped looking. ${d.label} needs units right now.`,
-  ],
-  // Tier 2: Moderate (11–25) — many, trapped
-  [
-    d => `There are too many to count now. We can't leave the building. ${d.label} is bad.`,
-    d => `I watched them from the roof — there are a lot of them. The whole street. ${d.label}.`,
-    d => `We tried to run and had to come back. Every road out of ${d.label} is cut off.`,
-    d => `I stopped counting. There are enough of them that it doesn't matter anymore. Send help to ${d.label}.`,
-    d => `It's spreading faster than anyone expected. ${d.label} is not safe. We're on the third floor and not moving.`,
-    d => `I can hear screaming from the building next door. ${d.label}. I don't know how many of them there are.`,
-  ],
-  // Tier 3: High (26–50) — desperate, things deteriorating fast
-  [
-    d => `Please. There are so many. I don't know where they're all coming from. ${d.label}.`,
-    d => `We've lost the lower floors. Six of us left up here. ${d.label} — send everything you have.`,
-    d => `I don't know how long we have. The barricades won't hold. ${d.label}, please hurry.`,
-    d => `It happened so fast. An hour ago this was fine. Now I can barely see the street through them. ${d.label}.`,
-    d => `Half the people I knew in this building are gone. The rest of us are hiding. ${d.label} needs help now.`,
-    d => `They're on every road out. We're completely surrounded in ${d.label}. Don't stop trying to reach us.`,
-  ],
-  // Tier 4: Critical (51+) — barely coherent
-  [
-    d => `[static] ...${d.label}... can anyone hear me... please...`,
-    d => `I can barely talk. They're right outside the door. ${d.label}. If you can hear this — please come.`,
-    d => `If anyone gets this — don't send people to ${d.label}. Just don't. It's over here.`,
-    d => `There's no one left on my floor. I don't know how many. ${d.label}. [call drops]`,
-    d => `[muffled] ...they're inside... I can hear them on the stairs... ${d.label}...`,
-    d => `We were thirty people this morning. I can hear maybe four of us breathing right now. ${d.label}.`,
-  ],
-]
-
 // ── NARRATIVE SCRIPTS ──
 // Loaded from scripts/ — one file per character, plain JS objects.
-// Each script: { id, name, callerRole, callerItems, district, trigger, once, nodes }
+// Each script: { id, name, callerRole, district, trigger, once, nodes }
 // Each node:   { text, choices, timer, timerNext, resolve }
 // resolve: 'waiting' (alive, quiet) | 'lost' (dead — removes Person from sim)
 
@@ -489,22 +409,19 @@ Object.values(NARRATIVE_SCRIPTS).forEach(script => {
 // "..." before the caller answers — same reply-delay mechanic as a chosen response. This
 // only fires the first time the player actually opens a contact's thread (see
 // maybeFireFirstOpen, called from showContactDetail) — not at creation, so a caller sitting
-// unopened in the list hasn't "spoken" yet and the player can't drop in mid-exchange. Existing
-// contacts calling back skip straight to their line (see checkCallEvent's isNewContact branch).
+// unopened in the list hasn't "spoken" yet and the player can't drop in mid-exchange.
 const DISPATCH_OPENER = '911, what is your emergency?'
 
 function spawnScript(scriptId) {
   const script = NARRATIVE_SCRIPTS[scriptId]
   if (!script) return
 
-  // Spawn the caller's Person. Default sim:false = protected (only the script decides their fate);
-  // a script can opt into sim:true to expose a self-contained caller to the simulation — killable
-  // by the zombies in their district if the player doesn't reach them in time. See scripting.md.
+  // Spawn the caller's Person. Every scripted character is protected from the sim — only the
+  // script ever decides their fate (design.md, People → Callers; the old `sim` flag is retired).
   const person = makePerson(
     script.name,
-    script.callerRole  ?? 'civilian',
-    script.callerItems ?? [],
-    { sim: script.sim ?? false, districtId: script.district ?? null, scriptId, location: script.location }
+    script.callerRole ?? 'civilian',
+    { districtId: script.district ?? null, scriptId }
   )
   state.people[person.id] = person
 
@@ -538,19 +455,7 @@ function maybeFireFirstOpen(contact) {
 
   pushMessage(contact, { text: DISPATCH_OPENER, time: gameTime(), sender: 'player' })
   contact.replyDelay = 2 + Math.floor(Math.random() * 3)
-
-  if (contact.type === 'narrative') {
-    contact.pendingNext = 0
-    return
-  }
-
-  // Ambient: resolve the report fresh, against current district state rather than whatever
-  // was true back when checkCallEvent first spawned this contact — could be many ticks ago.
-  const reportDist = (contact.location && state.districts[contact.location])
-    ? state.districts[contact.location]
-    : state.districts[contact.reportDistrictId] ?? Object.values(state.districts).find(d => d.zombies > 0)
-  const pool = CALL_TEMPLATES[getCallTier(reportDist?.zombies ?? 0)]
-  contact.pendingNext = pool[Math.floor(Math.random() * pool.length)](reportDist ?? { label: 'the area' })
+  contact.pendingNext = 0   // every contact today is 'narrative' — generated citizens (v0.9.0 step 6) add a second branch here
 }
 
 function advanceNarrativeCaller(contact, nodeId) {
@@ -649,26 +554,11 @@ function personsInUnit(unitId) {
   return (state.units[unitId]?.personIds ?? []).map(id => state.people[id]).filter(Boolean)
 }
 
-function personsInDistrict(districtId) {
-  const unitMembers = unitsInDistrict(districtId).flatMap(u => personsInUnit(u.id))
-  const standalone = Object.values(state.people).filter(p =>
-    !p.unitId && p.districtId === districtId && p.sim !== false)
-  return [...unitMembers, ...standalone]
-}
-
-function woundState(person) {
-  if (person.health >= 70) return 'healthy'
-  if (person.health >= 40) return 'wounded'
-  if (person.health >= 1)  return 'critical'
-  return 'dead'
-}
-
+// A plain "person removed" helper for scripts and (later) the arrival roll — no combat, no loot,
+// just the bookkeeping around a unit losing a member: reassign the leader, disband if empty, tell
+// the player, and let the Director's person-death handlers close any matching contact.
 function handlePersonDeath(person, districtId) {
   const d = state.districts[districtId]
-  // 40% chance each item drops to district loot
-  for (const item of person.items) {
-    if (Math.random() < 0.40) d.loot.push(item)
-  }
   const unit = state.units[person.unitId]
   if (unit) {
     unit.personIds = unit.personIds.filter(id => id !== person.id)
@@ -701,66 +591,7 @@ function disbandUnit(unitId, districtId) {
   delete state.units[unitId]
 }
 
-// ── COMBAT & UTILITIES ──
-
-const THREAT_MOD    = { police: 3, fire: 2, civilian: 1 }
-const LOCATION_MOD  = { outside: 1.5, business: 1.0, residence: 0.5 }
-const ACTIVITY_MOD  = { engage: 1.0, default: 1.0, hide: 0.3, scavenge: 1.3, responding: 0 }
-
-function getHitChance(person) {
-  const base = person.items.includes('gun')      ? 0.50
-             : person.items.includes('fire-axe') ? 0.25
-             : 0.10
-  const ws = woundState(person)
-  if (ws === 'wounded')  return base * 0.80
-  if (ws === 'critical') return base * 0.40
-  return base
-}
-
-// Exposure = role weight × Location × Activity. Units are implicitly Outside (they operate
-// across the whole district, no fixed location) — their existing activity multiplies on top.
-// Standalone Persons (callers) use their own location/activity fields.
-function effectiveThreatMod(person) {
-  const base = THREAT_MOD[person.role] ?? THREAT_MOD.civilian
-  const unit = state.units[person.unitId]
-  if (unit) return base * LOCATION_MOD.outside * (ACTIVITY_MOD[unit.activity] ?? 1.0)
-  const locMod = LOCATION_MOD[person.location] ?? LOCATION_MOD.business
-  const actMod = ACTIVITY_MOD[person.activity] ?? ACTIVITY_MOD.default
-  return base * locMod * actMod
-}
-
-function pickCounterTarget(persons) {
-  const eligible = persons.filter(p => p.sim !== false)
-  if (eligible.length === 0) return null
-  const total = eligible.reduce((sum, p) => sum + effectiveThreatMod(p), 0)
-  let r = Math.random() * total
-  for (const p of eligible) {
-    r -= effectiveThreatMod(p)
-    if (r <= 0) return p
-  }
-  return eligible[eligible.length - 1]
-}
-
-// Intel is a low bar by ruling (2026-09-04): any unit member carrying a Radio, whatever their role.
-// (Was civilian-only.) Radios still matter — patrolling alone does not give intel.
-function districtHasRadio(districtId) {
-  return personsInDistrict(districtId).some(p => p.items.includes('radio'))
-}
-
-function districtHasBinoView(districtId) {
-  return (adjacency[districtId] || []).some(adjId =>
-    personsInDistrict(adjId).some(p => p.items.includes('binoculars'))
-  )
-}
-
-// Local growth rate reduced by units present (each unit -12%, cap 80%)
-function getEffectiveSpreadRate(d) {
-  // RESPONDING units are tied up with a caller and don't suppress spread — only units actively
-  // working the district count toward suppression.
-  const active = (d.unitIds ?? []).filter(id => state.units[id]?.activity !== 'responding').length
-  const suppression = Math.min(0.80, active * 0.12)
-  return SPREAD_RATE * (1 - suppression)
-}
+// ── UTILITIES ──
 
 function gameTime() {
   const totalMins = GAME_START_HOUR * 60 + state.tick * MINS_PER_TICK
@@ -778,29 +609,6 @@ function gameDay() {
 // Used by Director beats: condition: () => state.tick >= ticksFor(21) means "at or after 21:00".
 function ticksFor(hour, minute = 0) {
   return Math.max(0, Math.ceil(((hour - GAME_START_HOUR) * 60 + minute) / MINS_PER_TICK))
-}
-
-// ── LOOT ──
-
-// Keyed by category; a district id may override (none do today — map-integration.md §5b).
-const LOOT_POOLS = {
-  residential:    [{ item: 'rations',    w: 8 }, { item: 'first-aid', w: 4 }, { item: 'radio',      w: 3 }, { item: 'binoculars', w: 1 }],
-  medical:        [{ item: 'first-aid',  w: 9 }, { item: 'rations',   w: 5 }, { item: 'radio',      w: 2 }],
-  retail:         [{ item: 'rations',    w: 7 }, { item: 'radio',     w: 5 }, { item: 'first-aid',  w: 3 }, { item: 'binoculars', w: 2 }],
-  industrial:     [{ item: 'fire-axe',   w: 6 }, { item: 'rations',   w: 5 }, { item: 'first-aid',  w: 2 }],
-  government:     [{ item: 'gun',        w: 3 }, { item: 'fire-axe',  w: 3 }, { item: 'first-aid',  w: 4 }, { item: 'rations',    w: 4 }],
-}
-
-function weightedPick(pool) {
-  const total = pool.reduce((s, e) => s + e.w, 0)
-  let r = Math.random() * total
-  for (const e of pool) { r -= e.w; if (r <= 0) return e.item }
-  return pool[pool.length - 1].item
-}
-
-function rollLoot(districtId, category, count) {
-  const pool = LOOT_POOLS[districtId] ?? LOOT_POOLS[category]
-  return Array.from({ length: count }, () => weightedPick(pool))
 }
 
 // ── STATE ──
@@ -829,15 +637,15 @@ const state = {
 // and categories come from the bake; the sim's starting crowd and loot depth are authored here.
 // Starting humans: ~11k total, roughly by real population — tune later.
 const DISTRICT_SEED = {
-  downtown:   { humans: 900,  loot: 3 },
-  northside:  { humans: 1400, loot: 2 },
-  eastend:    { humans: 1100, loot: 2 },
-  lakeview: { humans: 1500, loot: 2 },
-  university: { humans: 1300, loot: 3 },
-  southside:  { humans: 1800, loot: 3 },
-  redmile:    { humans: 1000, loot: 2 },
-  westend:    { humans: 900,  loot: 2 },
-  hamburg:    { humans: 1100, loot: 3 },
+  downtown:   { humans: 900  },
+  northside:  { humans: 1400 },
+  eastend:    { humans: 1100 },
+  lakeview:   { humans: 1500 },
+  university: { humans: 1300 },
+  southside:  { humans: 1800 },
+  redmile:    { humans: 1000 },
+  westend:    { humans: 900  },
+  hamburg:    { humans: 1100 },
 }
 
 const MAP_CFG = await (await fetch('/data/config.json')).json()
@@ -867,11 +675,10 @@ function spawnResidence(districtId) {
 }
 
 for (const d of DISTRICTS) {
-  const seed = DISTRICT_SEED[d.id] ?? { humans: 1000, loot: 2 }
+  const seed = DISTRICT_SEED[d.id] ?? { humans: 1000 }
   state.districts[d.id] = {
     label: d.label, category: d.category,
     humans: seed.humans, zombies: 0, unitIds: [],
-    loot: rollLoot(d.id, d.category, seed.loot),
   }
 }
 
@@ -879,12 +686,14 @@ for (const d of DISTRICTS) {
 let _unitCounter = 0
 
 ;(function initStartingUnits() {
-  // members: [{ role, items }, ...] — first entry is the leader
-  // Units start the night INSIDE their real stations (map-integration.md §1 #8).
+  // members: [{ role }, ...] — first entry is the leader. Units start the night INSIDE their
+  // real stations (map-integration.md §1 #8). Six units to start (up from four) — with combat
+  // gone, a unit is only lost via the arrival roll (todo.md v0.9.0 step 4), but a bigger bench
+  // keeps one early bad roll from ending the night (see design.md, Units).
   function spawnUnit(placeId, members) {
     const place   = placeById(placeId)
     const label   = `Unit ${++_unitCounter}`
-    const persons = members.map(({ role, items }) => makePerson(nextPersonName(role), role, items))
+    const persons = members.map(({ role }) => makePerson(nextPersonName(role), role))
     const unit    = makeUnit(label, place.district, persons.map(p => p.id))
     unit.home = unit.place = placeId
     unit.node = place.node
@@ -897,38 +706,38 @@ let _unitCounter = 0
 
   // LPD HQ (Downtown) — 2 units: 2 police + 1 embedded civilian
   spawnUnit('lexington-police-department', [
-    { role: 'police',   items: ['gun']       },
-    { role: 'police',   items: ['gun']       },
-    { role: 'civilian', items: ['radio']     },
+    { role: 'police'   },
+    { role: 'police'   },
+    { role: 'civilian' },
   ])
   spawnUnit('lexington-police-department', [
-    { role: 'police',   items: ['gun']       },
-    { role: 'police',   items: ['gun']       },
-    { role: 'civilian', items: ['first-aid'] },
+    { role: 'police'   },
+    { role: 'police'   },
+    { role: 'civilian' },
   ])
 
   // Fire Station #1 (Northside) — 2 units: 2 fire + 1 embedded civilian
   spawnUnit('fire-station-#1', [
-    { role: 'fire',     items: ['fire-axe']  },
-    { role: 'fire',     items: ['fire-axe']  },
-    { role: 'civilian', items: ['first-aid'] },
+    { role: 'fire'     },
+    { role: 'fire'     },
+    { role: 'civilian' },
   ])
   spawnUnit('fire-station-#1', [
-    { role: 'fire',     items: ['fire-axe']  },
-    { role: 'fire',     items: ['fire-axe']  },
-    { role: 'civilian', items: ['radio']     },
+    { role: 'fire'     },
+    { role: 'fire'     },
+    { role: 'civilian' },
   ])
 
   // LFUCG Government Center (Downtown) — 2 units: 2 civilian + 1 police for protection
   spawnUnit('lexington-fayette-urban-county-governmen', [
-    { role: 'civilian', items: ['first-aid', 'radio'] },
-    { role: 'civilian', items: ['first-aid']          },
-    { role: 'police',   items: ['gun']                },
+    { role: 'civilian' },
+    { role: 'civilian' },
+    { role: 'police'   },
   ])
   spawnUnit('lexington-fayette-urban-county-governmen', [
-    { role: 'civilian', items: ['radio']   },
-    { role: 'civilian', items: ['rations'] },
-    { role: 'police',   items: ['gun']     },
+    { role: 'civilian' },
+    { role: 'civilian' },
+    { role: 'police'   },
   ])
 })()
 
@@ -958,7 +767,6 @@ const unitsList   = document.getElementById('units-list')
 const udvType     = document.getElementById('udv-type')
 const udvLocation = document.getElementById('udv-location')
 const udvActivity = document.getElementById('udv-activity')
-const udvItems    = document.getElementById('udv-items')
 const udvMembers  = document.getElementById('udv-members')
 
 // ── MAP RENDERER (Map v3) ──
@@ -984,7 +792,8 @@ let mapRenderer = null
       residencePool:  () => Object.values(RESIDENCES.districts).flat().map(r => r.id).filter(id => !RESIDENCE_EXCLUDE.has(id)),
       districtStatus: id => {
         const d = state.districts[id]; if (!d) return ''
-        const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
+        // Intel gating is a placeholder until the heat/recency rule lands (v0.9.0 step 9).
+        const intel = state.godMode
         return intel ? getDistrictStatus(d).label : d.category
       },
     },
@@ -1048,30 +857,6 @@ window.addEventListener('keydown', e => {
   if (state.selectedPlace || mapContainer.dataset.view === 'place') hidePlaceDetail()
 })
 
-// ── ITEM TAGS ── one component everywhere (roster, unit details, district card, SITREP). Clicking
-// any tag opens the ITEMS reference as its own window and scrolls to that entry; nothing else
-// ever gets hijacked to show an item description.
-function itemTag(key, full = false) {
-  const item = ITEMS[key]
-  const label = full ? (item?.name ?? key) : (ITEM_ABBREV[key] ?? key)
-  return `<span class="item-chip${full ? '' : ' item-chip--abbrev'} item-chip--${key}" data-item-key="${key}" title="${item?.name ?? key}">${label}</span>`
-}
-function openItemsReference(key) {
-  if (winState.items?.minimized) toggleMinimize('items')
-  bringToFront('items')
-  const entry = document.querySelector(`.item-ref-entry[data-item-key="${key}"]`)
-  if (!entry) return
-  entry.scrollIntoView({ block: 'start', behavior: 'smooth' })
-  entry.classList.remove('item-ref-entry--flash')
-  void entry.offsetWidth
-  entry.classList.add('item-ref-entry--flash')
-}
-document.addEventListener('click', e => {
-  const tag = e.target.closest('[data-item-key]')
-  if (!tag || tag.closest('#items-panel')) return
-  openItemsReference(tag.dataset.itemKey)
-})
-
 // The roster strip collapses to its header so the map can breathe.
 document.getElementById('roster-strip-toggle').addEventListener('click', () => {
   const strip = document.getElementById('roster-strip')
@@ -1094,9 +879,7 @@ function unitStatusText(unit) {
   const dLabel = state.districts[unit.districtId]?.label ?? 'outside coverage'
   if (unit.status === 'inside')         return `INSIDE · ${place?.name ?? dLabel}`
   if (unit.activity === 'responding')   return `RESPONDING · ${dLabel}`
-  if (unit.status === 'patrol')         return `PATROL · ${dLabel}`
-  if (unit.activity === 'hide')         return `HOLDING · ${dLabel}`
-  return `${unit.activity.toUpperCase()} · ${dLabel}`
+  return `AVAILABLE · ${dLabel}`
 }
 
 // Named callers who have told us they are at this place (sim people never appear — §1 #4).
@@ -1114,7 +897,8 @@ function syncMapPaint() {
   if (!mapRenderer) return
   let key = ''
   for (const [id, d] of Object.entries(state.districts)) {
-    const intel = state.godMode || districtHasRadio(id) || districtHasBinoView(id)
+    // Intel gating is a placeholder until the heat/recency rule lands (v0.9.0 step 9).
+    const intel = state.godMode
     const total = d.humans + d.zombies
     danger[id] = intel && total > 0 ? d.zombies / total : 0
     cold[id]   = d.humans < COLD_HUMANS
@@ -1132,7 +916,7 @@ const btnCdvCallback = document.getElementById('btn-cdv-callback')
 // ── WINDOW MANAGER ──
 
 // 'dispatch' is the merged DISPATCH + MAP window (map-integration.md §5e).
-const WIN_IDS = ['dispatch', 'contacts', 'radio', 'sitrep', 'items', 'alert']
+const WIN_IDS = ['dispatch', 'contacts', 'radio', 'sitrep', 'alert']
 const LAYOUT_WIN_IDS = ['dispatch', 'contacts', 'radio']
 const winState = {}
 let _topZ = 10
@@ -1149,7 +933,6 @@ function getDefaultLayout() {
     contacts: { x: 0,                 y: 0, w: lw,                           h: dh },
     radio:    { x: dw - rw,           y: 0, w: rw,                           h: dh },
     sitrep:   { x: Math.floor((dw - 520) / 2), y: Math.floor((dh - 420) / 2), w: 520, h: 420 },
-    items:    { x: Math.floor((dw - 560) / 2), y: Math.floor((dh - 520) / 2), w: 560, h: 520 },
     alert:    { x: Math.floor((dw - 380) / 2), y: Math.floor((dh - 180) / 2), w: 380, h: 180 },
   }
 }
@@ -1689,19 +1472,39 @@ function selectDistrict(id) {
 }
 document.getElementById('btn-ddv-close').addEventListener('click', () => { if (state.selected) selectDistrict(state.selected) })
 document.getElementById('ddv-units').addEventListener('click', e => {
-  if (e.target.closest('[data-item-key]')) return          // item tags keep their own behavior
   const card = e.target.closest('[data-unit-id]')
   if (!card) return
   unitClick(card.dataset.unitId, e.detail)
 })
 
-// One unit tag for both right-side cards (district + place): the badge-style card, lit when it is
-// the selected unit, with an optional status badge override (EN ROUTE for a unit still driving).
+// One unit tag for both right-side cards (district + place): a small badge-style card, lit when
+// it is the selected unit, with an optional status override (EN ROUTE for a unit still driving).
 function unitTag(unit, badge = null) {
-  let html = renderUnitCard(unit, 'badges')
-  if (state.selectedUnit?.unitId === unit.id) html = html.replace('class="roster-card"', 'class="roster-card selected"')
-  if (badge) html = html.replace(/<span class="roster-activity[^"]*">[^<]*<\/span>/, `<span class="roster-activity roster-activity--enroute">${badge}</span>`)
-  return html
+  const leader = state.people[unit.leaderPersonId]
+  if (!leader) return ''
+  const nonLeaders = personsInUnit(unit.id).filter(p => p.id !== unit.leaderPersonId)
+  const memberDots = nonLeaders.map(p =>
+    `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
+  ).join('')
+  const membersEl = nonLeaders.length > 0
+    ? `<div class="roster-members-dots">${memberDots}</div>`
+    : `<div class="roster-alone">LONE OPERATOR</div>`
+  const activityCls   = badge ? 'enroute' : unit.activity
+  const activityLabel = badge ?? unit.activity.toUpperCase()
+  const shortName      = leader.name.replace(/^(\w)(\w+)\s/, '$1. ')
+  const selected       = state.selectedUnit?.unitId === unit.id
+  return `<div class="roster-card${selected ? ' selected' : ''}" data-unit-id="${unit.id}" data-district-id="${unit.districtId ?? ''}">
+    <div class="roster-card-body">
+      <div class="roster-card-headline">
+        <span class="roster-unit-label">${unit.label}</span>
+        <span class="roster-activity roster-activity--${activityCls}">${activityLabel}</span>
+      </div>
+      <div class="roster-leader-row">
+        <div class="roster-leader-name">${leaderStar(leader.role)}<span class="leader-name-text">${shortName}</span></div>
+        ${membersEl}
+      </div>
+    </div>
+  </div>`
 }
 
 // ── PLACE CARD ── (map-integration.md §5e; spike showPlace)
@@ -1761,7 +1564,6 @@ function hidePlaceDetail() {
 
 document.getElementById('place-detail-panel').addEventListener('click', e => {
   if (e.target.closest('#btn-pdv-close')) { hidePlaceDetail(); return }
-  if (e.target.closest('[data-item-key]')) return
   const unitRow = e.target.closest('[data-unit-id]')
   if (unitRow) { unitClick(unitRow.dataset.unitId, e.detail); return }
   const callerRow = e.target.closest('[data-contact-id]')
@@ -1789,9 +1591,10 @@ function renderDistrictDetail() {
   document.getElementById('ddv-name').textContent = d.label
   document.getElementById('ddv-cat').textContent  = d.category
 
-  const hasIntel  = state.godMode || districtHasRadio(state.selected) || districtHasBinoView(state.selected)
-  const revealHint = `<div class="ddv-reveal-hint">Reveal: ${itemTag('radio')}${itemTag('binoculars')}</div>`
-  const unknown    = `<span class="ddv-status--unknown">UNKNOWN</span>${revealHint}`
+  // Intel gating is a placeholder until the heat/recency rule lands (todo.md v0.9.0 step 9,
+  // design.md "The heat rule") — for now, god mode only.
+  const hasIntel  = state.godMode
+  const unknown    = `<span class="ddv-status--unknown">UNKNOWN</span>`
 
   // Status
   const ddvStatus = document.getElementById('ddv-status')
@@ -1820,16 +1623,6 @@ function renderDistrictDetail() {
       ? '<span class="ddv-no-intel">None</span>'
       : unitsHere.map(u => unitTag(u)).join('')
     ddvUnits.innerHTML = listHtml
-  }
-
-  // Possible loot (static pool — what can spawn here, not live items)
-  const ddvLoot = document.getElementById('ddv-loot')
-  const pool      = LOOT_POOLS[state.selected] ?? LOOT_POOLS[d.category]
-  if (!pool || pool.length === 0) {
-    ddvLoot.innerHTML = '<span class="ddv-no-intel">None</span>'
-  } else {
-    const uniqueKeys = [...new Set(pool.map(e => e.item))]
-    ddvLoot.innerHTML = uniqueKeys.map(key => itemTag(key, true)).join('')
   }
 }
 
@@ -1928,27 +1721,19 @@ function renderUnitDetail(unit) {
   udvLocation.textContent = unitStatusText(unit)
   syncFollowBtn()
 
+  // Verbs (Check / Hold / Stage) land in todo.md v0.9.0 steps 4/7; for now this is a plain
+  // status line — no ENGAGE/HIDE/SCAVENGE buttons (design.md, Explicitly Out of Scope: "patrol,
+  // hide, scavenge").
   udvActivity.innerHTML = unit.activity === 'responding'
     ? `<div class="udv-responding">RESPONDING — on a call</div>`
-    : `<div class="activity-btns">
-      ${['engage', 'hide', 'scavenge'].map(a =>
-        `<button class="activity-btn${unit.activity === a ? ' activity-btn--active' : ''}" data-activity="${a}">${a.toUpperCase()}</button>`
-      ).join('')}
-    </div>`
-
-  const allItems = [...new Set(persons.flatMap(p => p.items))]
-  udvItems.innerHTML = allItems.length === 0
-    ? '<span class="udv-no-items">none</span>'
-    : allItems.map(key => itemTag(key, true)).join('')
+    : `<div class="udv-responding">AVAILABLE</div>`
 
   udvMembers.innerHTML = persons.map(p => {
-    const ws       = woundState(p)
     const isLeader = p.id === unit.leaderPersonId
     return `<div class="udv-member">
-      ${isLeader ? leaderStar(p.role, ws) : `<span class="member-dot member-dot--${p.role}"></span>`}
+      ${isLeader ? leaderStar(p.role) : `<span class="member-dot member-dot--${p.role}"></span>`}
       <span class="udv-member-name">${p.name}</span>
       <span class="udv-member-role">${p.role.toUpperCase()}</span>
-      <span class="udv-ws-badge ws-${ws}">${ws.toUpperCase()}</span>
     </div>`
   }).join('')
 
@@ -2030,7 +1815,7 @@ function hideContactDetail() {
 function renderDispatchControl(contact) {
   const el = document.getElementById('cdv-dispatch')
   if (!el) return
-  const isCaller = contact.type === 'narrative' || contact.type === 'ambient' || contact.type === 'incident'
+  const isCaller = contact.type === 'narrative'
   const eligible = Object.values(state.units).filter(u => u.districtId && u.activity !== 'responding')
   if (!isCaller || !contact.alive || !contact.location || contact.scriptId === 'tutorial' || eligible.length === 0) {
     el.style.display = 'none'
@@ -2115,59 +1900,6 @@ function renderContactMessages(contact) {
 
 // ── CONTACTS ──
 
-function checkCallEvent() {
-  if (Math.random() > 0.10) return
-  const infected = Object.entries(state.districts).filter(([, d]) => d.zombies > 0)
-  if (!infected.length) return
-
-  const [triggerId, triggerDist] = infected[Math.floor(Math.random() * infected.length)]
-
-  let contact, isNewContact
-  const useExisting = state.contacts.length > 0 && (Math.random() < 0.5 || _callerIdx >= CALLER_POOL.length)
-  if (useExisting) {
-    // Only reuse alive ambient contacts — narrative callers run on their own schedule
-    const candidates = state.contacts.filter(c => c.alive && c.type === 'ambient')
-    if (!candidates.length) return
-    contact = candidates[Math.floor(Math.random() * candidates.length)]
-    isNewContact = false
-  } else {
-    const name = CALLER_POOL[_callerIdx++]
-    const isNamed = name !== 'Unknown Caller'
-    const districtId = isNamed ? triggerId : null
-    const person = makePerson(name, 'civilian', [], {
-      sim: true, districtId, location: 'residence', activity: 'hide',
-    })
-    state.people[person.id] = person
-    contact = makeContact(name, districtId)
-    contact.personId       = person.id
-    contact.reportDistrictId = triggerId  // unnamed callers have no fixed location — remembers
-                                           // why they're calling until the player opens the thread
-    state.contacts.push(contact)
-    isNewContact = true
-  }
-
-  if (isNewContact) {
-    // First call ever — the contact now exists in the list, but hasn't "spoken" yet. The
-    // opener + their actual line fire on first open instead (see maybeFireFirstOpen).
-    contact.unread = true
-    return
-  }
-
-  // Named callers report from their fixed location; unknowns from the triggered district
-  const reportDist = (contact.location && state.districts[contact.location])
-    ? state.districts[contact.location]
-    : triggerDist
-
-  // Named callers in safe zones go quiet
-  if (contact.location && reportDist.zombies === 0) return
-
-  const pool = CALL_TEMPLATES[getCallTier(reportDist.zombies)]
-  const text = pool[Math.floor(Math.random() * pool.length)](reportDist)
-
-  pushMessage(contact, { text, time: gameTime(), sender: 'npc' })
-  contact.unread = true
-}
-
 // "Hey look here" — unread message or a RESPOND decision still waiting on the player.
 // One universal flag, not two separate signals; more states can feed into this later.
 function needsAttention(c) {
@@ -2234,15 +1966,6 @@ btnCdvCallback.addEventListener('click', () => {
   if (state.selectedContact) callBackContact(state.selectedContact)
 })
 
-document.getElementById('unit-detail-view').addEventListener('click', e => {
-  const btn = e.target.closest('.activity-btn')
-  if (!btn) return
-  const unit = state.units[state.selectedUnit?.unitId]
-  if (!unit) return
-  unit.activity = btn.dataset.activity
-  renderUnitDetail(unit)
-})
-
 document.getElementById('contacts-list').addEventListener('click', e => {
   const card = e.target.closest('.contact-card')
   if (!card) return
@@ -2279,13 +2002,14 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   renderContactsPanel()
 })
 
-// The only two dispatch targets (map-integration.md §1 #5): a district (with an activity) or an
-// authored place. `target` is a district id string (legacy callers), { districtId, activity? } or
-// { placeId }. Bare map never dispatches.
+// The only two dispatch targets (map-integration.md §1 #5): a district or an authored place.
+// `target` is a district id string (legacy callers), { districtId } or { placeId }. Bare map
+// never dispatches. No per-target activity anymore — ENGAGE/HIDE/SCAVENGE are gone; a unit
+// arriving at a district just becomes available (todo.md v0.9.0 step 1).
 function normalizeTarget(target) {
-  if (typeof target === 'string') return { districtId: target, placeId: null, activity: null }
-  if (target?.placeId) { const p = placeById(target.placeId); return p ? { districtId: p.district, placeId: p.id, activity: null } : null }
-  if (target?.districtId) return { districtId: target.districtId, placeId: null, activity: target.activity ?? null }
+  if (typeof target === 'string') return { districtId: target, placeId: null }
+  if (target?.placeId) { const p = placeById(target.placeId); return p ? { districtId: p.district, placeId: p.id } : null }
+  if (target?.districtId) return { districtId: target.districtId, placeId: null }
   return null
 }
 
@@ -2303,15 +2027,12 @@ function dispatchUnit(unitId, target, opts = {}) {
   const place     = tgt.placeId ? placeById(tgt.placeId) : null
   const destLabel = place ? place.name : dest.label
 
-  // Already there: the same place, or the same district while not holed up inside a place. A
-  // caller response resolves in place; a tactical re-dispatch only changes the activity.
+  // Already there: the same place, or the same district while not holed up inside a place.
   const alreadyThere = place ? unit.place === place.id : (unit.districtId === tgt.districtId && !unit.place)
   if (alreadyThere) {
     if (contactId) {
       unitReport(unit, `Dispatch, we're already on location — moving to assist.`)
       arriveOnCall(unit, contactId)
-    } else if (tgt.activity && unit.activity !== 'responding') {
-      unit.activity = tgt.activity
     }
     renderUnitsPanel()
     renderMapUnits()
@@ -2319,10 +2040,9 @@ function dispatchUnit(unitId, target, opts = {}) {
   }
   if (!unit.pos) return
 
-  // Already driving there: don't queue a second transit, just take the activity change.
+  // Already driving there: don't queue a second transit.
   const current = state.transits.find(t => t.kind === 'unit' && t.refId === unitId)
   if (current && current.destId === tgt.districtId && (current.placeId ?? null) === (place?.id ?? null) && current.respondContactId === contactId) {
-    if (tgt.activity && unit.activity !== 'responding') unit.activity = tgt.activity
     renderUnitsPanel()
     return
   }
@@ -2340,7 +2060,6 @@ function dispatchUnit(unitId, target, opts = {}) {
   unit.districtId  = null   // in transit a unit belongs to no district (§1 #9)
   unit.place       = null
   unit.targetLabel = destLabel
-  if (tgt.activity && unit.activity !== 'responding') unit.activity = tgt.activity
   if (state.selectedUnit?.unitId === unitId) state.selectedUnit.districtId = null
 
   // Travel time is derived from the route (§1 #10): drive time at lights-and-sirens speed over
@@ -2465,17 +2184,15 @@ setInterval(() => {
 
 // ── SIMULATION ──
 
+// design.md, "Endings": there is no sim to beat, so no win/lose conditions score the city itself
+// anymore. Dawn and "no hands" become real endings (dawn card, relieved of duty, no hands) in
+// todo.md v0.9.0 step 10. Until then, "no hands" is the one placeholder game-over left standing —
+// the district-count and unit-loss-limit conditions are gone (the player can't affect the city's
+// numbers, so they can't be the player's failure — design.md, Superseded rulings).
 const FLAVOR = {
-  winDawn:      'At some point in the early hours, the radio went quiet in a way that was different from before. Not the quiet of a district going dark — the quiet of nothing new moving. Dawn came without an announcement. The city held through the night. Not every district, not without cost, but enough. The logs were reviewed for days afterward, looking for the decision that made the difference. Nobody could agree on which one it was.',
-  loseUnits:    'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.',
-  loseOverrun:  'The tipping point was never a single moment. Districts fell one by one, each one making the next easier to lose. By the time six were gone, the math had already finished the argument. The last transmissions were just confirmation of what the map had been saying for hours. The city is gone. The dispatcher is still at the console.',
-  loseHope:     'Four units. That\'s the number that broke it. Each disbandment was a decision — someone\'s last transmission, someone\'s equipment going silent. After the fourth, the weight of the radio traffic changed. It wasn\'t about the city anymore. It was about how long the city had left. The dispatcher closed the channel at 23:12 and didn\'t reopen it.',
+  winDawn:   'At some point in the early hours, the radio went quiet in a way that was different from before. Not the quiet of a district going dark — the quiet of nothing new moving. Dawn came without an announcement. The city held through the night. Not every district, not without cost, but enough. The logs were reviewed for days afterward, looking for the decision that made the difference. Nobody could agree on which one it was.',
+  loseUnits: 'The final unit transmission came in without a distress call — a routine contact report, then nothing. With no assets left in the field, the remaining districts were left uncontested. The city didn\'t fall all at once. It went quiet street by street, district by district, until the only thing moving on the radio was static. The last entry in the dispatch log belongs to you.',
 }
-
-const OVERRUN_THRESHOLD    = 0.75  // zombie ratio at which a district counts as lost for losecon
-const UNITS_LOST_LIMIT     = 4
-const DISTRICTS_LOST_LIMIT = 6     // of 9 (67%); was 10 of 14
-const MAX_UNIT_SIZE        = 4     // leader + 3 members max; enforced when adding survivors
 
 function showEndScreen(title, restartLabel, flavor) {
   if (tickInterval) { clearInterval(tickInterval); tickInterval = null }
@@ -2490,156 +2207,51 @@ function showEndScreen(title, restartLabel, flavor) {
 function checkLose() {
   if (state.won || state.lost) return
 
-  // Condition 1 — all units dead
+  // "No hands" — every unit gone. Whether this stays a hard stop or the night keeps running with
+  // talk only is open (design.md, Endings) — decide after the first playtest that reaches it.
   if (Object.keys(state.units).length === 0) {
     state.lost = true
     showEndScreen('ALL UNITS LOST', 'TRY AGAIN', FLAVOR.loseUnits)
-    return
   }
-
-  // Condition 2 — 6 of 9 districts functionally overrun (≥75% zombie ratio)
-  const overrunCount = Object.values(state.districts).filter(d => {
-    const total = d.humans + d.zombies
-    return total > 0 && d.zombies / total >= OVERRUN_THRESHOLD
-  }).length
-  if (overrunCount >= DISTRICTS_LOST_LIMIT) {
-    state.lost = true
-    showEndScreen('CITY FALLEN', 'TRY AGAIN', FLAVOR.loseOverrun)
-    return
-  }
-
-  // Condition 3 — too many units lost to combat
-  if (state.unitsLost >= UNITS_LOST_LIMIT) {
-    state.lost = true
-    showEndScreen('SITUATION UNCONTAINABLE', 'TRY AGAIN', FLAVOR.loseHope)
-  }
-}
-
-function checkWin() {
-  if (state.won || state.lost) return
-  if (state.tick < ticksFor(30)) return   // dawn = 6am next day, 600 ticks
-
-  state.won = true
-  showEndScreen('OUTBREAK CONTAINED', 'PLAY AGAIN', FLAVOR.winDawn)
 }
 
 function tick() {
   state.tick++
 
-  // Local spread — SIR interaction term: β × (zombies × humans) / total
-  // Peaks at 50/50, tapers naturally when either population is rare.
-  // This makes early infection slow, mid-game fast, and the last survivors hard to eliminate.
+  // Local spread — SIR interaction term: β × (zombies × humans) / total. Peaks at 50/50, tapers
+  // naturally when either population is rare. This makes early infection slow, mid-game fast, and
+  // the last survivors hard to eliminate. This is the whole of "the sim" now (design.md, "The
+  // Infection") — units and Persons never read or write it; it only ever emits symptoms.
   for (const d of Object.values(state.districts)) {
     if (d.zombies === 0 || d.humans === 0) continue
-    const β     = getEffectiveSpreadRate(d)
     const total = d.zombies + d.humans
-    const n     = Math.floor(β * d.zombies * d.humans / total)
+    const n     = Math.floor(SPREAD_RATE * d.zombies * d.humans / total)
     if (n > 0) {
       d.zombies += n
       d.humans   = Math.max(0, d.humans - n)
     }
   }
 
-  // Inter-district spread: units in source district can block
+  // Inter-district spread — pure weather, no unit ever blocks it (design.md: "nothing the player
+  // does reduces it"). Todo.md v0.9.0 step 3 turns this crossing into a horde moving between
+  // districts instead of a bare +1.
   if (Math.random() < spreadChance) {
     const sources = Object.keys(state.districts).filter(id => state.districts[id].zombies > 0)
     if (sources.length) {
       const src  = sources[Math.floor(Math.random() * sources.length)]
       const srcD = state.districts[src]
-      const blockChance = Math.min(0.70, srcD.unitIds.length * 0.15)
-      if (Math.random() >= blockChance) {
-        const neighbors = adjacency[src].filter(id => state.districts[id].humans > 0)
-        if (neighbors.length) {
-          const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
-          state.districts[spreadDest].zombies += 1
-        }
+      const neighbors = adjacency[src].filter(id => state.districts[id].humans > 0)
+      if (neighbors.length) {
+        const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
+        state.districts[spreadDest].zombies += 1
       }
-    }
-  }
-
-  // Combat / activity resolution
-  for (const [districtId, d] of Object.entries(state.districts)) {
-    const districtUnits = unitsInDistrict(districtId)
-
-    // Scavenge phase — runs even in clear districts
-    for (const unit of districtUnits) {
-      if (unit.activity !== 'scavenge' || d.loot.length === 0) continue
-      for (const person of personsInUnit(unit.id)) {
-        if (d.loot.length === 0) break
-        if (Math.random() < 0.40) {
-          const found = d.loot.pop()
-          person.items.push(found)
-        }
-      }
-    }
-
-    if (d.zombies === 0) continue
-
-    const persons = personsInDistrict(districtId)
-    if (persons.length === 0) continue
-
-    // Attack phase — engage units only; each person rolls their weapon's hit chance
-    for (const unit of districtUnits) {
-      if (unit.activity !== 'engage') continue
-      for (const person of personsInUnit(unit.id)) {
-        if (person.sim === false) continue
-        if (d.zombies <= 0) break
-        if (Math.random() < getHitChance(person)) {
-          d.zombies = Math.max(0, d.zombies - 1)
-        }
-      }
-    }
-
-    // Counterattack — every Person present is exposed (unit members and standalone callers
-    // alike), weighted by effectiveThreatMod's Location×Activity exposure multiplier
-    // RESPONDING units are insulated — tied up with a caller, neither killing nor killable. Their
-    // members are excluded from the counterattack exposure (and they never enter the engage attack
-    // phase above, which is engage-only).
-    const dangerRatio   = d.zombies / (d.humans + d.zombies)
-    const counterChance = dangerRatio * 0.40
-    const exposed       = persons.filter(p => !isRespondingMember(p))
-    const numStrikes    = exposed.length
-
-    for (let i = 0; i < numStrikes; i++) {
-      const alive = personsInDistrict(districtId).filter(p => !isRespondingMember(p))
-      if (alive.length === 0) break
-      if (Math.random() < counterChance) {
-        const target = pickCounterTarget(alive)
-        if (!target) break  // only scripted (sim:false) persons remain — no valid target
-        target.health -= 10
-        if (target.health <= 0) handlePersonDeath(target, districtId)
-      }
-    }
-
-    // Medic phase — civilians with first-aid heal the most critical person
-    const postCombat = personsInDistrict(districtId)
-    const medics     = postCombat.filter(p => p.role === 'civilian' && p.items.includes('first-aid'))
-    const needHeal   = postCombat.filter(p => p.health <= 50 && p.health > 0).sort((a, b) => a.health - b.health)
-    for (const medic of medics) {
-      if (needHeal.length === 0) break
-      const patient = needHeal.shift()
-      patient.health = Math.min(100, patient.health + 20)
-      medic.items.splice(medic.items.indexOf('first-aid'), 1)
-    }
-  }
-
-  // Rations — passive HP recovery for all carrying people, not consumed
-  for (const person of Object.values(state.people)) {
-    if (person.items.includes('rations') && person.health < 100) {
-      person.health = Math.min(100, person.health + 5)
     }
   }
 
   director.tick()
-  emitPoliceChatter()   // ambient reports now radio into COMMS as badge-numbered police chatter
-                        // (was checkCallEvent → CONTACTS). The old civilian ambient path —
-                        // checkCallEvent / CALLER_POOL / CALL_TEMPLATES and the `type:'ambient'`
-                        // contact branches in makeContact / maybeFireFirstOpen / showContactDetail /
-                        // processNarrativeCallers — is fully superseded now and never spawns; flagged
-                        // for a dead-code cleanup pass in todo.md.
+  emitPoliceChatter()   // badge-numbered police chatter on COMMS — see design.md, "Reports"
   render()
   checkLose()
-  checkWin()
 }
 
 // ── RENDERING ──
@@ -2671,14 +2283,9 @@ function render() {
   }
 }
 
-const PORTRAIT_SVG = `<svg viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <circle cx="30" cy="19" r="12" fill="rgba(8,8,10,0.45)"/>
-  <path d="M8,72 Q8,44 30,40 Q52,44 52,72Z" fill="rgba(8,8,10,0.40)"/>
-</svg>`
-
 const STAR_POINTS = '7,1 8.5,5 12.7,5.1 9.4,7.8 10.5,11.9 7,9.4 3.5,11.9 4.6,7.8 1.3,5.1 5.5,5'
-function leaderStar(role, ws) {
-  return `<svg class="leader-star ws-${ws}" data-role="${role}" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><polygon points="${STAR_POINTS}"/></svg>`
+function leaderStar(role) {
+  return `<svg class="leader-star" data-role="${role}" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><polygon points="${STAR_POINTS}"/></svg>`
 }
 
 function renderUnitsPanel() {
@@ -2689,7 +2296,8 @@ function renderUnitsPanel() {
   }
 
   // Thin rows grouped by district (units in transit sit in an EN ROUTE group on top), so the
-  // whole roster can always be skimmed. Cards / badges are retired (renderUnitCard + CSS kept).
+  // whole roster can always be skimmed. The old cards/badges roster layout is retired; its CSS
+  // (.roster-card etc.) lives on as the shared unitTag() badge used in district/place cards.
   const EN_ROUTE = '__enroute'
   const byDistrict = {}
   for (const unit of units) {
@@ -2720,7 +2328,7 @@ function renderUnitRow(unit) {
   const status   = unitStatusText(unit)
   return `<div class="unit-row${selected ? ' selected' : ''}" data-unit-id="${unit.id}" data-district-id="${unit.districtId ?? ''}">
     <span class="unit-row-label">${unit.label.toUpperCase()}</span>
-    <span class="unit-row-leader">${leaderStar(leader.role, woundState(leader))}<span class="unit-row-leader-name">${unitShortName(unit)}</span></span>
+    <span class="unit-row-leader">${leaderStar(leader.role)}<span class="unit-row-leader-name">${unitShortName(unit)}</span></span>
     <span class="unit-row-status unit-row-status--${unit.status}${unit.activity === 'responding' ? ' unit-row-status--responding' : ''}">${status}</span>
   </div>`
 }
@@ -2734,46 +2342,6 @@ function tickRosterStatus() {
     const t = unitStatusText(unit)
     if (el && el.textContent !== t) el.textContent = t
   })
-}
-
-// Retired 2026-09-04 in favor of renderUnitRow — kept with its CSS (.roster-card, badges layout)
-// in case the card look comes back.
-function renderUnitCard(unit, layout) {
-  const leader     = state.people[unit.leaderPersonId]
-  if (!leader) return ''
-  const persons    = personsInUnit(unit.id)
-  const allItems   = [...new Set(persons.flatMap(p => p.items))]
-  const itemsHtml  = allItems.map(k =>
-    itemTag(k)
-  ).join('')
-  const leaderWs   = woundState(leader)
-  const nonLeaders = persons.filter(p => p.id !== unit.leaderPersonId)
-  const memberDots = nonLeaders.map(p =>
-    `<span class="member-dot member-dot--${p.role}" title="${p.name}"></span>`
-  ).join('')
-  const actBadge   = `<span class="roster-activity roster-activity--${unit.activity}">${unit.activity.toUpperCase()}</span>`
-  const shortName  = leader.name.replace(/^(\w)(\w+)\s/, '$1. ')
-
-  if (layout === 'cards' || layout === 'badges') {
-    const membersEl = nonLeaders.length > 0
-      ? `<div class="roster-members-dots">${memberDots}</div>`
-      : `<div class="roster-alone">LONE OPERATOR</div>`
-    return `<div class="roster-card" data-unit-id="${unit.id}" data-district-id="${unit.districtId}">
-      <div class="roster-portrait" data-role="${leader.role}">${PORTRAIT_SVG}</div>
-      <div class="roster-card-body">
-        <div class="roster-card-headline">
-          <span class="roster-unit-label">${unit.label}</span>
-          ${actBadge}
-        </div>
-        <div class="roster-leader-row">
-          <div class="roster-leader-name">${leaderStar(leader.role, leaderWs)}<span class="leader-name-text">${shortName}</span></div>
-          ${membersEl}
-        </div>
-        ${itemsHtml ? `<div class="roster-card-items">${itemsHtml}</div>` : ''}
-      </div>
-    </div>`
-  }
-
 }
 
 // Push cars, routes and place badges to the map after any sim change to units.
@@ -2857,16 +2425,9 @@ function renderGodPanel() {
       else if (ratio > 0.15)  cls = 'danger'
       else if (d.zombies > 0) cls = 'infected'
 
-      const spdValue   = (getEffectiveSpreadRate(d) * 100).toFixed(1) + '%'
-      const spdLabel   = d.zombies > 0 ? spdValue : '—'
-      const suppressed = d.zombies > 0 && d.unitIds.length > 0
-
-      const lootHtml = d.loot
-        .map(k => `<div class="gsr-chip item-chip--${k}" data-item-key="${k}">
-            <span class="gsr-chip-abbrev">${ITEM_ABBREV[k]}</span>
-            <span class="gsr-chip-name">${ITEMS[k]?.name ?? k}</span>
-          </div>`)
-        .join('')
+      // Spread rate is flat now — no unit suppression term (design.md: nothing the player does
+      // touches the crowd). Kept as a dev readout of the constant, not a per-district value.
+      const spdLabel = d.zombies > 0 ? (SPREAD_RATE * 100).toFixed(1) + '%' : '—'
 
       const persons = state.contacts
         .filter(c => c.location === id && c.alive)
@@ -2886,10 +2447,9 @@ function renderGodPanel() {
           </div>
           <div class="gsr-stat">
             <span class="gsr-stat-lbl">SPD</span>
-            <span class="gsr-stat-val${suppressed ? ' suppressed' : ''}">${spdLabel}</span>
+            <span class="gsr-stat-val">${spdLabel}</span>
           </div>
         </div>
-        ${lootHtml ? `<div class="gsr-loot">${lootHtml}</div>` : ''}
         ${persons   ? `<div class="gsr-persons">${persons}</div>` : ''}
       </div>`
     }).join('')

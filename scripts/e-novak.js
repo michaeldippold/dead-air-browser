@@ -10,7 +10,6 @@ export default {
   id:          'e-novak',
   name:        'E. Novak',
   callerRole:  'civilian',
-  callerItems: [],
   district:    'university',
   place:       'good-samaritan-hospital',   // map pin once she says where she is
   trigger:     { type: 'zombie-presence', district: 'university' },
