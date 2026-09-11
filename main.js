@@ -3,10 +3,11 @@ import marcusWebb from './scripts/marcus-webb.js'
 import danny      from './scripts/danny.js'
 import holt       from './scripts/holt.js'
 import tutorial   from './scripts/tutorial.js'
-import { DISTRICTS, loadDistricts, adjacencyFromPolygons, districtAt, tagEdges, danger, cold } from './src/map/districts.js'
-import { loadGraph, graph, nearestNode } from './src/map/graph.js'
+import { DISTRICTS, loadDistricts, adjacencyFromPolygons, districtAt, tagEdges, danger, cold, randomInteriorNode } from './src/map/districts.js'
+import { loadGraph, graph, nearestNode, setRouteHazards, streetNear } from './src/map/graph.js'
 import * as mover from './src/map/mover.js'
 import { createMapRenderer } from './src/map/index.js'
+import { MARK_KIND_LABEL } from './src/map/icons.js'
 
 // ── CONFIG & CONSTANTS ──
 
@@ -218,6 +219,52 @@ function completeResponse(unit) {
   if (state.unitDetailOpen && state.selectedUnit?.unitId === unit.id) {
     renderUnitDetail(unit)
   }
+}
+
+// Unit-thread lines for the Check verb (todo.md v0.9.0 step 2). The real arrival roll lands in
+// step 4; for now this is a straight comparison of the mark against the current truth.
+const MARK_RESOLVED_LINES = {
+  fire:  `Fire's out. Building's a loss, but it's contained.`,
+  block: `Road's clear. You're good to route through.`,
+  crowd: `Got them somewhere safer. Should be quiet here now.`,
+}
+const MARK_WRONG_ROLE_LINES = {
+  fire:  `We don't have the equipment for this. Need fire out here.`,
+  block: `We're not equipped to clear this. Send police.`,
+}
+const MARK_GONE_LINES = {
+  fire:  `Nothing left to put out. House is already gone.`,
+  block: `Road's clear on its own. Must've cleared out.`,
+  crowd: `Nobody here now. They must have moved on.`,
+}
+
+// Arrival at a mark (the Check verb): compare it to the current truth. Never rolled, never
+// authored — a plain fact-check until the real arrival roll lands in step 4. Mirrors arriveOnCall's
+// job for callers, but a mark has no caller and never enters RESPONDING.
+function arriveAtMark(unit, markId) {
+  const mark = state.marks[markId]
+  if (!mark) return
+  const situation = mark.situationId ? state.situations[mark.situationId] : null
+  if (!situation) {
+    unitReport(unit, MARK_GONE_LINES[mark.kind] ?? `Nothing here now.`)
+    delete state.marks[markId]
+  } else if (UNRESOLVABLE_KINDS.has(situation.kind)) {
+    unitReport(unit, `Still here. Confirmed — hold back.`)
+    mark.reportedTick = state.tick
+  } else {
+    const role = ROLE_RESOLVES[situation.kind]
+    const hasRole = !role || personsInUnit(unit.id).some(p => p.role === role)
+    if (hasRole) {
+      unitReport(unit, MARK_RESOLVED_LINES[situation.kind] ?? `Handled.`)
+      delete state.situations[situation.id]
+      delete state.marks[markId]
+    } else {
+      unitReport(unit, MARK_WRONG_ROLE_LINES[situation.kind] ?? `We're not equipped for this.`)
+      mark.reportedTick = state.tick
+    }
+  }
+  syncRouteHazards()
+  mapRenderer?.pushMarks()
 }
 
 // Tiered by zombie count — vague by design, no numbers surface to the player. Reused by
@@ -625,11 +672,14 @@ const state = {
   unitDetailOpen:  false,   // the detail section under the roster list
   selectedContact: null,
   selectedPlace:   null,
+  selectedMark:    null,
   contacts:        [],
   people:          {},
   units:           {},
   transits:        [],
   districts: {},   // filled below from public/data/districts.geojson
+  situations:      {},   // ground truth (todo.md v0.9.0 step 2) — never read by the player directly
+  marks:           {},   // beliefs — the only things ever drawn on the map from a report
 }
 
 // ── DISTRICTS ──
@@ -680,6 +730,86 @@ for (const d of DISTRICTS) {
     label: d.label, category: d.category,
     humans: seed.humans, zombies: 0, unitIds: [],
   }
+}
+
+// ── SITUATIONS & MARKS (todo.md v0.9.0 step 2; design.md "The World" → Situations and marks) ──
+// A situation is ground truth: a fire, a blocked road, a crowd on foot — spawned by the district's
+// tier, with a hidden lifecycle, never seen by the player directly. A mark is a belief: a dated pin
+// created only by a report (a badge on COMMS for now; a caller or a unit later). Nothing appears on
+// the map until a mark exists for it. Numbers are placeholders to tune, not a design ruling.
+
+let _situationCounter = 0
+const sid = () => `sit${++_situationCounter}`
+let _markCounter = 0
+const mkid = () => `mk${++_markCounter}`
+
+// Per-tier spawn chance and kind mix. Tier 0 never spawns (a calm district has no situations to
+// find). 'horde' is reserved for todo.md v0.9.0 step 3 — it wanders instead of sitting still and
+// gets its own spawner there; it is deliberately absent from every kind list here.
+const SITUATION_RATES = {
+  0: { chance: 0,     kinds: [] },
+  1: { chance: 0.02,  kinds: ['crowd'] },
+  2: { chance: 0.05,  kinds: ['crowd', 'block'] },
+  3: { chance: 0.08,  kinds: ['fire', 'block', 'crowd'] },
+  4: { chance: 0.10,  kinds: ['fire', 'block'] },
+}
+const SITUATION_CAP_PER_DISTRICT = 3
+// Ticks (= game minutes) until a situation resolves itself, unchecked: the fire burns out (the
+// house is already gone by the time anyone gets there), the block clears on its own, the crowd
+// disperses. A mark pointing at a self-resolved situation isn't touched — it stays exactly as
+// reported until a unit checks it and finds nothing (design.md: a mark never expires on its own).
+const SITUATION_LIFECYCLE = { fire: 40, block: 60, crowd: 30 }
+
+// Which role actually resolves a situation on Check (todo.md v0.9.0 step 2; the full arrival roll
+// is step 4). No entry = any role can help (a crowd doesn't need a badge or a hose). Hordes are
+// never resolved at all — see UNRESOLVABLE_KINDS below.
+const ROLE_RESOLVES = { fire: 'fire', block: 'police' }
+const UNRESOLVABLE_KINDS = new Set(['horde'])   // Check only ever confirms or clears these (step 3)
+
+function spawnSituations() {
+  for (const [districtId, d] of Object.entries(state.districts)) {
+    if (d.humans === 0) continue   // consistency guard: nothing spawns in a district with no one left
+    const rates = SITUATION_RATES[getCallTier(d.zombies)]
+    if (!rates || rates.chance === 0) continue
+    const activeHere = Object.values(state.situations).filter(s => s.districtId === districtId).length
+    if (activeHere >= SITUATION_CAP_PER_DISTRICT) continue
+    if (Math.random() >= rates.chance) continue
+    const kind = rates.kinds[Math.floor(Math.random() * rates.kinds.length)]
+    const node = randomInteriorNode(districtId)
+    if (!node) continue
+    const situation = {
+      id: sid(), kind, pos: graph.nodes[node], node, districtId,
+      bornTick: state.tick, lifecycleTicks: SITUATION_LIFECYCLE[kind] + Math.floor(Math.random() * 20),
+    }
+    state.situations[situation.id] = situation
+  }
+}
+
+// A situation past its lifecycle just vanishes — no report ever explains why, because nothing
+// reported it ending either. Any mark that pointed at it goes stale, exactly as design.md wants.
+function ageSituations() {
+  for (const s of Object.values(state.situations)) {
+    if (state.tick - s.bornTick >= s.lifecycleTicks) delete state.situations[s.id]
+  }
+}
+
+// The only place a mark is ever created (design.md: "nothing appears on the map until someone
+// tells you"). `syncRouteHazards` is called right after, so a fresh block mark starts bending
+// routes immediately.
+function createMark(opts) {
+  const mark = { id: mkid(), reportedTick: state.tick, ...opts }
+  state.marks[mark.id] = mark
+  syncRouteHazards()
+  mapRenderer?.pushMarks()
+  return mark
+}
+
+// Routing avoids marks, not the truth (design.md, Movement & Risk). Recomputed whenever a mark is
+// created or cleared. Heavy-node hazards (a horde sighting) are step 3's addition.
+function syncRouteHazards() {
+  const blocked = new Set()
+  for (const m of Object.values(state.marks)) if (m.kind === 'block') blocked.add(m.node)
+  setRouteHazards({ blocked })
 }
 
 // Spawn starting units and people
@@ -787,6 +917,8 @@ let mapRenderer = null
       unitStatus:     u  => unitStatusText(u),
       places:         () => PLACES,
       placeContacts:  id => contactsAtPlace(id),
+      marks:          () => Object.values(state.marks),
+      tick:           () => state.tick,
       selectedUnitId: () => state.selectedUnit?.unitId ?? null,
       timeScale:      () => (gamePaused ? 0 : 20),   // 1 tick = 3 s real = 1 game minute
       residencePool:  () => Object.values(RESIDENCES.districts).flat().map(r => r.id).filter(id => !RESIDENCE_EXCLUDE.has(id)),
@@ -803,6 +935,7 @@ let mapRenderer = null
       dispatch:       (unitId, target) => dispatchUnit(unitId, target),
       showPlace:      id => showPlaceDetail(placeById(id)),
       showPoi:        poi => showPoiDetail(poi),
+      showMark:       id => showMarkDetail(state.marks[id]),
       selectDistrict: id => selectDistrict(id),
       hoverUnit:      id => unitsList.querySelectorAll('[data-unit-id]').forEach(el => el.classList.toggle('roster-hover', el.dataset.unitId === id)),
     },
@@ -1204,6 +1337,48 @@ const POLICE_CHATTER = [
 
 const pickOne = arr => arr[Math.floor(Math.random() * arr.length)]
 
+// ── REPORTS (COMMS → marks, todo.md v0.9.0 step 2) ──
+// A second pool for emitPoliceChatter: when the district it picks has an un-marked situation, the
+// officer has a tier-scaled chance to report it by name instead of the routine "how bad is it"
+// line — that report is what creates the mark (design.md, "Nothing appears on the map until
+// someone tells you"). A situation's finite lifecycle means some are never caught this way at all;
+// that's deliberate, not a bug to fix.
+const REPORT_CHANCE = { 0: 0, 1: 0.35, 2: 0.45, 3: 0.55, 4: 0.65 }
+const REPORT_LINES = {
+  fire: [
+    [`Small fire, $street. Might just be trash. Checking it.`, `Got smoke at $street. Nothing major yet.`],
+    [`Fire started at $street. Requesting fire response.`, `Structure's smoking on $street. Someone should look at that.`],
+    [`Fire's spreading fast at $street. Send fire, now.`, `Whole building's catching at $street. Get a truck out here.`],
+    [`$street is fully involved. Neighbors are still in there.`, `Fire's jumped to the next building on $street. This is bad.`],
+    [`$street's an inferno. Nobody's getting near it now.`, `Whatever was on $street, it's gone. Just fire now.`],
+  ],
+  block: [
+    [`Fender bender at $street, nothing serious.`, `Couple cars stopped at $street. Traffic's backed up.`],
+    [`Wreck at $street. Road's partly blocked.`, `Abandoned vehicles piling up on $street.`],
+    [`$street's blocked solid. Find another way through.`, `Cars everywhere at $street. Nobody's moving them.`],
+    [`Do not route through $street. Completely impassable.`, `$street is a wall of wrecked cars. No way through.`],
+    [`$street's gone — wrecks, and worse. Stay off it.`, `Whatever happened at $street, the road's not usable.`],
+  ],
+  crowd: [
+    [`Small group moving on foot near $street. Keeping an eye on it.`, `Few people headed down $street. Looks orderly.`],
+    [`Crowd's forming at $street. People are getting nervous.`, `Group of maybe a dozen on $street, moving fast.`],
+    [`Big crowd on $street, all headed the same way. Something spooked them.`, `People are running down $street. A lot of them.`],
+    [`$street's packed with people fleeing. No room to move.`, `Whole crowd stampeding down $street. Somebody's going to get hurt.`],
+    [`$street was full of people. Now it's just quiet. Too quiet.`, `The crowd on $street scattered. Or worse.`],
+  ],
+}
+
+// Voice a report on COMMS and create the mark it describes. `d` is the district object; `ratio`
+// drives the same static degradation every other line gets.
+function reportSituation(situation, badge, d, ratio) {
+  const tier = getCallTier(d.zombies)
+  const street = streetNear(situation.node) ?? d.label
+  const line = pickOne(REPORT_LINES[situation.kind][tier])
+  broadcastEvent(`[Badge #${badge}]: ${degradeChatter(line, ratio).replace(/\$street/g, street)}`)
+  createMark({ kind: situation.kind, pos: situation.pos, node: situation.node, districtId: situation.districtId,
+    reportedBy: 'badge', situationId: situation.id, label: street })
+}
+
 let _usedBadges = new Set()
 
 // One badge per district — the officer working that area. Stable while the district persists, so
@@ -1245,15 +1420,26 @@ function emitPoliceChatter() {
     }
   }
 
-  // Routine chatter: one officer from a still-reporting infected district keys up.
+  // Routine chatter: one officer from a still-reporting infected district keys up. If that
+  // district is sitting on an un-marked situation, there's a tier-scaled chance the officer
+  // reports it by name instead — that's the report that creates the mark.
   if (Math.random() > CHATTER_CHANCE) return
-  const live = Object.values(state.districts).filter(d =>
+  const live = Object.entries(state.districts).filter(([, d]) =>
     d.zombies > 0 && d.zombies / (d.humans + d.zombies) < SILENT_RATIO)
   if (!live.length) return
-  const d     = pickOne(live)
+  const [districtId, d] = pickOne(live)
   const ratio = d.zombies / (d.humans + d.zombies)
+  const tier  = getCallTier(d.zombies)
   const badge = districtBadge(d)
-  broadcastEvent(`[Badge #${badge}]: ${degradeChatter(pickOne(POLICE_CHATTER[getCallTier(d.zombies)]), ratio).replace(/\$location/g, d.label)}`)
+
+  const markedSituationIds = new Set(Object.values(state.marks).map(m => m.situationId).filter(Boolean))
+  const unreported = Object.values(state.situations).filter(s => s.districtId === districtId && !markedSituationIds.has(s.id))
+  if (unreported.length && Math.random() < REPORT_CHANCE[tier]) {
+    reportSituation(pickOne(unreported), badge, d, ratio)
+    return
+  }
+
+  broadcastEvent(`[Badge #${badge}]: ${degradeChatter(pickOne(POLICE_CHATTER[tier]), ratio).replace(/\$location/g, d.label)}`)
 }
 
 function toggleMaximize(id) {
@@ -1517,6 +1703,7 @@ function showPlaceDetail(place) {
   state.selected = null
   mapRenderer.setSelectedDistrict(null)
   state.selectedPlace = place.id
+  state.selectedMark  = null
   const d       = state.districts[place.district]
   const here    = Object.values(state.units).filter(u => u.place === place.id && u.status === 'inside')
   const enroute = state.transits.filter(t => t.kind === 'unit' && t.placeId === place.id).map(t => state.units[t.refId]).filter(Boolean)
@@ -1545,6 +1732,7 @@ function showPoiDetail(poi) {
   state.selected = null
   mapRenderer.setSelectedDistrict(null)
   state.selectedPlace = null
+  state.selectedMark  = null
   const d = districtAt(poi.lonlat)
   document.getElementById('pdv-name').textContent = poi.name ?? '—'
   document.getElementById('pdv-kind').textContent = poi.kind ?? ''
@@ -1556,9 +1744,40 @@ function showPoiDetail(poi) {
   mapContainer.dataset.view = 'place'
 }
 
+// The mark card (todo.md v0.9.0 step 2, design.md: "Click: selects like a place"). Reuses the
+// place-detail-panel DOM — same pattern showPoiDetail already uses for a free-tier POI — since a
+// mark is provisional, not authored: no address, no callers, just what was reported and a Check
+// button. `mark` can be undefined (it just resolved) — that closes the card instead of showing junk.
+function showMarkDetail(mark) {
+  if (!mark) { hidePlaceDetail(); return }
+  state.selected = null
+  mapRenderer.setSelectedDistrict(null)
+  state.selectedPlace = null
+  state.selectedMark  = mark.id
+  const d   = state.districts[mark.districtId]
+  const sel = state.selectedUnit ? state.units[state.selectedUnit.unitId] : null
+  const ageTicks = Math.max(0, state.tick - mark.reportedTick)
+  const ageLabel = ageTicks < 60 ? `${ageTicks}m ago` : `${Math.floor(ageTicks / 60)}h ${ageTicks % 60}m ago`
+  const via = mark.reportedBy === 'badge' ? 'scanner' : mark.reportedBy
+
+  document.getElementById('pdv-name').textContent = MARK_KIND_LABEL[mark.kind] ?? mark.kind
+  document.getElementById('pdv-kind').textContent = mark.label ?? ''
+  document.getElementById('pdv-meta').innerHTML = [
+    ['DISTRICT', d?.label ?? 'outside coverage'],
+    ['REPORTED', `${ageLabel} · via ${via}`],
+  ].map(([k, v]) => `<div class="pdv-row"><span class="pdv-k">${k}</span><span class="pdv-v">${v}</span></div>`).join('')
+  document.getElementById('pdv-units').innerHTML   = '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-callers').innerHTML = '<div class="pdv-none">none</div>'
+  document.getElementById('pdv-dispatch').innerHTML = sel
+    ? `<button id="pdv-go">CHECK ${sel.label.toUpperCase()} HERE</button>`
+    : '<div class="pdv-none">Select a unit to check this out.</div>'
+  mapContainer.dataset.view = 'place'
+}
+
 function hidePlaceDetail() {
   if (mapContainer.dataset.view !== 'place') return
   state.selectedPlace = null
+  state.selectedMark  = null
   delete mapContainer.dataset.view
 }
 
@@ -1568,9 +1787,14 @@ document.getElementById('place-detail-panel').addEventListener('click', e => {
   if (unitRow) { unitClick(unitRow.dataset.unitId, e.detail); return }
   const callerRow = e.target.closest('[data-contact-id]')
   if (callerRow) { if (winState['contacts']?.minimized) toggleMinimize('contacts'); bringToFront('contacts'); showContactDetail(callerRow.dataset.contactId); return }
-  if (e.target.closest('#pdv-go') && state.selectedUnit && state.selectedPlace) {
-    dispatchUnit(state.selectedUnit.unitId, { placeId: state.selectedPlace })
-    showPlaceDetail(placeById(state.selectedPlace))
+  if (e.target.closest('#pdv-go') && state.selectedUnit) {
+    if (state.selectedMark) {
+      dispatchUnit(state.selectedUnit.unitId, { markId: state.selectedMark })
+      showMarkDetail(state.marks[state.selectedMark])
+    } else if (state.selectedPlace) {
+      dispatchUnit(state.selectedUnit.unitId, { placeId: state.selectedPlace })
+      showPlaceDetail(placeById(state.selectedPlace))
+    }
   }
 })
 
@@ -1684,6 +1908,7 @@ function selectUnit(unitId) {
   renderTravelingPanel()
   unitsList.querySelector('.unit-row.selected')?.scrollIntoView({ block: 'nearest' })
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+  if (state.selectedMark)  showMarkDetail(state.marks[state.selectedMark])
 }
 
 function deselectUnit() {
@@ -1694,6 +1919,7 @@ function deselectUnit() {
   renderDistrictDetail()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+  if (state.selectedMark)  showMarkDetail(state.marks[state.selectedMark])
 }
 
 function openUnitDetail(unitId) {
@@ -2002,14 +2228,15 @@ document.getElementById('contact-detail-view').addEventListener('click', e => {
   renderContactsPanel()
 })
 
-// The only two dispatch targets (map-integration.md §1 #5): a district or an authored place.
-// `target` is a district id string (legacy callers), { districtId } or { placeId }. Bare map
-// never dispatches. No per-target activity anymore — ENGAGE/HIDE/SCAVENGE are gone; a unit
-// arriving at a district just becomes available (todo.md v0.9.0 step 1).
+// The three dispatch targets (map-integration.md §1 #5; marks added todo.md v0.9.0 step 2): a
+// district, an authored place, or a mark. `target` is a district id string (legacy callers),
+// { districtId }, { placeId } or { markId }. Bare map never dispatches. No per-target activity
+// anymore — ENGAGE/HIDE/SCAVENGE are gone; a unit arriving at a district just becomes available.
 function normalizeTarget(target) {
-  if (typeof target === 'string') return { districtId: target, placeId: null }
-  if (target?.placeId) { const p = placeById(target.placeId); return p ? { districtId: p.district, placeId: p.id } : null }
-  if (target?.districtId) return { districtId: target.districtId, placeId: null }
+  if (typeof target === 'string') return { districtId: target, placeId: null, markId: null }
+  if (target?.markId) { const m = state.marks[target.markId]; return m ? { districtId: m.districtId, placeId: null, markId: m.id } : null }
+  if (target?.placeId) { const p = placeById(target.placeId); return p ? { districtId: p.district, placeId: p.id, markId: null } : null }
+  if (target?.districtId) return { districtId: target.districtId, placeId: null, markId: null }
   return null
 }
 
@@ -2025,10 +2252,12 @@ function dispatchUnit(unitId, target, opts = {}) {
   const dest = tgt && state.districts[tgt.districtId]
   if (!unit || !tgt || !dest) return
   const place     = tgt.placeId ? placeById(tgt.placeId) : null
-  const destLabel = place ? place.name : dest.label
+  const mark      = tgt.markId ? state.marks[tgt.markId] : null
+  const destLabel = place ? place.name : mark ? (MARK_KIND_LABEL[mark.kind] ?? mark.kind) : dest.label
 
-  // Already there: the same place, or the same district while not holed up inside a place.
-  const alreadyThere = place ? unit.place === place.id : (unit.districtId === tgt.districtId && !unit.place)
+  // Already there: the same place, or the same district while not holed up inside a place. A
+  // mark dispatch always drives there for real — a unit is never "already at" a specific mark.
+  const alreadyThere = mark ? false : place ? unit.place === place.id : (unit.districtId === tgt.districtId && !unit.place)
   if (alreadyThere) {
     if (contactId) {
       unitReport(unit, `Dispatch, we're already on location — moving to assist.`)
@@ -2042,13 +2271,16 @@ function dispatchUnit(unitId, target, opts = {}) {
 
   // Already driving there: don't queue a second transit.
   const current = state.transits.find(t => t.kind === 'unit' && t.refId === unitId)
-  if (current && current.destId === tgt.districtId && (current.placeId ?? null) === (place?.id ?? null) && current.respondContactId === contactId) {
+  if (current && current.destId === tgt.districtId && (current.placeId ?? null) === (place?.id ?? null) &&
+      (current.markId ?? null) === (mark?.id ?? null) && current.respondContactId === contactId) {
     renderUnitsPanel()
     return
   }
 
   const district = DISTRICTS.find(d => d.id === tgt.districtId)
-  const plan = mover.planTransit(unit, place ? { place } : { district })
+  // A mark has no footprint of its own — route to its road node exactly like a place would.
+  const plan = mark ? mover.planTransit(unit, { place: { node: mark.node } })
+             : mover.planTransit(unit, place ? { place } : { district })
   if (!plan) { unitReport(unit, `Dispatch, no route to ${destLabel} from here.`); return }
 
   // A re-dispatch mid-route replaces the old transit (the mover already continues from the far
@@ -2069,18 +2301,20 @@ function dispatchUnit(unitId, target, opts = {}) {
   mover.pace(unit, (etaMs - Date.now()) / 1000 * 20)
   state.transits.push({
     id: `t${++_transitCounter}`, kind: 'unit', refId: unitId,
-    srcId, destId: tgt.districtId, placeId: place?.id ?? null,
+    srcId, destId: tgt.districtId, placeId: place?.id ?? null, markId: mark?.id ?? null,
     ticksRemaining: ticks, totalTicks: ticks,
     etaMs,
     respondContactId: contactId,   // set => caller dispatch: arrive into RESPONDING + fire arrival
   })
 
   director.emit('unit-departs', { unitId, srcId, destId: tgt.districtId })
-  unitReport(unit, `10-4 dispatch, en route to ${destLabel}.`)
+  unitReport(unit, mark ? `10-4, checking out the ${destLabel.toLowerCase()} report near ${mark.label ?? dest.label}.`
+                        : `10-4 dispatch, en route to ${destLabel}.`)
   renderUnitsPanel()
   renderMapUnits()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+  if (state.selectedMark)  showMarkDetail(state.marks[state.selectedMark])
 }
 
 function resolveTransits() {
@@ -2094,8 +2328,8 @@ function resolveTransits() {
       const dest = state.districts[t.destId]
       if (unit && dest) {
         // Arrival (§1 #7–8): snap to the road node; the district is derived from the position (a
-        // place's district from the bake). At a place the unit goes INSIDE; at a district it parks,
-        // and the renderer starts patrol laps from there when the activity is ENGAGE.
+        // place's district from the bake). At a place the unit goes INSIDE; at a district — or a
+        // mark, which has no footprint of its own — it parks.
         mover.arrive(unit)
         const place = t.placeId ? placeById(t.placeId) : null
         unit.districtId = place ? place.district : (districtAt(unit.pos)?.id ?? t.destId)
@@ -2106,7 +2340,9 @@ function resolveTransits() {
         d.unitIds.push(t.refId)
         if (state.selectedUnit?.unitId === t.refId) state.selectedUnit.districtId = unit.districtId
         director.emit('unit-enters', { unitId: t.refId, destId: unit.districtId, srcId: t.srcId, placeId: unit.place })
-        if (t.respondContactId) {
+        if (t.markId) {
+          arriveAtMark(unit, t.markId)
+        } else if (t.respondContactId) {
           arriveOnCall(unit, t.respondContactId)
         } else {
           unitReport(unit, `On scene at ${place?.name ?? d.label}.`)
@@ -2125,6 +2361,7 @@ function resolveTransits() {
   renderMapUnits()
   renderTravelingPanel()
   if (state.selectedPlace) showPlaceDetail(placeById(state.selectedPlace))
+  if (state.selectedMark)  showMarkDetail(state.marks[state.selectedMark])
   if (state.unitDetailOpen && state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]
     if (unit) renderUnitDetail(unit)
@@ -2248,6 +2485,8 @@ function tick() {
     }
   }
 
+  ageSituations()       // self-resolve past their lifecycle, unseen if nobody checked in time
+  spawnSituations()     // ground truth — never seen until a report creates a mark for it
   director.tick()
   emitPoliceChatter()   // badge-numbered police chatter on COMMS — see design.md, "Reports"
   render()
@@ -2267,6 +2506,7 @@ function render() {
   renderGodPanel()
   renderRadio()
   syncMapPaint()
+  mapRenderer?.pushMarks()   // marks dim with age every tick even when the set itself is unchanged
 
   if (state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]

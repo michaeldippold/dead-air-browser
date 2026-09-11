@@ -61,10 +61,28 @@ export function nearestNode(lonlat, pred = null, radiusM = 400) {
   return null
 }
 
-// Edge cost in seconds. `world.multiplier(edge)` lets danger bend routes.
-function edgeCost(e, opts) {
+// Routing hazards derived from marks, not from the true district danger (design.md, "Routing
+// avoids marks, not the truth"). Recomputed by main.js's syncRouteHazards() whenever state.marks
+// changes; read here directly so every route() caller gets it for free. `blocked`: a road carrying
+// a live "blocked road" mark is impassable. `heavy`: reserved for horde marks (todo.md v0.9.0 step
+// 3) — a node near a sighting costs more to route through without ever being truly impassable.
+let hazardBlocked = new Set()
+let hazardHeavy = new Map()   // nodeId -> cost multiplier
+export function setRouteHazards({ blocked = new Set(), heavy = new Map() } = {}) {
+  hazardBlocked = blocked
+  hazardHeavy = heavy
+}
+
+// Edge cost in seconds. `opts.multiplier(edge)` is a caller-supplied cost shaper (unused for danger
+// since 2026-09-10 — routes no longer read the true district ratio, only the hazards above).
+// `toId`: the block only closes *through* traffic — the one edge that actually arrives at toId is
+// exempt, or a blocked-road mark would make itself unreachable and nobody could ever go clear it.
+function edgeCost(e, opts, toId) {
+  if (e.v !== toId && (hazardBlocked.has(e.u) || hazardBlocked.has(e.v))) return Infinity
   let t = e.len / (e.kph / 3.6)
   if (opts.emergency) t *= 0.7
+  const hazard = Math.max(hazardHeavy.get(e.u) ?? 1, hazardHeavy.get(e.v) ?? 1)
+  t *= hazard
   if (opts.multiplier) t *= opts.multiplier(e)
   return t
 }
@@ -99,7 +117,7 @@ export function route(fromId, toId, opts = {}) {
     closed.add(cur)
     const gc = g.get(cur)
     for (const e of graph.out[cur] ?? []) {
-      const c = edgeCost(e, opts)
+      const c = edgeCost(e, opts, toId)
       if (!isFinite(c)) continue
       // U-turn penalty: bouncing straight back along a dual carriageway.
       const prev = came.get(cur)
@@ -116,6 +134,18 @@ export function route(fromId, toId, opts = {}) {
   let metres = 0
   for (const e of edges) { coords.push(...e.geom.slice(1)); metres += e.len }
   return { coords, edges, seconds: g.get(toId), metres }
+}
+
+// Nearest named road at a node — for reports ("Badge 214: fire on Old Leestown Road"). Checks
+// edges leaving the node first, then edges arriving at it (a node reached only from one direction
+// still has a name worth reporting). Null if every edge here is unnamed; the caller falls back to
+// the district label.
+export function streetNear(nodeId) {
+  const out = graph.out[nodeId] ?? []
+  const named = out.find(e => e.name)
+  if (named) return named.name
+  const inbound = graph.edges.find(e => e.v === nodeId && e.name)
+  return inbound?.name ?? null
 }
 
 // Ray-cast point in polygon (single ring, [lon,lat]).

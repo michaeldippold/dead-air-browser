@@ -23,9 +23,9 @@ let protocolRegistered = false
 maplibregl.setWorkerUrl('/vendor/maplibre/maplibre-gl-worker.mjs')
 
 // stage: the DOM element the map fills (position: relative). tipEl / ctxEl: tooltip and context
-// menu elements inside it. get: { units, unitName, unitStatus, places, placeContacts,
+// menu elements inside it. get: { units, unitName, unitStatus, places, placeContacts, marks, tick,
 // selectedUnitId, timeScale, districtStatus? }. on: { selectUnit, dispatch, showPlace, showPoi,
-// selectDistrict, hoverUnit }.
+// showMark, selectDistrict, hoverUnit }.
 export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) {
   if (!protocolRegistered) { maplibregl.addProtocol('pmtiles', new Protocol().tile); protocolRegistered = true }
   const B = cfg.bbox
@@ -66,6 +66,19 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     return { type: 'FeatureCollection', features: get.places().filter(p => p.footprint).map(p => ({
       type: 'Feature', id: p.id, properties: { id: p.id, color: KIND_COLOR[p.kind] ?? '#e8e2c9' }, geometry: { type: 'Polygon', coordinates: [p.footprint] } })) }
   }
+  // Marks (todo.md v0.9.0 step 2): opacity is computed here from age, not stored — a mark never
+  // fully disappears (design.md, "Marks never move or expire"), it just dims toward a floor.
+  const MARK_AGE_FADE_TICKS = 60
+  const MARK_OPACITY_FLOOR = 0.35
+  function marksFC() {
+    const tick = get.tick?.() ?? 0
+    return { type: 'FeatureCollection', features: get.marks().map(m => {
+      const age = Math.max(0, tick - m.reportedTick)
+      const opacity = Math.max(MARK_OPACITY_FLOOR, 1 - age / MARK_AGE_FADE_TICKS)
+      return { type: 'Feature', id: m.id, properties: { id: m.id, icon: 'mark-' + m.kind, opacity, ageLabel: m.label ?? '' },
+        geometry: { type: 'Point', coordinates: m.pos } }
+    }) }
+  }
   function placesFC() {
     const units = get.units()
     return { type: 'FeatureCollection', features: get.places().map(p => {
@@ -83,6 +96,7 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
 
   r.pushUnits = () => { if (r.ready) { map.getSource('units').setData(unitsFC()); map.getSource('routes').setData(routesFC()) } }
   r.pushPlaces = () => { if (r.ready) map.getSource('places').setData(placesFC()) }
+  r.pushMarks = () => { if (r.ready) map.getSource('marks').setData(marksFC()) }
   r.pushDistricts = () => {
     if (!r.ready) return
     map.getSource('districts').setData(districtsGeoJSON())
@@ -160,13 +174,14 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     registerIcons(map)
     addLayers(map, {
       districts: districtsGeoJSON(), districtLabels: districtLabelsGeoJSON(), roadsOverlay: roadsOverlayFC(),
-      heat: heatFC(), footprints: footprintsFC(), places: placesFC(),
+      heat: heatFC(), footprints: footprintsFC(), places: placesFC(), marks: marksFC(),
     })
     r.ready = true
     applyBoundary(map, r.strongBoundaries)
     attachInteraction(r)
     if (selectedId) map.setFeatureState({ source: 'units', id: selectedId }, { selected: true })
     r.refresh()
+    r.pushMarks()
     requestAnimationFrame(loop)
   })
 

@@ -1,8 +1,9 @@
 // Sources and layers, in the order map-integration.md §2.1 fixes (bottom → top):
 // district-fill → roads-dim → footprint-fill → [basemap buildings] → district-shroud → heat →
 // district-glow → district-line → district-label → poi-hit → footprint-line → place-ring →
-// places → place-badge-0/1/2 → route-glow → route-line → unit-halo → units.
-// Numbers are the verified ones from §2.2 — change deliberately.
+// places → place-badge-0/1/2 → marks → route-glow → route-line → unit-halo → units.
+// Numbers are the verified ones from §2.2 — change deliberately. `marks` was added in
+// todo.md v0.9.0 step 2, after places (dispatchable, like a place) and before routes.
 import { MAP_BG } from './style.js'
 
 export const emptyFC = () => ({ type: 'FeatureCollection', features: [] })
@@ -91,6 +92,19 @@ export function addLayers(map, initial) {
     'icon-image': ['get', 'badge' + slot], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 16, 1.35],
     'icon-offset': [34 + slot * 30, 0], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
   } }))
+
+  // Marks (todo.md v0.9.0 step 2): dated, provisional pins — the only things placed on the map by
+  // a report, never by the sim directly. `opacity` is computed per-push from the mark's age (see
+  // index.js marksFC) so older marks read dimmer without ever fully disappearing.
+  map.addSource('marks', { type: 'geojson', data: initial.marks, promoteId: 'id' })
+  map.addLayer({ id: 'marks', type: 'symbol', source: 'marks', layout: {
+    'icon-image': ['get', 'icon'], 'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.75, 16, 1.25],
+    'icon-allow-overlap': true, 'icon-ignore-placement': true,
+    'text-field': ['get', 'ageLabel'], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-optional': true,
+  }, paint: {
+    'icon-opacity': ['get', 'opacity'],
+    'text-color': '#cfe0ff', 'text-halo-color': MAP_BG, 'text-halo-width': 1.2, 'text-opacity': ['get', 'opacity'],
+  } })
 
   map.addSource('routes', { type: 'geojson', data: emptyFC(), promoteId: 'id' })
   map.addLayer({ id: 'route-glow', type: 'line', source: 'routes', paint: {

@@ -46,6 +46,13 @@ export const dangerMultiplier = e => {
   return id ? 1 + 2.5 * danger[id] : 1
 }
 
+// A random node inside a district — where a spawned situation (fire, block, crowd) lands
+// (todo.md v0.9.0 step 2). Same interior pool entryNode uses for the near-edge rule.
+export function randomInteriorNode(districtId) {
+  const pool = interior[districtId] ?? []
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null
+}
+
 // Nearest routable node inside the district to a given position — the "near edge" rule.
 export function entryNode(district, fromLonlat) {
   let best = null, bd = Infinity

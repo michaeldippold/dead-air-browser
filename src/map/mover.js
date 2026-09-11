@@ -77,7 +77,7 @@ export function planTransit(u, target) {
   if (target.place) toNode = target.place.node
   else if (target.district) toNode = entryNode(target.district, fromPos)
   if (!toNode) return null
-  const r = route(from, toNode, { emergency: true, multiplier: dangerMultiplier })
+  const r = route(from, toNode, { emergency: true })
   if (!r) return null
   u.status = 'moving'
   setRoute(u, r, prefix)
@@ -155,7 +155,7 @@ export function previewSeconds(u, target) {
   const fromPos = prefix ? graph.nodes[from] : u.pos
   const toNode = target.place ? target.place.node : target.district ? entryNode(target.district, fromPos) : null
   if (!toNode) return null
-  const r = route(from, toNode, { emergency: true, multiplier: dangerMultiplier })
+  const r = route(from, toNode, { emergency: true })
   if (!r) return null
   const parts = routeToParts(r)
   const tmp = { status: 'moving' }

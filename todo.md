@@ -136,34 +136,62 @@ The core loop is operational. Key systems in place:
 
 ### 2. Situations, marks and reports — "nothing appears until someone tells you"
 
-- [ ] **Situations (ground truth).** `state.situations[id] = { kind: 'fire'|'block'|'crowd'|'horde',
-  pos, node, districtId, bornTick, lifecycle }`. A spawner in `director.tick()` reads each
-  district's tier and rolls spawn rate and kind mix per tier (`SITUATION_RATES[tier]`), placing on
-  a random road node inside the polygon. Hidden lifecycles: a fire burns out after N ticks (house
-  gone), a block may self-clear, a crowd disperses. **Consistency guards:** no spawns in districts
-  with `humans === 0` except hordes; no horde below tier 2; kind mix must match tier.
-- [ ] **Marks (belief).** `state.marks[id] = { kind, pos, node, districtId, reportedTick,
-  reportedBy: 'caller'|'badge'|'unit', situationId|null, label }`. Marks never move or expire.
-  A mark is created by a report, never by the spawner.
-- [ ] **Reports on COMMS.** `emitPoliceChatter` gains a second pool: `REPORT_LINES[kind][tier]`
-  voiced by the district's badge, naming a street (nearest named way to the situation's node —
-  bake a `roads.json` name lookup or use the tile feature). Each report creates a mark with
-  `reportedBy: 'badge'`. Rate scales with tier; a fraction of situations are never reported.
-- [ ] **Marks layer on the map.** New layer in `src/map/layers.js` + glyphs in `icons.js`: kind
-  glyph, timestamp label, age styling (older = dimmer, never gone). Hover: kind, reported when, by
-  whom. Click: selects like a place (card in the DISPATCH window: what was reported, when, dispatch
-  target). Renderer `get.marks()`.
-- [ ] **Dispatchable marks — the Check verb.** `dispatchUnit(unitId, { markId })`: route to the
-  mark's node, arrive `onscene`. Resolution (until step 4's roll): compare the mark to the current
-  truth — situation still there (confirm: refresh `reportedTick`), resolved by the right role (fire
-  out / road cleared: delete situation + mark), or gone (delete mark, unit line "nothing here"). Unit
-  thread lines for each. Horde: confirm or gone, never resolve.
-- [ ] **Routing on marks.** `src/map/graph.js` edge cost: blocked-road marks make their edge
-  impassable; horde marks add a heavy cost within a radius. Remove the true-danger multiplier from
-  edge cost (keep it for drive-time *pacing* only if it still reads right; otherwise drop). Verify a
-  route bends around a mark and not around an unreported situation.
-- [ ] Verify live: a district climbs, COMMS reports a fire at a street, a mark appears, a fire unit
-  sent to it puts it out and reports; a police unit sent to a stale fire finds the house gone.
+- [x] **Situations (ground truth).** `state.situations[id] = { id, kind: 'fire'|'block'|'crowd',
+  pos, node, districtId, bornTick, lifecycleTicks }` — `spawnSituations()` (called from `tick()`)
+  reads each district's tier and rolls spawn rate and kind mix from `SITUATION_RATES[tier]`,
+  placing on `randomInteriorNode(districtId)` (new districts.js export, reuses the `entryNode`
+  interior pool). `ageSituations()` deletes a situation past its `lifecycleTicks` (jittered ±20)
+  unconditionally — no report explains why it ended, same as none explained it starting.
+  Consistency guards implemented: no spawn where `humans === 0`; a per-district cap
+  (`SITUATION_CAP_PER_DISTRICT = 3`). `'horde'` is deliberately absent from every `SITUATION_RATES`
+  kind list — it's step 3's own spawner, not a kind this one produces; `UNRESOLVABLE_KINDS` and the
+  Check-verb logic already branch correctly for it so step 3 only has to add the spawner and mover.
+- [x] **Marks (belief).** `state.marks[id] = { id, kind, pos, node, districtId, reportedTick,
+  reportedBy: 'badge', situationId, label }` via `createMark()` — the only place a mark is ever
+  created. Marks never move; they're only ever deleted by the Check verb (`arriveAtMark`), never by
+  a timer. `reportedBy: 'caller'|'unit'` (interrupts, generated callers) are steps 5/6.
+- [x] **Reports on COMMS.** `emitPoliceChatter`'s routine-chatter branch now checks the picked
+  district for un-marked situations first; a tier-scaled `REPORT_CHANCE` decides whether the
+  officer reports one by name (`REPORT_LINES[kind][tier]`, 2 lines × 5 tiers × 3 kinds) instead of
+  the routine line. `streetNear(node)` (new graph.js export, reads the baked road name off
+  `graph.out`/`graph.edges` — roads.json already carries OSM street names) supplies `$street`;
+  falls back to the district label if the node's edges are all unnamed. Verified live: a real
+  street name ("Towne Center Drive") landed in both the COMMS line and the mark's card.
+- [x] **Marks layer on the map.** `mark-fire`/`mark-block`/`mark-crowd`/`mark-horde` glyphs
+  (icons.js `markIcon`, flame / octagon / three dots / jagged triangle — horde's is drawn but
+  unused until step 3) on a new `marks` symbol layer (layers.js, after `places`). `marksFC()`
+  (index.js) computes `opacity` from age each push (floor 0.35 — dims, never disappears) and
+  `r.pushMarks()` is called every `render()` tick. Hover and the right-click menu are in
+  interact.js's existing `hit()`/`mousemove`/`contextmenu`. Click reuses the place-detail-panel DOM
+  (the same trick `showPoiDetail` already used for free-tier POIs) via a new `showMarkDetail()` —
+  kind, street, district, "reported Nm ago · via scanner", and a CHECK button when a unit is
+  selected. `get.marks()`/`get.tick()` added to the renderer's `get`; `on.showMark`.
+- [x] **Dispatchable marks — the Check verb.** `dispatchUnit(unitId, { markId })` routes to
+  `{ place: { node: mark.node } }` (no footprint needed — reuses the place-transit path in
+  `mover.planTransit` unmodified) and always drives there for real (marks skip the "already there"
+  shortcut place/district dispatches get). Arrival calls `arriveAtMark()`: gone (situation missing)
+  → delete mark, kind-flavored line; still there + right role (`ROLE_RESOLVES`: fire→fire,
+  block→police, crowd→any) → resolve, delete situation + mark; still there + wrong role → confirm,
+  refresh `reportedTick`, both persist. `UNRESOLVABLE_KINDS` (`horde`) always confirms or clears,
+  never resolves — wired now so step 3 needs no changes here. All three outcomes verified live via
+  seeded marks (resolved / wrong-role-confirm / gone), each with the right unit-thread line.
+- [x] **Routing on marks.** `src/map/graph.js`: `setRouteHazards({ blocked, heavy })` (module-level,
+  read by `edgeCost` regardless of caller) makes a blocked-road mark's node impassable; `heavy` is
+  wired but empty until step 3's horde cost. The true-danger `multiplier` was dropped from both
+  `route()` call sites in `mover.js` (path selection no longer reads the true ratio) but kept in
+  `routeToParts()` for drive-time pacing, per the todo's own hedge. `syncRouteHazards()` recomputes
+  on every mark create/clear. **Bug found and fixed during verification:** blocking a mark's own
+  node made it unreachable — nobody could ever drive out to clear it. Fixed by exempting the one
+  edge that actually arrives at the target (`e.v === toId`) from the block, so through-traffic is
+  denied but arrival at the blockage itself, to fix it, is not.
+- [x] Verified live end-to-end (npm run dev, seeded a district's zombie count via the `window.DA`
+  dev hook to force tiers rather than waiting on natural spread): situations spawn, COMMS reports
+  one by street name and a mark appears on the map with correct glyph/opacity, the mark's card shows
+  reported-when/by-whom, a unit Check-dispatched to it resolves (mark + situation deleted, unit line
+  changes), a wrong-role unit gets the confirm line and the mark survives, a mark whose situation
+  had already gone gets the "gone" line. Zero console errors throughout. **Second bug found and
+  fixed:** `selectUnit`/`deselectUnit` refreshed an open place card but not an open mark card — the
+  CHECK button never appeared until the card was reopened. Both now refresh `state.selectedMark` too.
 
 ### 3. Hordes — wandering fires
 

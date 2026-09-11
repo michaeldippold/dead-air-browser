@@ -4,11 +4,13 @@
 // footprint → free POI → district. The tooltip and context menu are DOM inside the map stage.
 import { DISTRICTS, districtAt } from './districts.js'
 import { previewSeconds, remainingSeconds } from './mover.js'
-import { KIND_LABEL } from './icons.js'
+import { KIND_LABEL, MARK_KIND_LABEL } from './icons.js'
 import { TILE_WAY_OFFSET } from './index.js'
 
 export const fmt = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
 const districtOf = id => DISTRICTS.find(d => d.id === id)
+// 1 tick = 1 game minute (main.js MINS_PER_TICK) — a mark's age in plain minutes/hours.
+const fmtAge = ticks => ticks < 60 ? `${ticks}m ago` : `${Math.floor(ticks / 60)}h ${ticks % 60}m ago`
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 
 // r: the renderer (see index.js) — map, stage, tip, ctx, get/on hooks, selection + follow API.
@@ -45,9 +47,9 @@ export function attachInteraction(r) {
 
   function hit(point) {
     if (!map.getLayer('units')) return {}
-    const feats = map.queryRenderedFeatures(point, { layers: ['units', 'place-badge-0', 'place-badge-1', 'place-badge-2', 'places', 'footprint-fill', 'poi-hit', 'district-fill'] })
+    const feats = map.queryRenderedFeatures(point, { layers: ['units', 'place-badge-0', 'place-badge-1', 'place-badge-2', 'places', 'footprint-fill', 'marks', 'poi-hit', 'district-fill'] })
     const f = id => feats.find(x => x.layer.id === id)
-    const unitF = f('units'), placeF = f('place-badge-0') ?? f('place-badge-1') ?? f('place-badge-2') ?? f('places') ?? f('footprint-fill'), poiF = f('poi-hit'), distF = f('district-fill')
+    const unitF = f('units'), placeF = f('place-badge-0') ?? f('place-badge-1') ?? f('place-badge-2') ?? f('places') ?? f('footprint-fill'), markF = f('marks'), poiF = f('poi-hit'), distF = f('district-fill')
     // HOUSES test view: buildings in the residence pool become hoverable (id readout) — never otherwise.
     let house = null
     if (r.housesDebug) {
@@ -57,6 +59,7 @@ export function attachInteraction(r) {
     return {
       unit: unitF && get.units().find(u => u.id === unitF.properties.id),
       place: placeF && get.places().find(p => p.id === placeF.properties.id),
+      mark: markF && get.marks().find(m => m.id === markF.properties.id),
       poi: poiF, district: distF && districtOf(distF.properties.id), house,
     }
   }
@@ -87,13 +90,20 @@ export function attachInteraction(r) {
     const h = hit(e.point)
     setHoverUnit(h.unit ?? null); setHoverDistrict(h.district ?? null); setHoverPlace(h.place ?? null)
     const sel = r.selectedUnit()
-    map.getCanvas().style.cursor = h.unit || h.place || h.poi ? 'pointer' : h.district && sel ? 'crosshair' : ''
+    map.getCanvas().style.cursor = h.unit || h.place || h.mark || h.poi ? 'pointer' : h.district && sel ? 'crosshair' : ''
     if (h.unit) { showTip(`<b>${esc(get.unitName(h.unit))}</b> <span class="dim">${esc(get.unitStatus(h.unit))}</span>`, e.point); return }
     if (h.place) {
       const p = h.place
       const n = get.units().filter(u => u.status === 'inside' && u.place === p.id).length
       const c = get.placeContacts(p.id).length
       showTip(`<b>${esc(p.name)}</b> <span class="dim">${KIND_LABEL[p.kind] ?? p.kind} · dispatch location${n ? ` · ${n} unit${n > 1 ? 's' : ''} inside` : ''}${c ? ` · ${c} caller${c > 1 ? 's' : ''}` : ''}</span>`, e.point)
+      return
+    }
+    if (h.mark) {
+      const m = h.mark
+      const age = fmtAge(Math.max(0, (get.tick?.() ?? 0) - m.reportedTick))
+      const via = m.reportedBy === 'badge' ? 'scanner' : m.reportedBy
+      showTip(`<b>${MARK_KIND_LABEL[m.kind] ?? m.kind}</b> <span class="dim">${m.label ? esc(m.label) + ' · ' : ''}${age} · via ${via}</span>`, e.point)
       return
     }
     if (h.poi) { const p = h.poi.properties; showTip(`<b>${esc(p.name)}</b> <span class="dim">${esc(p.kind ?? '')}</span>`, e.point); return }
@@ -118,6 +128,7 @@ export function attachInteraction(r) {
     const sel = r.selectedUnit()
     if (h.unit) { on.unitClick(h.unit.id, e.originalEvent?.detail ?? 1); return }
     if (h.place) { on.showPlace(h.place.id); if (sel) on.dispatch(sel.id, { placeId: h.place.id }); return }
+    if (h.mark) { on.showMark(h.mark.id); if (sel) on.dispatch(sel.id, { markId: h.mark.id }); return }
     if (h.poi) { on.showPoi({ name: h.poi.properties.name, kind: h.poi.properties.kind, lonlat: h.poi.geometry.coordinates }); return }
     if (h.house) { navigator.clipboard?.writeText(String(h.house.wayId)); showTip(`<b>house #${h.house.wayId}</b> <span class="dim">copied</span>`, e.point); return }
     if (h.district && sel) { on.dispatch(sel.id, { districtId: h.district.id }); return }
@@ -163,6 +174,13 @@ export function attachInteraction(r) {
         { label: `Dispatch ${who} here${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { placeId: p.id }) },
         { label: 'Show place', run: () => on.showPlace(p.id) },
       ], e.point, p.name)
+    }
+    if (h.mark) {
+      const m = h.mark
+      return openCtx([
+        { label: `Check ${who} here${need}`, disabled: !sel, run: () => on.dispatch(sel.id, { markId: m.id }) },
+        { label: 'Show mark', run: () => on.showMark(m.id) },
+      ], e.point, MARK_KIND_LABEL[m.kind] ?? m.kind)
     }
     if (h.district) {
       const d = h.district

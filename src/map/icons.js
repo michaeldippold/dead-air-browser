@@ -9,6 +9,11 @@ export const KIND_LABEL = { residence: 'Residence', hospital: 'Hospital', police
                             school: 'School', campus: 'Campus', civic: 'Civic', industrial: 'Industrial', landmark: 'Landmark' }
 export const ACCENT = '#ffd24a'
 
+// Marks (todo.md v0.9.0 step 2, design.md "The World" → Situations and marks): a belief, not a
+// fact, so the glyph is deliberately plainer than a place diamond. 'horde' is reserved for step 3.
+export const MARK_COLOR = { fire: '#ff6a3c', block: '#ffcc33', crowd: '#c9c2a8', horde: '#ff3b3b' }
+export const MARK_KIND_LABEL = { fire: 'Fire', block: 'Blocked road', crowd: 'People on foot', horde: 'Sighting' }
+
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r) }
 
 export function carIcon(color) {
@@ -60,6 +65,40 @@ export function pinIcon(dashed = false) {
   return g.getImageData(0, 0, s, s)
 }
 
+// A mark's glyph: plain shapes per kind so they read at a glance without a legend — a flame, a
+// barrier, a knot of people. Deliberately less finished than a place diamond: a mark is a belief,
+// not an authored fact, and it never gets a footprint or a name label of its own.
+export function markIcon(kind) {
+  const color = MARK_COLOR[kind] ?? '#e8e2c9'
+  const s = 30, c = document.createElement('canvas'); c.width = c.height = s
+  const g = c.getContext('2d'); g.translate(s / 2, s / 2)
+  g.shadowColor = color; g.shadowBlur = 6
+  g.fillStyle = color
+  if (kind === 'fire') {
+    g.beginPath()
+    g.moveTo(0, -10); g.bezierCurveTo(6, -3, 5, 4, 0, 10); g.bezierCurveTo(-5, 4, -6, -3, 0, -10)
+    g.closePath(); g.fill()
+  } else if (kind === 'block') {
+    const r = 9
+    g.beginPath()
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI / 8 + i * Math.PI / 4
+      const px = r * Math.cos(a), py = r * Math.sin(a)
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py)
+    }
+    g.closePath(); g.fill()
+  } else if (kind === 'crowd') {
+    g.beginPath(); g.arc(-5, 3, 5, 0, Math.PI * 2); g.fill()
+    g.beginPath(); g.arc(5, 3, 5, 0, Math.PI * 2); g.fill()
+    g.beginPath(); g.arc(0, -4, 5, 0, Math.PI * 2); g.fill()
+  } else {
+    // horde sighting (reserved, todo.md v0.9.0 step 3) — a jagged triangle
+    g.beginPath(); g.moveTo(0, -10); g.lineTo(9, 7); g.lineTo(-9, 7); g.closePath(); g.fill()
+  }
+  g.shadowBlur = 0
+  return g.getImageData(0, 0, s, s)
+}
+
 export function registerIcons(map) {
   for (const [k, c] of Object.entries(ROLE_COLOR)) map.addImage('car-' + k, carIcon(c))
   for (const [k, c] of Object.entries(KIND_COLOR)) map.addImage('place-' + k, placeIcon(c))
@@ -67,4 +106,5 @@ export function registerIcons(map) {
   for (const r of ROLE_ORDER) for (let n = 1; n <= 9; n++) map.addImage(`badge-${r}-${n}`, badgeIcon(ROLE_COLOR[r], n))
   map.addImage('pin', pinIcon(false))
   map.addImage('pin-last', pinIcon(true))
+  for (const k of Object.keys(MARK_COLOR)) map.addImage('mark-' + k, markIcon(k))
 }
