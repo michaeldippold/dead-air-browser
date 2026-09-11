@@ -1,18 +1,55 @@
-# Dispatch — TODO / Scratchpad
+# Dead Air — TODO
 
-> Provisional. Not a changelog. Things move around here.
+> Provisional. Not a changelog. Things move around here. design.md says what the game is; this
+> file says what's built and what's next.
 
 ---
 
 ## Design North Star
 
-The long game is this: **the player never gets clean numbers.** The simulation runs in the background with full fidelity, but everything the player sees is mediated — through a radio feed, a voice on the line, a unit's last transmission, a map color that's going the wrong way. You have an engine on one side, a player on the other, and a machine in the middle that turns state into narrative.
+**The outbreak is weather.** The sim spreads on its own and nothing the player does reduces it.
+The player works inside it: answers named people at real addresses, sends a few cars to calls and
+to reported situations on a map that starts blank, chooses who to stop for on the way, chooses
+where the rescued go, and at dawn sees how they did. Trying to control a zombie outbreak is hubris;
+the game is about doing the job anyway.
 
-The current god mode is a dev tool, not a game mode. Eventually it disappears entirely (or becomes a late-game unlock that feels like cheating). The player should be flying *mostly* blind and making good decisions anyway. That's the skill expression.
+**Complete information, scattered.** Nothing is hidden from the player, but nothing is in one
+place. The map, the call list, the scanner, the directory, the binder, the log — flipping between
+them to assemble a picture *is* the work. If a whole night can be played looking only at the map,
+the information hasn't been spread out enough.
 
-**The win screen is a myth — and that's intentional.** Winning requires both skill and luck. The backend randomization makes it genuinely hard. If players finished a full run and assumed a win state didn't exist, that is the correct experience. It's about the decisions under pressure, the radio going quiet, the moment a district goes dark. Not the end state. Design every feature with this in mind: don't optimize for winning, optimize for meaningful play until you lose. The win screen exists, but it should feel like a rumor.
+**Nothing appears on the map until someone tells you, and sending a car is how you learn.** Marks
+are beliefs; situations are the truth; the distance between them is where units get hurt.
 
-**Simulation speed is load-bearing.** The pace needs to give players enough time to understand the interface before they lose. Too fast and it becomes an RTS — reflex-based, click-heavy, not the target. The goal is: you lose, but you feel like you *almost* had it. You were reading the radio, you were dispatching, you were trying to understand the map — and the city still fell. That's the feeling.
+**Pace: more than you can comfortably do, never click faster.** Not an RTS. Pause stays. The
+target feeling is "I lost someone and I almost had it."
+
+**Every ending is legible.** No score. A card that names its cause and tells the night in names
+and places.
+
+---
+
+## Status after the re-center *(2026-09-10)*
+
+Everything in "What's Shipped" below is real, working code, kept verbatim as the build record. But
+the design was re-centered on 2026-09-10 (see design.md, "Superseded rulings"), so the shipped list
+now splits in two:
+
+**Kept — the foundation the new game is built on:** the windowed desktop, the window-manager
+scripting API, the game clock, the Director and `when.*` vocabulary, the script system with
+conditional routing and `then`, the universal call-answering mechanic, contacts-list indicators,
+dispatch-to-caller with unit threads / RESPONDING / `onArrive` / first-responder-owns, the
+badge-numbered COMMS chatter with per-district degradation, the onboarding flow (Barbara), the
+difficulty/scenario split, the theme system, and **all of Map v3** (real Lexington, routing,
+places, residences, one DISPATCH window, the map as the only dispatch surface, one click rule, one
+Escape rule).
+
+**Retired — shipped, now to be demolished (v0.9.0 step 1):** the combat loop (hit chances, HP,
+counterattack, wound states, medics, rations), the activity system (ENGAGE / HIDE / SCAVENGE and
+patrol), items and loot (`ITEMS`, `LOOT_POOLS`, `rollLoot`, the ITEMS window, item tags), the
+`sim` flag and Location×Activity exposure, radio/binocular intel gating, the district-count and
+units-disbanded lose conditions, win-at-dawn as a "win," and the SITREP god panel as anything but
+a dev tool. The bullets below that describe these are history, not spec.
 
 ---
 
@@ -49,391 +86,277 @@ The core loop is operational. Key systems in place:
 
 ---
 
-## v0.9.0 — Foundation & Story
+## v0.9.0 — The Desk *(the re-center; design.md 2026-09-10)*
 
-> Win/lose conditions are live. The remaining gap is structural, not just narrative: the data
-> model has two different shapes of caller mixed together, "scenario" is about to mean two
-> unrelated things in the same codebase, and the story is thin. This version fixes the
-> foundation — Person/Contact unification, the location system, the Scenario/Difficulty split —
-> so v1.0.0's content has solid ground to build on. See design.md for the concepts behind these.
-> Tutorial/onboarding content also ships as part of 0.9.0 — the full onboarding flow and the
-> universal call-answering mechanic are both built and shipped, see "What's Shipped" above.
-> Tutorial Content below now only tracks what's left of the walkthrough itself.
+> The whole version is one job: turn the shipped foundation into the game design.md now describes.
+> Build order below is chosen so that every step is playable and visibly verifiable on its own, and
+> so that demolition happens *first* — two parallel systems is how the last COMMS change got
+> confusing. Each step names its `main.js` / `src/map` touchpoints so a fresh session can start
+> without re-reading everything. Numbers in here are placeholders to tune, not rulings.
 
-### Dispatch-to-Caller & Unit Comms — the core verb *(core shipped; remaining = the resolution layer)*
+### 1. Demolition — remove the sim the player was scored against
 
-> The keystone build for 0.9.0 — dispatch as the central verb (read a call → send someone → live
-> with what they find), not a passive "send a unit to a district." **Core shipped & verified this
-> session (commits d5b2c7e / 775fe39); full description in "What's Shipped" above.** What remains is
-> the real *resolution* of a call, governed by the `sim`-flag model below (design.md: People →
-> Persons, Content System → "On resolving a call").
+- [ ] **Tick loop:** delete the attack phase, counterattack, medic phase and rations block from
+  `tick()`; keep local SIR spread and inter-district spread. Delete `getHitChance`,
+  `effectiveThreatMod`, `pickCounterTarget`, `woundState`, `handlePersonDeath`'s combat path (keep
+  a plain "person removed" helper for scripts), `districtHasRadio`, `districtHasBinoView`,
+  `personsInDistrict`'s exposure logic, `isRespondingMember`.
+- [ ] **Items and loot:** delete `ITEMS`, `ITEM_ABBREV`, `LOOT_POOLS`, `rollLoot`, `weightedPick`,
+  `district.loot`, `person.items`, `itemTag`, `openItemsReference`, the ITEMS window (`index.html`,
+  `WIN_IDS`, taskbar/desktop icon, `style.css`), `callerItems` on scripts.
+- [ ] **Activities:** delete ENGAGE / HIDE / SCAVENGE (`unit.activity` values, the context-menu
+  verbs in `src/map/interact.js`, the roster buttons, `setUnitsView`), and patrol laps in
+  `src/map/mover.js`. Unit states become `available | enroute | onscene | holding` (see step 4).
+  Arrival at a district just parks.
+- [ ] **Persons:** drop `sim`, `location`, `activity`, `health` from `makePerson`; drop `respondTimer`
+  from `makeUnit` once the arrival roll (step 4) replaces `genericArrivalOutcome`.
+- [ ] **Win/lose:** delete `checkWin` and the district-count / disband-limit branches of `checkLose`
+  (`DISTRICTS_LOST_LIMIT`, unit-loss limit). Dawn and no-hands are re-added as *endings* in step 10.
+- [ ] **Dead civilian-ambient code** (carried over): remove `checkCallEvent`, `CALLER_POOL`,
+  `CALL_TEMPLATES`, the `type:'ambient'` branches in `makeContact` / `maybeFireFirstOpen` /
+  `showContactDetail` / `processNarrativeCallers`. Keep `getCallTier` — it's the tier now.
+- [ ] **SITREP / god panel:** keep as a dev tool behind the existing toggle, but it must never be
+  player-facing; note it in the panel title.
+- [ ] Verify: a night runs start to dawn with spread only, units drive and park, scripts fire, no
+  console errors. Then commit — this is the milestone the rest builds on.
 
-- [x] **Dispatch verb scaffold** *(shipped & verified — full detail in "What's Shipped" above; commits
-  d5b2c7e / 775fe39):* targeted dispatch from the call thread, units-as-contacts, `RESPONDING` with
-  full sim-insulation, the `onArrive` arrival hook, `completeResponse`, and first-responder-owns
-  multi-unit handling.
+### 2. Situations, marks and reports — "nothing appears until someone tells you"
 
-> **The resolution model — settled this session; the `sim` flag is the dividing line.** How a call
-> *ends* is governed entirely by the caller Person's `sim` flag (full treatment in design.md, People
-> → Persons and Content System → "On resolving a call"). `sim:true` = lightweight filler the sim
-> resolves by roll; `sim:false` = heavyweight spine character resolved only by their script. The
-> items below build the real resolution on top of the shipped scaffold. Note: **there are currently
-> zero `sim:true` callers** (ambient pulled from CONTACTS; the four scripted callers are all
-> `sim:false` with no `onArrive`), so the generic roll is deferred until its first consumer exists —
-> the tutorial practice callers / Incidents.
+- [ ] **Situations (ground truth).** `state.situations[id] = { kind: 'fire'|'block'|'crowd'|'horde',
+  pos, node, districtId, bornTick, lifecycle }`. A spawner in `director.tick()` reads each
+  district's tier and rolls spawn rate and kind mix per tier (`SITUATION_RATES[tier]`), placing on
+  a random road node inside the polygon. Hidden lifecycles: a fire burns out after N ticks (house
+  gone), a block may self-clear, a crowd disperses. **Consistency guards:** no spawns in districts
+  with `humans === 0` except hordes; no horde below tier 2; kind mix must match tier.
+- [ ] **Marks (belief).** `state.marks[id] = { kind, pos, node, districtId, reportedTick,
+  reportedBy: 'caller'|'badge'|'unit', situationId|null, label }`. Marks never move or expire.
+  A mark is created by a report, never by the spawner.
+- [ ] **Reports on COMMS.** `emitPoliceChatter` gains a second pool: `REPORT_LINES[kind][tier]`
+  voiced by the district's badge, naming a street (nearest named way to the situation's node —
+  bake a `roads.json` name lookup or use the tile feature). Each report creates a mark with
+  `reportedBy: 'badge'`. Rate scales with tier; a fraction of situations are never reported.
+- [ ] **Marks layer on the map.** New layer in `src/map/layers.js` + glyphs in `icons.js`: kind
+  glyph, timestamp label, age styling (older = dimmer, never gone). Hover: kind, reported when, by
+  whom. Click: selects like a place (card in the DISPATCH window: what was reported, when, dispatch
+  target). Renderer `get.marks()`.
+- [ ] **Dispatchable marks — the Check verb.** `dispatchUnit(unitId, { markId })`: route to the
+  mark's node, arrive `onscene`. Resolution (until step 4's roll): compare the mark to the current
+  truth — situation still there (confirm: refresh `reportedTick`), resolved by the right role (fire
+  out / road cleared: delete situation + mark), or gone (delete mark, unit line "nothing here"). Unit
+  thread lines for each. Horde: confirm or gone, never resolve.
+- [ ] **Routing on marks.** `src/map/graph.js` edge cost: blocked-road marks make their edge
+  impassable; horde marks add a heavy cost within a radius. Remove the true-danger multiplier from
+  edge cost (keep it for drive-time *pacing* only if it still reads right; otherwise drop). Verify a
+  route bends around a mark and not around an unreported situation.
+- [ ] Verify live: a district climbs, COMMS reports a fire at a street, a mark appears, a fire unit
+  sent to it puts it out and reports; a police unit sent to a stale fire finds the house gone.
 
-- [ ] **Pass force/composition to `onArrive`.** Extend the payload to `{ contact, unit, unitCount,
-  roles, hasRole }` so authored content can react to *how many* and *which* units showed up (the
-  scaffold already passes `unit`/`roles`/`hasRole` — add the count). Cheap; do with the next dispatch
-  touch.
-- [ ] **`sim:true` generic resolution — the save/lose roll *(DEFERRED to first `sim:true` caller).***
-  Replace the placeholder flavor with a real, terminal outcome: at the end of the response window,
-  **one** roll weighted by responding force (more units → better odds, diminishing returns) + district
-  danger. **Saved = extracted:** the Person is evacuated *off the board* — removed from the district
-  and the sim, permanently safe (the guarantee that a saved caller can't die after the unit leaves —
-  saving them *is* removing them from danger). **Lost = the Person dies.** Sealed at that one moment.
-  This is what makes under-committing a bad call a genuine failure — and blobbing still a mistake,
-  since the responding units are off the sim the whole time. **On a save, also fire the
-  sim-reinforcement effects** (local suppression + intel reveal — see "Sim↔Caller reinforcement"
-  below); a save isn't only an extraction off the board, it's the one moment a caller dispatch gives
-  anything back to the sim.
-- [ ] **Resolution closure messages.** Because there's no scoreboard, every resolution must leave the
-  player closure. **On a save: both the caller and the unit sign off** — the caller's final message
-  is the player's only "you did good" feedback ("you got us out, thank you — we're clear"), a
-  character confirming they're safe and leaving the call log for good. **On a loss: the caller and/or
-  the unit report it** (a last transmission / a unit confirming what they found). Without these, a
-  `sim:true` caller would silently vanish and the player would never know how they did. The sign-off
-  *is* the score.
-- [ ] **`sim:false` = script-only; soften the current placeholder.** A `sim:false` caller never gets
-  the roll — outcome is 100% authored (arrival beat + choice/timer flow; send no help → the script's
-  own beat handles it). Until real `onArrive` content is authored, the four scripted callers fall
-  through to the generic placeholder, which currently prints "subject safe" without resolving
-  anything. Soften that to a neutral "holding with the caller" line so it doesn't *imply* an outcome
-  that didn't happen.
-- [ ] **Lose condition — *failing the job itself* (ADOPTED this session; was a candidate).** Too many
-  calls left unanswered / unresolved over the night = you failed as a dispatcher — the purest
-  dispatcher-failure loss. Now canon in design.md (Win/Lose) as an adopted condition: it's the
-  *stick* half of the sim↔story integration (the *carrot* is the rescue reinforcement below), and the
-  finite roster is what makes it reinforce the other conditions (units on calls aren't holding the
-  city, and vice versa). Still needs a definition of "too many" / which calls count, depends on the
-  resolution model above (so answered/resolved can be told apart from ignored), and needs its
-  in-fiction warning channel — the OEM/supervisor (Holt) voice sharpening as the job slips — or the
-  loss feels arbitrary (design.md, Win/Lose legibility).
+### 3. Hordes — wandering fires
 
-#### Sim↔Caller reinforcement — the carrot *(new this session; see design.md, "On resolving a call")*
+- [ ] **Piece, not count.** `kind: 'horde'` situations get `heading`, `size: 'few'|'crowd'|'wall'`,
+  and a wander: every few ticks step to an adjacent road node, biased to stay inside the polygon.
+  Count per district set by tier (`HORDES_PER_TIER`), spawned/removed by the spawner as tier changes.
+- [ ] **Spread is a crossing.** When the inter-district spread roll fires, pick a horde in the source
+  district and move it across the boundary to the destination (spawn one if none). The +1 zombie
+  stays; the horde is the fiction for it.
+- [ ] **Sighting reports.** A horde near a caller's house or a badge's district produces a
+  `horde` report → mark at its position now. Verify (police Check) confirms if the horde is within
+  R of the mark, else "gone" and the mark clears.
+- [ ] **Falls.** A horde reaching a place node with people inside (refuge, step 7) overruns it.
+- [ ] Never drawn directly. Dev-only overlay behind the god toggle for tuning.
 
-> The flip side of the job-failure stick: a successful rescue must give bounded value back to the
-> sim, or answering calls stays pure cost and district min-maxing stays the only way to win. Rides on
-> the `sim:true` resolution roll, so deferred to the same first consumer.
+### 4. Unit states, roles and the arrival roll
 
-- [ ] **No bloodless rescue — local suppression on resolution.** A completed call kills a handful of
-  zombies in the responding district *at the moment of resolution* (the unit shot its way in) — a
-  one-time effect, not combat during the call (RESPONDING stays insulated while waiting; the
-  design.md contradiction on this is already fixed). **Hard invariant:** the suppression must be
-  strictly *less* than what that same unit-time would have killed on ENGAGE, so callers are never the
-  efficient sim play. Tune against the ENGAGE kill-rate, not as an absolute number.
-- [ ] **Information reward on a save — the better lever.** A rescued survivor lifts a sliver of fog: a
-  read on an adjacent district. Self-limiting (intel kills nothing, still need finite units to act),
-  so it can be generous, and it's the most on-theme reward there is — information matters more to the
-  win than a few dead zombies. Likely the *primary* caller-reinforcement. Needs an intel/reveal
-  surface to push into.
-- [ ] **Bounded reinforcement — a saved able-body joins the rescuing unit.** Capped at `MAX_UNIT_SIZE`,
-  and only when the Person actually is an able body (not the frightened kid). Offsets attrition;
-  deliberately does *not* grow the dispatchable roster count, so the finite-roster fulcrum survives.
-  Conditional on Person attributes that don't fully exist yet.
-- [ ] **Breadth is the structural payoff — verify, don't hand-build.** Concentrated ENGAGE play loses
-  on the 10-district breadth condition; scattered caller play covers breadth. This needs no new
-  system — it falls out of the suppression + intel above plus the existing district-count loss. The
-  work is *tuning + playtest verification* that the emergent pressure actually shows up.
+- [ ] **Roles:** issued units are `police | fire | ems` (civilian issued units → EMS at spawn in the
+  starting-units block; names/colors/icons in `icons.js` and `style.css`). `civilian` remains as the
+  earned role only.
+- [ ] **States:** `unit.state = 'available' | 'enroute' | 'onscene' | 'holding'` replaces
+  `activity` + `respondTimer`; `unitStatusText` / roster rows / place badges read it.
+- [ ] **The arrival roll.** One function `arrivalRoll(unit, target)` → `success | partial | loss`,
+  weighted by `ROLE_FIT[unit.role][target.kind]` × `TIER_RISK[tier]`. `partial` removes one member
+  (named in the unit line); `loss` disbands the unit (the surviving LEADER DOWN / UNIT DISBANDED
+  alert). Used by `arriveOnCall` for generated callers and by Check for marks. Scripted callers
+  (`onArrive`) never roll. Outcome lines per kind × outcome in a `UNIT_LINES` pool.
+- [ ] Starting unit count is a tuning knob (`DIFFICULTIES`); bump it so the first bad roll isn't the
+  end of the night.
 
-### Ambient callers → unit-voiced COMMS *(shipped; dead-code cleanup remaining)*
+### 5. Interrupts — stopping on the way
 
-> Settled and built this session. It resolved three previously-scattered items at once — the old
-> v1.0.0 "Ambient-caller / COMMS unification," the v1.0.0 "COMMS retool — police-scanner framing,"
-> and the backlog "COMMS Tonal Degradation." The dictum "COMMS broadcasts have no identity" is
-> **dead** (design.md updated): COMMS no longer reads like perfect information out of thin air.
+- [ ] In `resolveTransits`, each tick a moving unit checks situations within R of its current route
+  segment (renderer `pos` is off-limits to the sim — use the transit's tick-indexed route node
+  instead). Roll for an interrupt by kind; an unreported horde on the route rolls `arrivalRoll`
+  immediately (can hurt/kill before a choice).
+- [ ] Interrupt = a RESPOND choice on the unit's thread (`STOP` / `CONTINUE`), reusing the existing
+  choice UI. Stop: retarget the transit to the situation (the mid-route re-dispatch path exists),
+  mark created, roll on arrival, then the original target is *offered* again. Continue: unit line,
+  mark created, drive on.
+- [ ] `INTERRUPT_LINES[kind][tier]` pool: the ask, and outcome lines. Written with care — these are
+  the memorable decisions.
+- [ ] Route choice: the context menu gains "route via" (or the card offers the two shortest
+  routes) so "go around" is a real choice. Small; do after the rest works.
 
-- [x] **Ambient → COMMS police chatter** *(shipped & verified — full detail in "What's Shipped" above;
-  commits d79f032 / fd566b7 / d50306e):* interim removal from CONTACTS, retheme to badge-numbered
-  officer chatter (`emitPoliceChatter` / `POLICE_CHATTER` / `districtBadge`), per-district static
-  degradation and going-dark silence (`degradeChatter` / `SILENT_RATIO`), `[Badge #NNN]: …` format
-  with `$location` in the body, and removal of the impersonal system broadcasts. Naming resolved:
-  `Badge #NNN`, one stable badge per district.
-- [ ] **Dead-code cleanup pass (do before COMMS gets more work).** The old civilian-ambient path is
-  fully superseded and never runs: remove `checkCallEvent`, `CALLER_POOL`, `CALL_TEMPLATES`, and the
-  `type:'ambient'` branches threaded through `makeContact` / `maybeFireFirstOpen` / `showContactDetail`
-  / `processNarrativeCallers`. Keep `getCallTier` (reused by `emitPoliceChatter`). Left in place this
-  session to keep the chatter build low-risk; it's inert but it's two parallel systems, so clear it
-  out before it confuses the next COMMS change.
+### 6. Citizens and the DIRECTORY
 
-### Tutorial Content
+- [ ] **Directory data.** Bake `public/data/directory.json`: ~N fictional names × phone numbers,
+  each pre-assigned to a residence id (from `residences.json`) so name → house is fixed per run
+  seed. Reserve entries for scripted callers' relatives (Danny's David Reyes).
+- [ ] **DIRECTORY window.** New `.win` (`WIN_IDS`, taskbar icon, desktop icon): a search box over
+  name / number / district; a result row lights the house and flies the camera (reuse `litPlace` /
+  `flyTo` / `spawnResidence`-style transient place). Used entries are flagged.
+- [ ] **Generated citizens.** A citizen spawner in `director.tick()` per district tier: draw an unused
+  directory entry in that district, create Person + Contact + house pin (disclosed on first open),
+  opening line from `CITIZEN_OPENERS[kind][tier]` (welfare, fire, injury, trapped, "I saw them"),
+  and a **survival window**. On window close: last line, thread closes, entry stays used. Some
+  openers reference nearby marks (corroboration). Some are routine and stay routine.
+- [ ] **Hunkering down is never safe forever — enforce it.** The survival window is *not* a fixed
+  number set at spawn: each tick the caller's remaining time is drained at a rate read from their
+  district's **current** tier (tier 0 drains nothing; tier 4 drains fast) and their location class
+  (a residence drains slower than outside). A caller in a district that collapses around them runs
+  out of time even if they were fine an hour ago. That's the counterweight to "go": stay is safe
+  *now* and deadly *later*; go is one roll *now* and possibly pure upside (alive somewhere safer,
+  and they saw something on the way). Without this drain, stay is the dominant strategy. The game
+  has no such mechanism today; this is where it lands.
+- [ ] **Rescue → destination.** On a successful arrival for a citizen, the unit thread asks *where
+  to* (see step 7); the caller's closing line lands when they arrive there.
+- [ ] Fence: a house with a live caller is never drawn again; scripted "same house" beats only.
 
-> Full first-time flow is built and shipping — see "What's Shipped" above (Onboarding flow,
-> Universal call-answering mechanic, Contacts-list indicators) for what login → Barbara West →
-> Yes/No → game-start actually does today, in detail. What's left here is finishing the
-> walkthrough content itself: only DISPATCH is covered so far on the "Yes" path. Dead Air–
-> specific scenario content is explicitly deferred until the walkthrough is fully fleshed out
-> with plain reused caller content (see Scenario System below) — don't design that yet.
+### 7. Refuges — where the saved go
 
-- [x] **Node `then:` field — auto-continue for choiceless lines.** A node with `then: <nodeId>` and no `choices`/`resolve` auto-advances to that node after the standard "still typing" beat, so a caller can send several messages in a row before offering a choice. Reuses the `pendingNext`/`replyDelay` path in `advanceNarrativeCaller`, so it inherits the typing indicator and choice-suppression for free; no-op for any node without a `then`. Verified live (Barbara opener chained 3 messages → choices, no errors).
-- [x] **Conditional routing — state-based branching for scripts.** Closes the repeatedly-flagged "state routing not wired" gap. Any destination (`choice.next`, node `then`, node `timerNext`) can now be a node id, a `[{ when, goto }, …]` rule list (first match wins; no-`when` = default), or a `(state) => nodeId` function — resolved via `resolveNext`/`evalRouteCond` (next to `triggerToCondition`). Condition vocabulary: `after-time`/`before-time`, `zombies-over`/`-under`, `ratio-over`, `humans-gone`, `unit-in`, `person-in` (co-location), `all`/`any`. Documented in scripting.md ("Branching on game state"). Verified live (router skipped a false rule, matched a true one). Note: this is *reactive routing* — the separate co-location **Director hook** (auto-*fire* a beat when two named people meet) is still unbuilt; see Foundation.
-- [ ] **Broaden SCRIPT_ACTIONS as the walkthrough grows.** `revealWindow` got added this round because the script needed it. Explicit reminder, not a spec: expect more of the same as the rest of the walkthrough (below) gets written — add hooks when the content actually needs them, not ahead of time.
-- [ ] **Finish the panel walkthrough.** Currently Barbara's "Yes" path only covers DISPATCH. Still needed: MAP, COMMS, ITEMS introduced the same way (reveal + spotlight), window min/max/reposition demonstrated, and 1–2 real scripted dispatches using the already-shipped travel system (not faked) — advancing on `unit-departs`/`unit-enters` at the right moments. Zero zombies seeded, main tick loop not running, but the decoupled `resolveTransits()` loop already runs independently, so travel still counts down in TRAVELING in real time.
-- [ ] **Two practice callers — fire and police framing.** Spawn via the existing `spawnScript()`-style one-off mechanism, reusing today's plain caller content (civilian-role Person/contact, no real fire/crime simulation) — just narratively framed as "a fire" and "a police matter" so the player practices dispatching to specific unit roles. Explicitly not the Incidents system (still unbuilt, see Narrative Clock & Caller Arcs below) and not Dead Air content — deferred per design discussion.
-- [ ] **End-of-tutorial handoff transit.** On her last node (after the practice dispatches), create a `kind: 'person'` transit record with `srcId: 'tutorial'` destined for a chosen residential district, then call `startGame()`. Needs a `'TU'` pseudo-code added to `DISTRICT_CODE` first — the TRAVELING row would otherwise show `??→XX`.
-- [ ] **Tutorial colleague pickup as a real Person.** On arrival (existing `resolveTransits` + a new `person-arrives` event), she becomes a normal `sim: true` Person sitting in that district — exposed to the real simulation like anyone else from that point on. Makes her pickup-able as a recurring character later with no special-casing: once she lands, she's just a Person.
+- [ ] `state.refuges[placeId] = { people: [personId…], heldBy: unitId|null, fallen: false }`.
+  Any authored place can be one; the first time someone is sent there it appears on the map as a
+  refuge (badge + roster in the place card).
+- [ ] **Hold verb:** a unit dispatched to a place with `hold: true` stays `holding` inside; the place
+  card shows it. Unheld refuges are just buildings with people in them.
+- [ ] **Falls:** a horde reaching the place → `fallen`, everyone inside lost (each a closure line on
+  the LOG, names on the dawn card), the place's glyph/footprint restyled *on report* — the report is
+  a last call from inside or the next unit to arrive. A held refuge gets a roll to hold instead.
+- [ ] **Evacuating a refuge:** re-dispatching a unit from a refuge with people can carry them (cap
+  by headcount) to another refuge — the "town hall is about to fall" scramble.
+- [ ] Groups → units by script only (`actions.formUnit(personIds, name)` in `SCRIPT_ACTIONS`).
 
-### Foundation
+### 8. BINDER, memos and LOG
 
-- [x] **Split the start screen into real SCENARIO and DIFFICULTY dropdowns.** Shipped: `#scenario-select` (`Dead Air` default, `Random`) and `#difficulty-select` (`Standard` default, `Apocalypse`, `Custom` — the renamed "Developer" mode, still gated behind `#custom-controls` with the same spread-rate slider + zone grid). No "Story" tier, per decision above.
-- [x] **Rename `SCENARIOS` → `DIFFICULTIES` in code**, including `seedFromScenario()` → `seedFromDifficulty()`. Folded into the dropdown split above.
-- [x] **Add an Apocalypse difficulty preset (mirrors Standard for now).** Literal copy of Standard's numbers with a `TODO: tune harder` comment — verified live, selecting Apocalypse seeds 12 zombies across 3 districts same as Standard. `Custom` stays special-cased in `startGame()`, not folded into the `DIFFICULTIES` data.
-- [x] **Wire up `Dead Air` / `Random` scenario selection (no-op content for now).** `state.scenarioId` is set from `scenarioSelect.value` in `startGame()` — plumbed through, no branching content yet (that's Scenario System below).
+- [ ] **BINDER window.** Static SOP pages (one per call kind: what to send, what not to do, district
+  level rules) as data (`public/data/binder.json`), rendered as a paged document. Memos arrive as
+  Director beats (`game-time` + state) and pin to the top with a timestamp; a new memo flags the
+  window.
+- [ ] **Rules as data.** Each SOP/memo rule is checkable: `{ id, when, forbids | requires }` over
+  a dispatch (`{ unit, target, tier }`). `dispatchUnit` evaluates rules → `state.violations[]`
+  (insubordination) ; unanswered-after-window citizens → `state.neglect[]` (negligence). Both feed
+  Holt (step 10). No meter shown; the binder is the meter.
+- [ ] **LOG window.** Append-only, timestamped: every call opened, dispatch, arrival, outcome, memo,
+  refuge change. The impersonal status lines removed from COMMS go here. Filter by unit / caller.
+  This is the save/resume surface later (v1.0).
 
-- [ ] **Named story locations + contact message labels.** The exposure-multiplier core of the Location system has shipped (see "What's Shipped" below) — what's left is the authoring layer: 2–3 named story locations per district, created only when a script needs one (e.g. "Old Iron Works Loading Dock" for Webb), and surfacing the location as a text label in contact messages (e.g. "Marcus Webb — Old Iron Works, Loading Dock"). Right now every standalone Person's `location` is just `outside`/`business`/`residence` with no name and no display anywhere.
-- [ ] **Outside-as-travel for callers.** Telling a caller to relocate puts them into Outside for a real exposure window — high risk, on foot, much higher per-hop danger than a unit's vehicle travel (see Unit Travel Time, v1.0.0). This is what makes player advice to civilians carry real weight instead of being a free suggestion. Exact tick duration for a transit window is an open tuning question, not urgent.
-- [ ] **Co-location detection.** Director hook that fires when two specific Persons (sent independently to the same named location) are both present — the mechanism that makes long Scenarios with multiple intersecting characters possible without new infrastructure. Shares the targeted-arrival primitive from Dispatch-to-Caller (Up Next) — build on top of it, don't reinvent.
+### 9. The heat rule
 
-### Scenario System
+- [ ] `syncMapPaint`: `danger[id]` = true ratio only if `state.districts[id].lastContactTick` is
+  within `HEAT_RECENCY`; else paint grey and set the district card line "no word since HH:MM".
+  `lastContactTick` is stamped by any call, report, or unit line from that district. Fallen shroud
+  stays ungated. God mode still overrides for dev.
 
-- [ ] **Build the Scenario concept.** A Scenario selects which 1–3 named "spine" characters are active for a run, distinct from Difficulty (see the rename above) — chosen independently at the start screen. Scenario length is a dial: short = one character, a tight arc; long = multiple characters whose paths can intersect via co-location.
-  - **Open question, unresolved:** how do the four existing scripted characters (E. Novak, Marcus Webb, Danny, Dep. Dir. Holt) map onto this system? One default scenario containing all four, or split across multiple? They're currently all always-on with no selection involved, which doesn't fit the new model as-is — needs a decision before this can be built.
-  - **Resolved: yes, bias seeding, never guarantee it.** Picking a Scenario should weight initial zombie placement toward its anchor character's trigger district, making the call likely without forcing it on a fixed timer — a guaranteed/time-locked trigger would make the beat predictable on replay. Treat it as a probability nudge on top of whatever the chosen Difficulty's normal seeding does, not a separate forced placement.
-- [ ] **Difficulty-banded filler pools.** Ambient/Incident content tagged by which difficulty band it's appropriate for, drawn only from the matching band — so randomizing filler timing doesn't accidentally compound with a hard difficulty pick into a brutal outlier run (or a trivial one on hard). The difficulty flag belongs on the script/pool entry, not on the spawned Person.
-- [ ] **"Random" scenario option.** No guaranteed named arc, draws more heavily from filler — replay variety for players who've already seen the authored scenarios.
+### 10. Endings
 
-### Narrative Clock & Caller Arcs
+- [ ] **Dawn card** (`showEndScreen` → a real card): saved by name and refuge, lost by name, never
+  answered (count), each spine character's fate, each unit's fate, refuges held / fallen. Read from
+  `state.people`, `state.refuges`, `state.contacts`, the LOG.
+- [ ] **Relieved of duty:** Holt's authored warning calls fire off `state.violations.length` /
+  `state.neglect.length` thresholds (two separate ladders, two separate voices). Third strike on
+  either → the ending card, naming which.
+- [ ] **No hands:** all units gone → **open** (design.md): card now, or let the night run to dawn
+  with talk only. Build the "let it run" version first since it's free; decide after a playtest.
 
-- [x] **Removed generic "Ignored path" non-response death spirals from Danny, E. Novak, and Holt** (see "What's Shipped" — Universal call-answering mechanic). `holt-lost` was kept — it's shared with the legitimately-authored `holt-dig-in` path. `danny-quiet`, `danny-dark`, `webb-silent` were left alone on purpose — soft non-engagement lines, not death spirals, to be re-authored later when these scripts get a real pass.
-- [ ] **Danny rewrite — full call-response-only arc.** Planned for after the tutorial script is finished: a much longer Danny arc where the player's choices actually save or lose him, not the placeholder 3-choice version that exists today. He's already `sim: false` (every `spawnScript`'d character is, by construction) — re-evaluate whether he should flip to `sim: true` as part of the rewrite, same open question already tracked above for Marcus Webb.
-- [ ] **Narrative clock scripts.** Time-based Director beats for: pre-dawn opening context (ambient COMMS), first midnight (tone shift — this should be the one fixed, always-fires structural beat of the night), overnight atmosphere. Infrastructure ready — `{ type: 'game-time', hour: N }` triggers work. Non-interactive beats go directly in `main.js` as `director.register()`; interactive callers go in `scripts/`. Red herring / non-zombie early scripts to break up info density — Incidents, below, covers most of this need already.
-- [ ] **Decide per-scripted-character `sim` flag.** The generic `person-death` → contact-closing handler shipped (see "What's Shipped" below) — what's still open is whether any of the four scripted characters should actually be killable by the sim instead of purely authored. Danny, Novak, and Holt should likely stay `sim: false` since their arcs are built around an authored ending; Marcus Webb is a good candidate for `sim: true` — he's explicitly in a dangerous district and his script already references losing someone, so it would be more honest if the sim could kill him too. Not yet decided or changed.
-- [ ] **Sandra Hill narrative arc.** Was a named entry in the old ambient caller pool; once that pool is rethemed as anonymous police chatter (see *Ambient callers → unit-voiced COMMS*, Up Next), she's no longer "in" anything — author her fresh as a full scripted CONTACTS arc. Needs the same Scenario-mapping decision raised above: does she belong to an existing scenario, get her own, or stay scenario-independent? (RESPOND-choice visibility is no longer the blocker for this one — that fix is now promoted into Tutorial Content above, since it's needed much earlier than this arc. No naming collision with the tutorial colleague — she's Barbara West now.)
-- [ ] **Rescue beat** *(renamed from "Rescue scenario" — "Scenario" now means something specific elsewhere, don't reuse the word)*. A story beat that fires when a unit enters a district where a scripted caller is hiding. Now a thin content layer on the targeted arrival hook (see Dispatch-to-Caller, Up Next) — not a new mechanism. The generic `unit-enters` event stays wired for non-targeted arrivals.
-- [ ] **The Oblivious Guy** (levity caller). Calls about something completely unrelated. Does not believe in zombies. Resolves peacefully regardless of game state. No stakes — just tone balance. This is effectively the first instance of the Incidents category below — treat it as the template.
-- [ ] **Incidents — non-zombie scripted events.** Fire calls, crime calls, welfare checks, false alarms — the routine 911 work that makes the world feel real and doubles as tutorial content (see Tutorial Content above). Reuses the existing script node format (text/choices/timer/resolve) exactly, just shorter and without a persistent named identity. Zero simulation overhead by design — no district property, no new tick phase, no item requirement (a fire truck has a hose because it's a fire truck). The real stakes are opportunity cost — a unit on a call enters the `RESPONDING` busy state (see Dispatch-to-Caller, Up Next) and can't engage zombies elsewhere while handling it. Some Incidents should be deliberately ambiguous about whether they're zombie-related at all (a welfare check that's probably nothing) — reinforces that the player can't sort calls by importance at a glance.
+### 11. Stay or go — caller travel
+
+- [ ] `person-trip`: a citizen told to move (a choice in their template, or a script action
+  `actions.sendOutside(contact, destPlaceId|null)`) leaves a `lastknown` mark at their house, runs a
+  hidden trip (`ticks` from route length on foot), and resolves with `arrivalRoll`-shaped odds
+  weighted by tier and any horde near the path: arrive (check in from the destination, maybe with a
+  report → mark), or silent. A car already heading to the house arrives to "nobody here."
+- [ ] Scripted callers route on conditions instead: add `horde-near` (scriptId, radius) and
+  `place-fallen` (placeId) to `evalRouteCond`; document in scripting.md when built.
+
+### 12. Scenario: the mall
+
+- [ ] Pick the mall place; make it the anchor. Author the cast: people heading there, calling from
+  it, asking for units, a road cleared, whether it can hold. It's the run's biggest refuge and can
+  fall. Test: does it feel baked into the *whole* run? If not, the scenario feature is rethought.
+- [ ] Re-home the existing four (Novak, Webb, Danny, Holt) under the scenario model — Holt is
+  scenario-independent (he's the job); the other three either join the mall cast or wait for a
+  second scenario. Danny's rewrite uses stay-or-go for real.
+- [ ] `state.scenarioId` finally selects a cast; "Random" loads none.
+
+### 13. Tutorial refresh
+
+- [ ] Barbara's walkthrough teaches the new verbs by doing: a routine fire report → Check with a fire
+  unit; a welfare-check caller → DIRECTORY lookup → Respond; a memo in the BINDER. Then her handoff
+  transit home (existing todo), landing as a citizen in the directory.
+
+### 14. Docs
+
+- [ ] scripting.md: document `formUnit`, `sendOutside`, the new conditions, roles, and the
+  "scripted callers never roll" rule once each lands. Keep it in step with the code, not ahead.
 
 ---
 
 ## v1.0.0 — Presentable
 
-> 1.0 means a stranger who didn't build this can pick it up and understand it.
-> That requires onboarding, a functional dispatch screen, real district consequences, a setting that feels specific, and the narrative feeling alive.
+> 1.0 means a stranger who didn't build this can pick it up and understand it, and a full night
+> feels like a story they'd retell.
 
-### Map & Units
-
-#### Map v3 — real Lexington *(ruled 2026-09-04; design.md "The Map" has the why)*
-
-> **Spike complete and owner-approved (2026-09-04).** The implementation handoff is
-> **`map-integration.md`**: twenty locked decisions, the spike modules to port, every tuned
-> number, the nine districts with adjacency and places, and the build order with `main.js`
-> touchpoints. A fresh session starts there and builds; nothing in it is up for relitigation.
-> The checklist below is the summary; the handoff is the spec.
->
-> **Status 2026-09-04 (end of the integration day): the map is done enough.** Owner ruling: stop fussing
-> with the map and go back to story and game design. Everything below through "Residences" shipped in one
-> session and is verified; the follow-ups list is real but none of it blocks writing. The tools for story
-> are in place — callers at named places or anonymous houses, dispatch drives there, `onArrive` fires,
-> `unit-at` polls co-location — so the next sessions are scripts and playtesting, not layers.
-
-The flat SVG never earned its job as the main information surface. Replacing it with a real
-Lexington map (MapLibre GL + self-hosted PMTiles + our own baked road graph and A* routing), with
-units driving real routes, is now the growth area. Technical constraints are relaxed for this —
-build tools, vendored deps, a Python bake, paid hosting — the only rule is playable and fun in the
-browser. Build order, each step visually verifiable:
-
-- [ ] **Spike** (`spike-map/`, throwaway): PMTiles extract of Lexington loaded in a cut-down
-      Protomaps dark style; `roads.json` baked with osmnx; A* between two clicked points drawn
-      as a line following real streets and one-ways; one unit driving that route at road speed
-      with correct bearing; a few hand-traced district polygons tinted by category. The
-      "see it with your own eyes" gate before anything below starts.
-- [x] **Landmarks first** *(spike, 2026-09-04)*: `spike-map/bake/landmarks.py` pulls every named
-      OSM feature a story could care about (887 in the box) with footprints and addresses; the
-      authored list is hand-picked from it in `bake/districts.py` — 68 places, 5–10 per district (Central Library dropped 2026-09-04: it shares LPD HQ's block),
-      real stations and hospitals included. Still owed: pinning the four scripted callers and
-      Barbara to specific ones, and story-only named locations (a loading dock, a bar) that OSM
-      doesn't carry.
-- [x] **Redraw districts** *(spike, 2026-09-04)*: nine districts built by `bake/districts.py` from
-      named road corridors — each is a clockwise loop of street-name legs; the tool finds the
-      junctions, routes along each named road between them (short off-name detours at a penalty),
-      and emits polygons that follow the real streets. Downtown, Northside, East End, Lakeview Acres,
-      University, Southside, Red Mile, West End, Hamburg. The old hospital/station/government
-      "districts" are places inside these now. **Still owed in the game proper:** recompute
-      adjacency from the polygons; update `main.js` district IDs, loot pools, `DISTRICT_CODE`, and
-      every script's `district` field to the new set; ground outside every district renders dim
-      and is not dispatchable.
-- [x] **Tooling** *(2026-09-04, map-integration.md §5a)*: the game runs on Vite (`npm run dev` on 5678,
-      `npm run build` → `dist/`); map data lives in `public/data/`, icons in `public/images/`; RELEASE.md
-      builds and zips `dist/`; `?map=2d` flag reserved for the SVG fallback until the SVG is retired.
-- [x] **Re-key the districts** *(2026-09-04, §5b)*: nine districts loaded from `districts.geojson`, adjacency
-      computed from the polygons, new `DISTRICT_CODE`s, lose threshold 6 of 9, scripts on the new ids
-      (Danny → northside, E. Novak → university, Marcus Webb → westend / Marathon terminal).
-- [x] **Position vs state in the sim** *(2026-09-04, §5c)*: units carry a road position only the renderer
-      reads; `districtId` is set by arrival / cleared by dispatch; travel time is the route's drive time
-      (danger slows it), arrival stays tick-driven with the car paced to the tick; hop constant retired;
-      units start inside LPD HQ, Fire Station #1 and the Government Center.
-- [x] **Arrival behavior** *(2026-09-04)*: ENGAGE = routed patrol laps inside the polygon, HIDE parks at the
-      entry node, a place = INSIDE with occupancy badges. **SCAVENGE wander still deferred** (parks like HIDE).
-- [x] **Places, two tiers** *(2026-09-04, §5f)*: 68 authored places with footprints, diamonds and badges; free
-      POIs hover + card, not dispatchable; place card with units inside / en route, disclosed callers, dispatch
-      button; roster <-> map hover, contact -> lit footprint + camera fly.
-- [x] **Information rules on the map** *(2026-09-04)*: streets heat + red boundary from the district ratio,
-      cold shroud + grey label at zero humans, all gated by radio / binoculars / god mode; caller pin (gold
-      ring) on disclosure. **Still owed:** dashed last-known ring (needs caller Outside travel), ETA readout for
-      every available unit on selecting a target (the hover ETA for the selected unit exists).
-- [x] **Layout merge** *(2026-09-04, §5e)*: one DISPATCH window: map with a collapsible roster strip, district
-      and place cards on the right; CONTACTS / COMMS sidebars; ResizeObserver; MAP taskbar/desktop entries gone.
-      (The first-cut panels were then reworked in "Ops-window UI pass 1" below.)
-- [x] **Attribution** *(2026-09-04)*: "© OpenStreetMap contributors · Protomaps" in the map corner.
-- [x] **Retire the SVG map** *(2026-09-04, §5i)*: SVG, palettes, unit dots, drag-and-drop and `?map=2d` are gone.
-- [x] **Ops-window UI pass 1** *(2026-09-04)*: roster is thin rows grouped by district (EN ROUTE group on top;
-      cards/badges retired, CSS + `renderUnitCard` kept); one click rule for a unit anywhere (roster row,
-      TRAVELING row, card tag, car): click selects, click again deselects, double-click toggles details, which
-      unfold beneath the list (the list never hides); dispatch dropdown gone (map verbs only); Escape closes
-      the topmost thing (menu, details, unit selection, district/place card + highlight); selected district
-      keeps its hover look; district and place cards float over the map and share one unit-tag component;
-      item tags are one component that opens the ITEMS window scrolled to the entry (tag beside the title);
-      FOLLOW button in details + F key; compass synced to the bearing (click = north up), RESET VIEW, and a
-      BORDERS · STRONG/SUBTLE toggle (testing) at the bottom right of the map; a re-dispatch mid-route
-      replaces the transit instead of queueing another. Still owed: district-card interior tuning after
-      playtesting.
-- [x] **Residences** *(2026-09-04)*: `bake/residences.py` samples 300 house-shaped OSM buildings per district
-      (ids + centroids, no addresses) into `public/data/residences.json`; a script with `location: 'residence'`
-      and no `place` gets a transient "Private residence" place (small diamond, real 3D building lit on
-      disclosure, dispatchable, no loot/address). Danny lives in a random Northside house each run. HOUSES
-      test button lights the whole pool; hover a house for its OSM id, click copies it — paste ids into
-      `public/data/residence-exclude.json` and re-run the bake to curate. Dispatch to a house works like any
-      place (unit drives there, goes INSIDE, `onArrive` fires); new `when` condition `unit-at` (scriptId) for
-      "a unit is in the same place as this caller." Owed: per-house status later.
-- [ ] **Map v3 follow-ups.** SCAVENGE wander (needs place kinds); caller Outside travel + last-known ring;
-      per-target ETA for every available unit; address pool for *generic* callers (the residence pool is the
-      obvious source); blocked streets; a badge
-      digit that reads at overview zoom; heat-look tuning; per-building tint. Design pass on the roster strip
-      and cards (map-integration.md "As built" has the list).
-
-- [ ] **Screen reactivity.** Contested districts blink or pulse. Fallen (overrun) districts go visually dark / all-black. Both respond to the sim without player input, making the map feel alive. *(Folds into Map v3's danger paint.)*
-- [ ] **District consequences with gameplay weight.** OVERRUN: loot inaccessible, spread rate penalty, unit effectiveness reduced, distinct COMMS language. SECURED: slowed reinfection, distinct COMMS callout. Both are visual-only right now. This is the district-wide complement to the per-caller location-safety decay (v0.9.0 Foundation) — not a duplicate: location decay affects one Person's exposure, this affects everyone operating in the district, including units. The "distinct COMMS language" piece here is already most of the way handled by the per-district COMMS degradation in 0.9.0 (an overrun district's scanner chatter is already breaking down) — extend that, don't build a second COMMS path.
-- [x] **Real-world setting.** Lexington, Kentucky, now for real: the map is the city, the nine districts follow its roads, and the places are its actual hospitals, stations and parks (Map v3, 2026-09-04). *Still open:* what the city's declining industry was (steel? auto parts? textiles? tobacco?) — that detail should flavor caller voice, not just signage.
-
-### Endgame & Legibility
-
-> New this session (design.md, Win/Lose). "Many ways to lose" only feels *oppressive but winnable*
-> if every loss is both foreseeable and self-explaining — otherwise varied deaths read as cheap.
-
-- [ ] **Loss legibility — every lose condition telegraphs its approach.** Each failure needs a visible
-  approach arc so the player can name what went wrong: districts darkening on the map (breadth —
-  overlaps "Screen reactivity" above), COMMS fraying to static/silence (a district falling — already
-  built via 0.9.0 degradation), the OEM/Holt voice sharpening (the job slipping — needs authoring),
-  unit threads thinning (attrition). Mostly *wiring existing signals to the right failure*, plus the
-  OEM warning content.
-- [ ] **Board-state-checked end-text.** On any loss, read the board at the firing instant (districts
-  still holding, people pulled out, game time) and use it to author a specific epitaph instead of a
-  fixed string. State already exists — this is a read + a template, not new simulation. This is the
-  replay-texture payoff of "many ways to lose," and the substitute for a morale score's graded
-  endings.
-
-### Audio / Atmosphere
-
-- [ ] **Sound Tier 1 — interface sounds only.** Drop `.wav` files in `sounds/`, call `new Audio(...).play()` in button handlers. No infrastructure needed. Lock the AudioContext unlock to the START MISSION click so everything fires freely after that.
-- [ ] **Sound Tier 2 — ambient loops.** Small `AudioContext`-based manager with gain nodes for crossfading (~50 lines). API: `audio.playAmbient('id')`, `audio.stopAmbient()`. Midnight gets its own loop, triggered via `when.gameTime(0, 0)` Director beat.
-- [ ] **Sound Tier 3 — event-triggered.** Wire Director hooks to stings: `person-death`, `unit-disbanded`. Script nodes get an optional `sound` field played on node entry. `broadcastEvent` accepts an optional sound param.
-- [ ] **COMMS retool — police scanner framing.** *Mostly done in 0.9.0.* COMMS is now exclusively
-  badge-numbered police chatter (`[Badge #NNN]: message`, `$location` substituted into the body,
-  per-district static degradation) — the impersonal system broadcasts (`Movement detected`, `area
-  clear`, `SIGNAL LOST`, `Unit en route`/`arrived`, `UNIT DOWN`/`CONTACT LOST`, scavenge recovery)
-  were **removed** from the feed, not retooled, so the scanner reads human end-to-end. What's left
-  for v1.0.0, *if wanted*: come back and decide whether any of that removed event info should return
-  to COMMS **retooled as human speak** (e.g. a unit's own callsign confirming arrival, an officer
-  noting a district went quiet), rather than the bare status lines. Explicitly *not* required —
-  the current chatter-only flavor (every entry a district status update disguised as radio chatter)
-  is the liked state; revisit only if the feed ever feels too sparse, never to re-add bare logs.
-
-### Systems
-
-- ~~**Ambient-caller / COMMS unification.**~~ **Promoted into 0.9.0 and resolved as a design** — see *Ambient callers → unit-voiced COMMS* (Up Next). The relocation to COMMS, the tier-system carryover, and the named-vs-unknown question all live there now (with the latter deliberately reversed: it's police officers, not named/unknown civilians). The old "COMMS broadcasts have no identity" tension is gone — that rule was retired, not worked around.
-
-- [ ] **Citizen groups forming mid-game.** As the situation escalates, survivor groups should contact dispatch and become dispatchable units — distinct from the scripted callers, these are emergent. A mid-game Director beat spawns a new civilian unit in a non-overrun residential district and opens a contact. Gives the player late-game roster relief and makes the world feel populated. (Spawned Persons aren't subtracted from the district's crowd count — Persons and the crowd are separate ledgers; see design.md.)
-- [ ] **Search for survivors activity.** New unit action alongside ENGAGE/HIDE/SCAVENGE. Each tick: very low base chance (~1–2%) to find a survivor — spawns them as a new no-item member of the unit, fires an alert notification, emits a director event (`survivor-found`) for story beats. Flashlight in unit inventory boosts the chance slightly (maybe 1.5×). Across a full run this should happen ≤5 times across all units — rare enough to feel like an event. (Same note as above: a found survivor is a new Person, not deducted from the district's crowd count.) Secret sauce: `director.on('survivor-found', ...)` is where scripted arcs can hook in.
-- [ ] **New items: knife, flashlight.** Knife: 0.15 hit chance, melee-only, added to loot tables (not spawned). Flashlight: no combat value, boosts survivor-search odds, added to loot tables; ~1/3 of starting civilian squad members spawn with one. Expand the **More items** list too: bolt cutters (unlocks certain loot), flare (reveals adjacent districts without binoculars), megaphone (civilian morale / zombie aggro mechanic). (No fire-hose item — Incidents, above, don't need one; a fire truck has a hose because it's a fire truck.)
-- [ ] **Start the pure data removal pass.** Replace unit HP numbers with status words (HEALTHY / WOUNDED / CRITICAL). Single render change, meaningfully shifts the game toward its intended feel. Don't remove zombie counts yet — one step at a time. **Locked this session:** the exact per-district
-zombie counts (the SITREP / god view) must *never* be player-visible — they stay a dev-only tool,
-because information, not firepower, is the real currency (design.md, Design Philosophy). The "don't
-remove yet" caution is about pacing the *inferred density* the player reads, not about ever exposing
-the raw SITREP.
+- [ ] **Inquiries.** The cast above Holt: the governor (calling because the president called), a
+  Louisville dispatcher, a reporter, a relative asking about an address. Each is a caller who wants
+  an *answer* you find in the binder / log / map; each costs time. Some are the job-failure ending
+  calling ahead.
+- [ ] **Services you phone.** Tow, utility crew — a request with an address and a delay, no car,
+  not on the map as yours. A CONTACTS entry with a form, not a unit.
+- [ ] **National Guard.** At the end of one inquiry tree: new issued units late in the night, or
+  permission to call for them. Arrives with fanfare; the "you almost didn't need us" beat.
+- [ ] **Save / resume** off the LOG + state snapshot, so a 30-minute night can be walked away from.
+- [ ] **Loss legibility wiring.** Districts greying, COMMS silence, Holt sharpening, unit threads
+  thinning — make sure each ending's approach is visible on its own surface before it fires.
+- [ ] **Playtest tuning:** call / report / interrupt volume per hour (the early hour routine but not
+  empty), starting unit count, survival windows, horde counts, `HEAT_RECENCY`.
+- [ ] **Audio.** Tier 1 interface sounds (AudioContext unlocked on START MISSION); Tier 2 ambient
+  loops with a midnight loop; Tier 3 stings on `unit-disbanded`, a refuge falling, a memo arriving;
+  script nodes get an optional `sound`.
+- [ ] **A second scenario**, so "Scenario" is a real choice.
+- [ ] **Contrast audit; window resize from N/W edges; district-card interior tuning** (carried).
+- [ ] Still open from Setting: the city's declining industry, to flavor caller voice.
 
 ---
 
 ## Backlog (v1.1+)
 
-These are good ideas that aren't load-bearing for the core experience yet.
+### Levity callers
+The Oblivious Guy (doesn't believe in zombies), the Prank Caller, the Song Request Guy. All are
+citizens with no stakes — tone balance, and one more reason the list can't be triaged at a glance.
 
-### More Levity Callers
-- **The Prank Caller** — periodic, never useful, hangs up before you respond.
-- **The Song Request Guy** — calls repeatedly until answered once. Yells a song request for a song that doesn't exist. Never calls again. Needs a `one-shot-acknowledged` resolve type.
-- Both are good fits for the Incidents category (v0.9.0) — non-zombie, scripted, no/low stakes.
+### The Biker Gang
+A rare citizen group pinned down somewhere; a successful rescue forms them into an earned unit by
+script (not extraction). The memorable "saved → recruited" swing. Needs step 7's `formUnit`.
 
-### The Biker Gang (rare rescue → armed unit)
-A rare `sim: true` caller: a biker gang pinned down somewhere. Save them (dispatch + successful
-resolution) and instead of the usual extraction-off-the-board, they **convert into an all-civilian
-unit where every member carries a `gun`** — a hard-hitting squad (gun = 0.50, the top weapon) that
-lands as a genuine capability windfall. The memorable, high-variance instance of "saved →
-capability": rare enough not to dent roster scarcity, earned through a real rescue gamble, a
-one-time swing rather than a farmable economy. Deliberately bends the default "saved = extracted off
-the board" into "saved = recruited" (an authored exception for a special caller). As a unit they're
-then dispatchable *and* losable like any other — capability with ongoing risk, not a free permanent
-win. Gated on the `sim:true` rescue resolution roll existing. The kind of secret a player tells
-someone about.
+### Information relay
+Mostly absorbed by Inquiries: a beat where caller A tells you something caller B needs, and you have
+to carry it. What's left is the fiction — what's worth relaying, and what goes wrong if you carry it
+wrong.
 
-### Information relay — the player as switchboard
-Long-term, context-TBD possibility: a beat where the player has to **get a piece of information from
-one caller and relay it to a second caller** over the phone — the dispatcher as the literal link
-between two people who can't reach each other directly. No concrete context yet; logged because it's
-provocative. Fits the premise hard (the player is the node everything passes through, and
-information is the currency), and the building blocks mostly exist — a per-run flag set when caller A
-reveals X, gating a choice/route in caller B's thread (conditional routing). The open question is
-the *fiction*: what's worth relaying, and what goes wrong if you carry it wrong.
+### Terminal window
+Typed commands (`/dispatch 3 good-samaritan`) for keyboard players. Fits the desk perfectly. After
+the verbs stop changing.
 
-### Combat Mechanics
-Does unit damage scale with unit size? Currently each person gets one attack roll per tick regardless. Larger units may feel more powerful through survivability alone, but concentrated firepower scaling is an open question.
+### Camera feeds
+Faked CCTV windows — a dark street, rain, a lightning strobe. Pure atmosphere at first; later a
+feed can *be* a report source (a camera shows a road blocked) and can go down with a district's
+power. Build after the terminal.
 
-### Windowed UI Flavor
-Fake desktop icons, a desktop background that sells the dispatcher's office. Once the flavor of the dispatcher role is locked, this makes the whole thing feel like a place rather than a UI exercise.
+### Unit-scoped morale *(benched, not rejected)*
+A per-unit or per-district "hope" value feeding emergent events. Only if a specific mechanic needs
+it; never a master score (design.md, Out of Scope).
 
-### Right-Click Context Menus
-`e.preventDefault()` on `contextmenu` event opens up right-click actions on districts (assign nearest unit, check intel). Add after core dispatch UX is stable. Note: suppresses browser Inspect shortcut during gameplay — fine in production.
-
-### Unit-Scoped Morale
-A morale meter on the Unit (not individual persons). Drops on bad outcomes, rises on success. Affects combat effectiveness or response time. Design after the core loop is tuned.
-
-**Session note (benched, not rejected):** a *global* morale / master-score was considered and explicitly rejected as the lose model (see design.md, Explicitly Out of Scope) — it flattens the distinct, legible lose causes into one illegible number. This *local* form (per-unit, or a per-district "hope" value) survives only as a future mechanic introduced *if and when a specific need calls for it* — e.g. per-district hope feeding emergent survivor-group spawns — never as the thing win/lose hangs on.
-
-### Terminal Window
-A dedicated TERMINAL window where game actions can be driven by typed commands — for fast typers and keyboard-preferrers. Example: `/dispatch 1 westgate` dispatches Unit 1 to Westgate; returns a success line or an error code if the unit or district isn't found, or the unit is already there. Ideally covers the most common actions first: dispatch, set activity, check district status. The window itself fits the aesthetic perfectly — it's already a game about sitting at a computer. Low priority but high ceiling; build after the core UX is fully stable so the command vocabulary doesn't drift.
-
-### Map v2 — Infrastructure & Atmosphere *(SUPERSEDED 2026-09-04 by Map v3 in v1.0.0 — kept for the trail)*
-The current SVG map is right-angle polygons with flat fills, which reads well as a tactical CAD display and is correct for v1. When the map becomes a growth area again, the upgrade path is:
-
-- **D3.js for pan/zoom.** `d3.zoom()` bound to the SVG — single call, gives smooth pinch/scroll zoom and drag-pan. Data joins for updating district state without touching the DOM manually.
-- **SVG layers as `<g>` elements.** Dead simple to add: each infrastructure type (power grid, water mains, road network) is a `<g>` toggled with `display: none/block`. No new abstraction needed. Click a layer button, show/hide the group.
-- **Canvas overlay for atmosphere.** Draw a `<canvas>` on top of the SVG at `position: absolute`. Use it for fog-of-war gradients, rain particle effects, static/flicker effects when a district goes dark. Canvas is cheap and doesn't affect SVG hit detection.
-- **Unit transit paths.** When a unit is dispatched, animate a dot along a straight SVG line from origin to destination. Low implementation cost, high clarity payoff.
-- **City shape.** Right angles are intentional and readable — a realistic street grid is secondary to the tactical aesthetic. Revisit only if the map becomes a major feature with zoom and street-level detail.
-
-Build none of this until D3 is worth pulling in for other reasons too (e.g. data visualization in the SITREP panel).
-
-### COMMS Tonal Degradation
-**Promoted into 0.9.0 with a concrete mechanism** — see *Ambient callers → unit-voiced COMMS* (Up Next), "Per-district COMMS degradation." The old vague "tone shifts based on how the run is going" is now pinned down: per-district zombie ratio drives word-level static replacement on the scanner lines, so degradation is local and legible rather than a global mood dial.
-
-### Camera Feeds
-Faked CCTV-style windows showing animated loops — a dark street silhouette, rain on pavement, lightning that strobes the scene for a frame. Pure AV flavor, zero gameplay information, but enormous atmosphere payoff at fullscreen. Implementation: a single looping GIF or canvas animation per feed, maybe one or two feeds max. Pairs naturally with ambient rain audio from the sound system. Think how much Project Zomboid wrings out of its isometric camera — the same principle applied to a static feed. Build this last, after the Terminal window, once the rest of the game is solid enough that flavor is the marginal gain.
-
-### Military Unit Type — National Guard
-A late-game Director event unlocks a military contact once certain conditions are met (e.g., N hours survived, N districts lost, a specific story beat). Calling in the National Guard spawns one or more military units — a fourth role type distinct from police/fire/civilian. Higher base threat modifier, armed with a machine gun item (higher hit chance or multi-kill per attack roll). Arrives with fanfare and changes the tone of the endgame significantly. The "you almost didn't need us" feeling if the player has held on long enough.
-
-### Full Pure Data Removal
-- No zombie counts visible to player — just density words (CLEAR / LIGHT / HEAVY / OVERRUN)
-- God mode removed from player-facing UI entirely
-- The only source of truth is COMMS and the callers
+### Windowed UI flavor
+More desk: a clock that's a clock, a coffee ring, a sticky note with the shift roster. Cheap, and
+it's the whole game.
 
 ---
 
@@ -441,3 +364,5 @@ A late-game Director event unlocks a military contact once certain conditions ar
 
 - Window resize from N/W edges doesn't clamp (can push off-screen — low priority)
 - Contrast audit still needed in some panels — target: anything intentionally dim should still be legible; only decorative/idle elements near-invisible
+- `renderUnitCard` + cards/badges CSS are kept but unused since the roster became thin rows; delete
+  in the demolition pass.

@@ -1,3 +1,5 @@
+> **Historical (2026-09-10).** This is the Map v3 integration handoff, kept as the record of what was decided and built on 2026-09-04. Everything in it shipped. The map itself is unchanged by the 2026-09-10 re-center, but two things this file assumes are now superseded by design.md: routes read *marks* (reported situations), not the true district danger; and danger paint is gated by recency of contact, not by a radio in the district. ENGAGE / HIDE / SCAVENGE and patrol are retired. Start new map work from design.md ("The World", "The Map") and todo.md v0.9.0, not from here.
+
 # Map v3 — Integration Handoff
 
 > **Purpose.** Everything a fresh session needs to build the real-Lexington map into Dead Air

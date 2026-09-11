@@ -17,17 +17,15 @@ they have with the dispatcher. Each caller lives in its own file in `scripts/` (
 `scripts/danny.js`). The game shows the caller in the CONTACTS list; the player opens the thread
 and talks to them by picking replies.
 
-By default your character is **protected from the simulation** (`sim: false`): the zombies can't
-randomly kill them, and only *your script* decides whether they live, die, or go quiet. That's
-right for **spine characters** whose arc has to play out — they're never killed by a dice roll,
-only by the story you write.
+**A scripted character is never touched by the simulation.** Nothing in the background can kill
+them, no dice roll decides their fate — only *your script* does. That's the whole point of writing
+one: they're the **spine characters** whose arc has to play out the way you wrote it, branching on
+the player's choices and on the state of the world (see "Branching on game state"). The disposable,
+"if you miss it, you miss it" callers are *generated* by the game from the directory, not scripted
+— you never need to write one of those.
 
-But you can flip that. Set **`sim: true`** and the character is **exposed to the simulation like
-anyone else** — the zombies in their district can kill them if the player doesn't reach them in
-time, and their thread closes on its own when they die. This is for **self-contained callers** who
-don't *need* to survive for a later beat: a one-off where, if you miss it, you miss it — better
-luck next game. Rule of thumb: `sim: false` for the characters the night is built around,
-`sim: true` for the disposable ones.
+*(If you're looking at an older script: the `sim:` field is retired and ignored. It dates from when
+the simulation could fight; it can't anymore — see design.md, "Superseded rulings.")*
 
 ---
 
@@ -41,15 +39,12 @@ export default {
   id:          'maria',          // unique id, should match the filename
   name:        'Maria Reyes',    // the caller's name, shown in CONTACTS
   callerRole:  'civilian',       // 'civilian' | 'police' | 'fire' — affects their map dot + risk
-  callerItems: [],               // items they're carrying (usually none for a civilian)
   district:    'northside',      // which district they're calling from (or null)
   place:       'castlewood-park', // optional: the authored place they're at (an id from public/data/places.json).
                                  // Becomes their map pin once they've told you where they are (first opened line);
                                  // a unit dispatched to them drives there and goes inside.
-  location:    'residence',      // optional exposure class: 'outside' | 'business' | 'residence'. With no `place`,
-                                 // 'residence' also puts them in a random anonymous house in their district — a
-                                 // small diamond, the real building lights up, no address is ever shown.
-  sim:         false,            // false = protected (only the script ends their story); true = exposed, can die if unhelped
+  location:    'residence',      // optional: 'residence' with no `place` puts them in an anonymous house in their
+                                 // district — a small diamond, the real building lights up, no address is ever shown.
   trigger:     { type: 'game-time', hour: 23 },  // WHEN they call in (see Triggers). Omit = never auto-fires.
   once:        true,             // fire only once (default true)
 
@@ -279,6 +274,12 @@ Need a condition that isn't here? It's a small add — name it. And for a truly 
 destination can also be a raw function `(state) => nodeId` (an escape hatch), but prefer the rule
 list — it reads like the rest of the script and you don't have to think in code.
 
+> **Coming with the marks layer (todo.md v0.9.0, not built yet):** `horde-near` (a reported or
+> real horde within a radius of your caller), `place-fallen` (a refuge has been overrun), plus
+> script actions to send a caller somewhere on foot (`sendOutside`) and to form survivors into a
+> unit (`formUnit`). Write the beat that needs them and flag it; they'll be added when the layer
+> lands.
+
 ---
 
 ## How to actually write one
@@ -302,8 +303,7 @@ on syntax — write the story, name the hooks, and the translation handles the r
 
 ```
 SCRIPT
-  id, name, callerRole, callerItems, district
-  sim                       → false = protected (script-only fate) | true = exposed, can die unhelped
+  id, name, callerRole, district, place | location
   trigger: { type, … }      → when they call (omit = code-spawned only)
   once                      → fire once (default true)
   nodes: { … }              → the conversation
