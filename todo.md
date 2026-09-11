@@ -192,6 +192,23 @@ The core loop is operational. Key systems in place:
   had already gone gets the "gone" line. Zero console errors throughout. **Second bug found and
   fixed:** `selectUnit`/`deselectUnit` refreshed an open place card but not an open mark card — the
   CHECK button never appeared until the card was reopened. Both now refresh `state.selectedMark` too.
+- [x] **Legend + layer toggles (2026-09-11, owner follow-up).** Marks were originally drawn as
+  distinct per-kind shapes (a flame, an octagon, a knot of dots), which quietly broke the map's own
+  visual grammar: shape = category, color = kind (a diamond is always a place regardless of kind
+  color; a circle is always an occupancy count regardless of role color). Fixed `markIcon()` to one
+  shared triangle silhouette (echoing the diamond's outer-shape/dark-cutout/center-dot construction)
+  colored by `MARK_COLOR`, so "triangle = report" reads the same way "diamond = place" already does.
+  Added a LEGEND button next to BORDERS (`#map-legend-panel`) showing all three marker families —
+  places (diamond), units inside (role-colored circles), reports (kind-colored triangles) — each
+  with its own show/hide toggle, persisted to `localStorage`. Swatches are generated from
+  `ROLE_COLOR`/`MARK_COLOR` in main.js, never hand-duplicated in the HTML, so the legend can't drift
+  from what the icons actually draw. `src/map/index.js` gained `LAYER_GROUPS` + `setLayerVisible()`
+  (applies immediately if the map's loaded, else queued and applied once in the `'load'` handler).
+  **Bug found and fixed:** the panel's own `#map-legend-panel { display: flex }` rule (author
+  stylesheet) was beating the browser's default `[hidden]{display:none}`, so the panel showed on
+  page load regardless of the `hidden` attribute — added an explicit `#map-legend-panel[hidden] {
+  display: none }` override. Verified live: all three toggles independently show/hide their layer
+  with no effect on the other two, state is visually correct in both directions, zero console errors.
 
 ### 3. Hordes — wandering fires
 

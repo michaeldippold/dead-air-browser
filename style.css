@@ -657,6 +657,48 @@ body.god-mode #btn-god-mode { color: var(--accent); border-color: var(--accent);
 }
 .map-float-btn:hover, .map-float-btn.active { color: var(--accent); border-color: var(--border-active); }
 
+/* Legend + layer toggles — floats above #map-controls, bottom-right, opened by the LEGEND button.
+   Swatch colors come from main.js (the same constants the icons themselves are drawn from), never
+   hand-duplicated here, so the legend can't drift from what the map actually shows. */
+#map-legend-panel {
+  position: absolute;
+  right: 10px;
+  bottom: 92px;
+  z-index: 8;
+  width: 192px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(3px);
+}
+#map-legend-panel[hidden] { display: none; }   /* author `display:flex` above would otherwise beat the UA [hidden] rule */
+.legend-title { font-size: 10px; font-weight: bold; letter-spacing: 0.12em; color: var(--text-dimmer); }
+.legend-row { display: flex; align-items: center; gap: 8px; }
+.legend-row--off { opacity: 0.5; }
+.legend-shapes { display: flex; gap: 3px; flex: 0 0 auto; width: 46px; }
+.legend-label { flex: 1; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend-toggle {
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  color: var(--accent);
+  border: 1px solid var(--border-active);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.legend-toggle:hover { border-color: var(--border-active); filter: brightness(1.3); }
+.legend-toggle--off { color: var(--text-dimmer); border-color: var(--border); }
+
+.legend-swatch { display: inline-block; width: 12px; height: 12px; background: var(--sw, #e8e2c9); flex: 0 0 auto; }
+.legend-swatch--diamond  { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.legend-swatch--circle   { border-radius: 50%; }
+.legend-swatch--triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+
 #map-container[data-view="place"] #place-detail-panel { display: flex; }
 .pdv-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
 #pdv-name {

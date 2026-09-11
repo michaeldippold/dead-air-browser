@@ -150,7 +150,30 @@
             <div class="map-controls-row">
               <button id="map-reset-btn" class="map-float-btn" title="Return the camera to the opening view">RESET VIEW</button>
               <button id="map-boundary-btn" class="map-float-btn" title="District boundary look (testing)">BORDERS · STRONG</button>
+              <button id="map-legend-btn" class="map-float-btn" title="Show what each map symbol means, and hide any of them">LEGEND</button>
               <button id="map-houses-btn" class="map-float-btn" title="Testing: light every house in the residence pool; hover for its id, click to copy">HOUSES</button>
+            </div>
+          </div>
+
+          <!-- Legend + layer toggles (todo.md v0.9.0 follow-up): what each marker shape means, and
+               a per-layer show/hide. Swatch colors are filled in by main.js from the same color
+               constants the icons themselves use, so this can never drift from what's on the map. -->
+          <div id="map-legend-panel" hidden>
+            <div class="legend-title">MAP SYMBOLS</div>
+            <div class="legend-row" data-layer="places">
+              <span class="legend-shapes"><span class="legend-swatch legend-swatch--diamond"></span></span>
+              <span class="legend-label">Places</span>
+              <button class="legend-toggle" data-layer="places">ON</button>
+            </div>
+            <div class="legend-row" data-layer="badges">
+              <span class="legend-shapes" data-shapes="circle"></span>
+              <span class="legend-label">Units inside</span>
+              <button class="legend-toggle" data-layer="badges">ON</button>
+            </div>
+            <div class="legend-row" data-layer="marks">
+              <span class="legend-shapes" data-shapes="triangle"></span>
+              <span class="legend-label">Reports</span>
+              <button class="legend-toggle" data-layer="marks">ON</button>
             </div>
           </div>
 

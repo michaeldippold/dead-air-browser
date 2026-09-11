@@ -106,6 +106,23 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
   r.refresh = () => { r.pushUnits(); r.pushPlaces() }
   r.setBoundaries = strong => { r.strongBoundaries = strong; if (r.ready) applyBoundary(map, strong) }
 
+  // Legend + layer toggles: the three marker layers the legend panel can hide independently
+  // (index.html #map-legend-panel). Kept as named groups here, not scattered layer ids in main.js,
+  // so the legend only ever has to say "places" / "badges" / "marks". `place-ring` (the gold
+  // disclosed-caller ring) travels with 'places' — a ring with no diamond under it reads as broken.
+  const LAYER_GROUPS = { places: ['places', 'place-ring'], badges: ['place-badge-0', 'place-badge-1', 'place-badge-2'], marks: ['marks'] }
+  const layerVisible = { places: true, badges: true, marks: true }
+  function applyLayerVisibility() {
+    for (const [group, ids] of Object.entries(LAYER_GROUPS)) {
+      const vis = layerVisible[group] ? 'visible' : 'none'
+      for (const id of ids) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+    }
+  }
+  r.setLayerVisible = (group, visible) => {
+    layerVisible[group] = visible
+    if (r.ready) applyLayerVisibility()   // else applied once in the 'load' handler below
+  }
+
   // ── Selection + follow ──
   let selectedId = null
   r.selectedUnit = () => (selectedId ? get.units().find(u => u.id === selectedId) ?? null : null)
@@ -178,6 +195,7 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     })
     r.ready = true
     applyBoundary(map, r.strongBoundaries)
+    applyLayerVisibility()
     attachInteraction(r)
     if (selectedId) map.setFeatureState({ source: 'units', id: selectedId }, { selected: true })
     r.refresh()

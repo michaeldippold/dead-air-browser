@@ -65,37 +65,23 @@ export function pinIcon(dashed = false) {
   return g.getImageData(0, 0, s, s)
 }
 
-// A mark's glyph: plain shapes per kind so they read at a glance without a legend — a flame, a
-// barrier, a knot of people. Deliberately less finished than a place diamond: a mark is a belief,
-// not an authored fact, and it never gets a footprint or a name label of its own.
+// A mark's glyph: one shared silhouette for every kind — a triangle, echoing the same
+// outer-shape / dark-cutout / center-dot language placeIcon uses for a diamond, so the map's
+// symbol grammar reads as "shape = category, color = kind" throughout (a diamond is a place, a
+// circle is an occupancy count, a triangle is a report). Kind is color only (MARK_COLOR) — see the
+// legend panel (index.html #map-legend-panel), which is built from these same color constants so
+// it can never drift from what's actually drawn.
 export function markIcon(kind) {
   const color = MARK_COLOR[kind] ?? '#e8e2c9'
-  const s = 30, c = document.createElement('canvas'); c.width = c.height = s
+  const s = 32, c = document.createElement('canvas'); c.width = c.height = s
   const g = c.getContext('2d'); g.translate(s / 2, s / 2)
   g.shadowColor = color; g.shadowBlur = 6
   g.fillStyle = color
-  if (kind === 'fire') {
-    g.beginPath()
-    g.moveTo(0, -10); g.bezierCurveTo(6, -3, 5, 4, 0, 10); g.bezierCurveTo(-5, 4, -6, -3, 0, -10)
-    g.closePath(); g.fill()
-  } else if (kind === 'block') {
-    const r = 9
-    g.beginPath()
-    for (let i = 0; i < 8; i++) {
-      const a = Math.PI / 8 + i * Math.PI / 4
-      const px = r * Math.cos(a), py = r * Math.sin(a)
-      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py)
-    }
-    g.closePath(); g.fill()
-  } else if (kind === 'crowd') {
-    g.beginPath(); g.arc(-5, 3, 5, 0, Math.PI * 2); g.fill()
-    g.beginPath(); g.arc(5, 3, 5, 0, Math.PI * 2); g.fill()
-    g.beginPath(); g.arc(0, -4, 5, 0, Math.PI * 2); g.fill()
-  } else {
-    // horde sighting (reserved, todo.md v0.9.0 step 3) — a jagged triangle
-    g.beginPath(); g.moveTo(0, -10); g.lineTo(9, 7); g.lineTo(-9, 7); g.closePath(); g.fill()
-  }
+  g.beginPath(); g.moveTo(0, -12); g.lineTo(11, 8); g.lineTo(-11, 8); g.closePath(); g.fill()
   g.shadowBlur = 0
+  g.fillStyle = MAP_BG
+  g.beginPath(); g.moveTo(0, -6); g.lineTo(6, 6); g.lineTo(-6, 6); g.closePath(); g.fill()
+  g.fillStyle = color; g.beginPath(); g.arc(0, 2.5, 1.8, 0, Math.PI * 2); g.fill()
   return g.getImageData(0, 0, s, s)
 }
 

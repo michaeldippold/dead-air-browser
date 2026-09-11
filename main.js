@@ -7,7 +7,7 @@ import { DISTRICTS, loadDistricts, adjacencyFromPolygons, districtAt, tagEdges, 
 import { loadGraph, graph, nearestNode, setRouteHazards, streetNear } from './src/map/graph.js'
 import * as mover from './src/map/mover.js'
 import { createMapRenderer } from './src/map/index.js'
-import { MARK_KIND_LABEL } from './src/map/icons.js'
+import { MARK_KIND_LABEL, MARK_COLOR, ROLE_COLOR, ROLE_ORDER } from './src/map/icons.js'
 
 // ── CONFIG & CONSTANTS ──
 
@@ -957,6 +957,38 @@ window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover,
   }
   apply()
   btn.addEventListener('click', () => { strong = !strong; apply() })
+}
+
+// Legend + layer toggles: what each map symbol means (shape = category, color = kind — a diamond
+// is a place, a circle is an occupancy count, a triangle is a report), and a per-layer show/hide.
+// Swatches are built from the same color constants the icons themselves use (ROLE_COLOR,
+// MARK_COLOR), so the legend can never say something the map doesn't actually draw.
+{
+  const panel = document.getElementById('map-legend-panel')
+  const legendBtn = document.getElementById('map-legend-btn')
+  legendBtn.addEventListener('click', () => { panel.hidden = !panel.hidden })
+
+  const swatch = (cls, color) => `<span class="legend-swatch legend-swatch--${cls}" style="--sw:${color}"></span>`
+  panel.querySelector('[data-shapes="circle"]').innerHTML =
+    ROLE_ORDER.map(r => swatch('circle', ROLE_COLOR[r])).join('')
+  panel.querySelector('[data-shapes="triangle"]').innerHTML =
+    Object.entries(MARK_COLOR).filter(([k]) => k !== 'horde')   // horde has no spawner yet (step 3)
+      .map(([, color]) => swatch('triangle', color)).join('')
+
+  for (const layer of ['places', 'badges', 'marks']) {
+    const row = panel.querySelector(`[data-layer="${layer}"]`)
+    const toggleBtn = row.querySelector('.legend-toggle')
+    let visible = localStorage.getItem(`dispatch-map-layer-${layer}`) !== 'off'
+    const apply = () => {
+      mapRenderer.setLayerVisible(layer, visible)
+      toggleBtn.textContent = visible ? 'ON' : 'OFF'
+      toggleBtn.classList.toggle('legend-toggle--off', !visible)
+      row.classList.toggle('legend-row--off', !visible)
+      localStorage.setItem(`dispatch-map-layer-${layer}`, visible ? 'on' : 'off')
+    }
+    apply()
+    toggleBtn.addEventListener('click', () => { visible = !visible; apply() })
+  }
 }
 
 // Camera controls: the compass needle tracks the map bearing (a real map deserves one); clicking
