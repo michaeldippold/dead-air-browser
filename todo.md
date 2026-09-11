@@ -212,17 +212,48 @@ The core loop is operational. Key systems in place:
 
 ### 3. Hordes — wandering fires
 
-- [ ] **Piece, not count.** `kind: 'horde'` situations get `heading`, `size: 'few'|'crowd'|'wall'`,
-  and a wander: every few ticks step to an adjacent road node, biased to stay inside the polygon.
-  Count per district set by tier (`HORDES_PER_TIER`), spawned/removed by the spawner as tier changes.
-- [ ] **Spread is a crossing.** When the inter-district spread roll fires, pick a horde in the source
-  district and move it across the boundary to the destination (spawn one if none). The +1 zombie
-  stays; the horde is the fiction for it.
-- [ ] **Sighting reports.** A horde near a caller's house or a badge's district produces a
-  `horde` report → mark at its position now. Verify (police Check) confirms if the horde is within
-  R of the mark, else "gone" and the mark clears.
-- [ ] **Falls.** A horde reaching a place node with people inside (refuge, step 7) overruns it.
-- [ ] Never drawn directly. Dev-only overlay behind the god toggle for tuning.
+- [x] **Piece, not count.** `state.situations[id] = { kind: 'horde', pos, node, districtId,
+  heading, size: 'few'|'crowd'|'wall' }` — no count anywhere. `spawnSituations()` now also tops
+  each district up toward `HORDES_PER_TIER[tier]` (`{0:0, 1:0, 2:1, 3:2, 4:3}` — none below tier 2,
+  per the consistency guard) rather than rolling a spawn chance like the static kinds; nothing
+  forcibly despawns one if the tier later drops, matching "a horde already there doesn't vanish
+  because things calmed down elsewhere." `wanderHordes()` (called from `tick()`) steps each horde
+  along `graph.out[node]` every tick at `HORDE_WANDER_CHANCE` (0.3), biased `HORDE_STAY_IN_DISTRICT`
+  (0.85) to pick a same-district edge over crossing one, updating `districtId` when it does drift
+  across on its own.
+- [x] **Spread is a crossing.** `crossHorde(srcId, destId)`, called from the existing inter-district
+  spread roll in `tick()` right after the `+1 zombie`: moves an existing horde from the source
+  district to a random interior node in the destination, or spawns one there if the source has
+  none to send. The zombie number and the horde are two views of the same event now, not two
+  sources of truth.
+- [x] **Sighting reports.** Reuses step 2's `emitPoliceChatter` report path unchanged — a horde is
+  just another `state.situations` entry, so it competes for the same per-tick report roll as fire
+  and block. Added `REPORT_LINES.horde` (all 5 tiers — a horde can wander into any district
+  regardless of that district's own tier, thanks to crossing). **Caller sightings deferred**: "near
+  a caller's house" needs a real caller with a location, which is step 6 (generated citizens); the
+  badge-report path was already step 2's scope and needed no new mechanism.
+- [x] **Verify (police Check) — real confirm/gone, not the step-2 stub.** `arriveAtMark`'s
+  `UNRESOLVABLE_KINDS` branch now checks `dist(mark.pos, situation.pos)` against
+  `HORDE_CONFIRM_RADIUS_M` (300m): within range, the mark is *re-anchored* to the horde's current
+  position/node/street and `reportedTick` refreshes ("the police are looking right at it now");
+  beyond it, the mark clears with "must have moved on" and nothing replaces it — you don't learn
+  where it went. Never resolves either way, per `UNRESOLVABLE_KINDS` (already wired in step 2).
+- [ ] **Falls.** Deferred to step 7 — a horde reaching a place with people inside can't overrun a
+  refuge that doesn't exist yet. `wanderHordes()` already updates a horde's exact node every tick,
+  so step 7 has everything it needs (compare a horde's node to a refuge place's node) without
+  touching this step's code.
+- [x] **Never drawn directly. Dev-only overlay for tuning.** A `hordes-debug` map layer
+  (`src/map/layers.js`) reads raw `get.situations()` (real position, no report needed) and is
+  hidden unless `get.godMode()` is true — toggled in `index.js`'s `pushHordesDebug()`, called every
+  `render()` tick and once immediately on the god-mode button. SITREP also gained an HRD column
+  (horde count per district) for a cheaper, at-a-glance version of the same thing.
+- [x] Verified live (npm run dev, seeded a district's zombie count via `window.DA`): hordes spawn
+  to the tier target immediately, wander (node changes tick over tick, confirmed by diffing
+  positions), a real inter-district spread event visibly moves/spawns one across a boundary, a
+  seeded horde mark within radius re-anchors and refreshes on Check, one seeded far away clears
+  with "must have moved on," the debug overlay renders (confirmed via `queryRenderedFeatures`,
+  layer visibility flips correctly with the god-mode button) and disappears when god mode is off,
+  SITREP's HRD column tracks live counts. Zero console errors throughout.
 
 ### 4. Unit states, roles and the arrival roll
 

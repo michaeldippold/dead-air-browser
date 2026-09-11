@@ -24,8 +24,9 @@ maplibregl.setWorkerUrl('/vendor/maplibre/maplibre-gl-worker.mjs')
 
 // stage: the DOM element the map fills (position: relative). tipEl / ctxEl: tooltip and context
 // menu elements inside it. get: { units, unitName, unitStatus, places, placeContacts, marks, tick,
-// selectedUnitId, timeScale, districtStatus? }. on: { selectUnit, dispatch, showPlace, showPoi,
-// showMark, selectDistrict, hoverUnit }.
+// situations?, godMode?, selectedUnitId, timeScale, districtStatus? }. `situations`/`godMode` back
+// the dev-only hordes-debug overlay (todo.md v0.9.0 step 3) — never read for anything player-facing.
+// on: { selectUnit, dispatch, showPlace, showPoi, showMark, selectDistrict, hoverUnit }.
 export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) {
   if (!protocolRegistered) { maplibregl.addProtocol('pmtiles', new Protocol().tile); protocolRegistered = true }
   const B = cfg.bbox
@@ -79,6 +80,12 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
         geometry: { type: 'Point', coordinates: m.pos } }
     }) }
   }
+  // Hordes-debug (todo.md v0.9.0 step 3): the true position of every horde, dev-only. `get.situations`
+  // returns raw ground truth (no report needed) — never call it for anything player-facing.
+  function hordesDebugFC() {
+    return { type: 'FeatureCollection', features: (get.situations?.() ?? []).filter(s => s.kind === 'horde').map(s => ({
+      type: 'Feature', properties: { size: s.size }, geometry: { type: 'Point', coordinates: s.pos } })) }
+  }
   function placesFC() {
     const units = get.units()
     return { type: 'FeatureCollection', features: get.places().map(p => {
@@ -97,6 +104,11 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
   r.pushUnits = () => { if (r.ready) { map.getSource('units').setData(unitsFC()); map.getSource('routes').setData(routesFC()) } }
   r.pushPlaces = () => { if (r.ready) map.getSource('places').setData(placesFC()) }
   r.pushMarks = () => { if (r.ready) map.getSource('marks').setData(marksFC()) }
+  r.pushHordesDebug = () => {
+    if (!r.ready) return
+    map.getSource('hordes-debug').setData(hordesDebugFC())
+    map.setLayoutProperty('hordes-debug', 'visibility', get.godMode?.() ? 'visible' : 'none')
+  }
   r.pushDistricts = () => {
     if (!r.ready) return
     map.getSource('districts').setData(districtsGeoJSON())
@@ -191,7 +203,7 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     registerIcons(map)
     addLayers(map, {
       districts: districtsGeoJSON(), districtLabels: districtLabelsGeoJSON(), roadsOverlay: roadsOverlayFC(),
-      heat: heatFC(), footprints: footprintsFC(), places: placesFC(), marks: marksFC(),
+      heat: heatFC(), footprints: footprintsFC(), places: placesFC(), marks: marksFC(), hordesDebug: hordesDebugFC(),
     })
     r.ready = true
     applyBoundary(map, r.strongBoundaries)
@@ -200,6 +212,7 @@ export function createMapRenderer({ stage, mapEl, tipEl, ctxEl, cfg, get, on }) 
     if (selectedId) map.setFeatureState({ source: 'units', id: selectedId }, { selected: true })
     r.refresh()
     r.pushMarks()
+    r.pushHordesDebug()
     requestAnimationFrame(loop)
   })
 

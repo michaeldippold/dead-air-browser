@@ -1,9 +1,10 @@
 // Sources and layers, in the order map-integration.md §2.1 fixes (bottom → top):
 // district-fill → roads-dim → footprint-fill → [basemap buildings] → district-shroud → heat →
 // district-glow → district-line → district-label → poi-hit → footprint-line → place-ring →
-// places → place-badge-0/1/2 → marks → route-glow → route-line → unit-halo → units.
+// places → place-badge-0/1/2 → marks → hordes-debug → route-glow → route-line → unit-halo → units.
 // Numbers are the verified ones from §2.2 — change deliberately. `marks` was added in
-// todo.md v0.9.0 step 2, after places (dispatchable, like a place) and before routes.
+// todo.md v0.9.0 step 2, after places (dispatchable, like a place) and before routes. `hordes-debug`
+// (step 3) is dev-only — see its own comment below — and sits just above marks.
 import { MAP_BG } from './style.js'
 
 export const emptyFC = () => ({ type: 'FeatureCollection', features: [] })
@@ -105,6 +106,15 @@ export function addLayers(map, initial) {
     'icon-opacity': ['get', 'opacity'],
     'text-color': '#cfe0ff', 'text-halo-color': MAP_BG, 'text-halo-width': 1.2, 'text-opacity': ['get', 'opacity'],
   } })
+
+  // Hordes-debug (todo.md v0.9.0 step 3): the true, un-reported position of every horde — never
+  // player-facing (design.md: "never drawn directly"). Hidden unless god mode is on; index.js
+  // toggles the layout visibility and refreshes the source every render() tick.
+  map.addSource('hordes-debug', { type: 'geojson', data: initial.hordesDebug ?? emptyFC() })
+  map.addLayer({ id: 'hordes-debug', type: 'symbol', source: 'hordes-debug', layout: {
+    visibility: 'none', 'icon-image': 'mark-horde', 'icon-size': 0.7, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+    'text-field': ['get', 'size'], 'text-font': ['Noto Sans Medium'], 'text-size': 9, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true,
+  }, paint: { 'icon-opacity': 0.6, 'text-color': '#ff8a70', 'text-halo-color': MAP_BG, 'text-halo-width': 1.2, 'text-opacity': 0.6 } })
 
   map.addSource('routes', { type: 'geojson', data: emptyFC(), promoteId: 'id' })
   map.addLayer({ id: 'route-glow', type: 'line', source: 'routes', paint: {

@@ -4,7 +4,7 @@ import danny      from './scripts/danny.js'
 import holt       from './scripts/holt.js'
 import tutorial   from './scripts/tutorial.js'
 import { DISTRICTS, loadDistricts, adjacencyFromPolygons, districtAt, tagEdges, danger, cold, randomInteriorNode } from './src/map/districts.js'
-import { loadGraph, graph, nearestNode, setRouteHazards, streetNear } from './src/map/graph.js'
+import { loadGraph, graph, nearestNode, setRouteHazards, streetNear, dist, bearingDeg } from './src/map/graph.js'
 import * as mover from './src/map/mover.js'
 import { createMapRenderer } from './src/map/index.js'
 import { MARK_KIND_LABEL, MARK_COLOR, ROLE_COLOR, ROLE_ORDER } from './src/map/icons.js'
@@ -249,8 +249,19 @@ function arriveAtMark(unit, markId) {
     unitReport(unit, MARK_GONE_LINES[mark.kind] ?? `Nothing here now.`)
     delete state.marks[markId]
   } else if (UNRESOLVABLE_KINDS.has(situation.kind)) {
-    unitReport(unit, `Still here. Confirmed — hold back.`)
-    mark.reportedTick = state.tick
+    // A horde wanders — it may not be where it was reported anymore. Within HORDE_CONFIRM_RADIUS_M
+    // of the mark's last position, the police are looking right at it: re-anchor the mark to where
+    // it actually is now. Past that, it's moved on and nobody knows which way (design.md, "you have
+    // no idea which way it went") — the mark just clears; it never resolves either way.
+    if (dist(mark.pos, situation.pos) <= HORDE_CONFIRM_RADIUS_M) {
+      mark.pos = situation.pos; mark.node = situation.node; mark.districtId = situation.districtId
+      mark.label = streetNear(situation.node) ?? state.districts[situation.districtId]?.label
+      mark.reportedTick = state.tick
+      unitReport(unit, `Still there. Confirmed — hold back.`)
+    } else {
+      unitReport(unit, `Nothing here now. Must have moved on.`)
+      delete state.marks[markId]
+    }
   } else {
     const role = ROLE_RESOLVES[situation.kind]
     const hasRole = !role || personsInUnit(unit.id).some(p => p.role === role)
@@ -744,8 +755,9 @@ let _markCounter = 0
 const mkid = () => `mk${++_markCounter}`
 
 // Per-tier spawn chance and kind mix. Tier 0 never spawns (a calm district has no situations to
-// find). 'horde' is reserved for todo.md v0.9.0 step 3 — it wanders instead of sitting still and
-// gets its own spawner there; it is deliberately absent from every kind list here.
+// find). 'horde' is handled separately below — it wanders instead of sitting still, so it has its
+// own population target and mover rather than a spawn-chance roll, and is deliberately absent from
+// every kind list here.
 const SITUATION_RATES = {
   0: { chance: 0,     kinds: [] },
   1: { chance: 0.02,  kinds: ['crowd'] },
@@ -754,6 +766,20 @@ const SITUATION_RATES = {
   4: { chance: 0.10,  kinds: ['fire', 'block'] },
 }
 const SITUATION_CAP_PER_DISTRICT = 3
+
+// ── Hordes (todo.md v0.9.0 step 3) ── a piece, not a count. No horde exists below tier 2. A
+// district's hordes drift toward this target as its tier changes; nothing forcibly despawns one
+// if the tier drops back down — a horde that's already there doesn't vanish because the block
+// calmed down elsewhere, it just stops being topped up.
+const HORDES_PER_TIER = { 0: 0, 1: 0, 2: 1, 3: 2, 4: 3 }
+const HORDE_WANDER_CHANCE = 0.3   // per horde, per tick — "every few ticks", not every tick
+const HORDE_STAY_IN_DISTRICT = 0.85   // wander bias: mostly stays inside its own polygon
+const HORDE_CONFIRM_RADIUS_M = 300    // how close a Check has to find it to the mark's last position
+function hordeSize(tier) {
+  if (tier >= 4) return 'wall'
+  if (tier >= 2) return Math.random() < 0.5 ? 'crowd' : 'few'
+  return 'few'
+}
 // Ticks (= game minutes) until a situation resolves itself, unchecked: the fire burns out (the
 // house is already gone by the time anyone gets there), the block clears on its own, the crowd
 // disperses. A mark pointing at a self-resolved situation isn't touched — it stays exactly as
@@ -769,27 +795,78 @@ const UNRESOLVABLE_KINDS = new Set(['horde'])   // Check only ever confirms or c
 function spawnSituations() {
   for (const [districtId, d] of Object.entries(state.districts)) {
     if (d.humans === 0) continue   // consistency guard: nothing spawns in a district with no one left
-    const rates = SITUATION_RATES[getCallTier(d.zombies)]
-    if (!rates || rates.chance === 0) continue
-    const activeHere = Object.values(state.situations).filter(s => s.districtId === districtId).length
-    if (activeHere >= SITUATION_CAP_PER_DISTRICT) continue
-    if (Math.random() >= rates.chance) continue
-    const kind = rates.kinds[Math.floor(Math.random() * rates.kinds.length)]
-    const node = randomInteriorNode(districtId)
-    if (!node) continue
-    const situation = {
-      id: sid(), kind, pos: graph.nodes[node], node, districtId,
-      bornTick: state.tick, lifecycleTicks: SITUATION_LIFECYCLE[kind] + Math.floor(Math.random() * 20),
+    const tier = getCallTier(d.zombies)
+
+    const rates = SITUATION_RATES[tier]
+    if (rates && rates.chance > 0) {
+      const activeHere = Object.values(state.situations).filter(s => s.districtId === districtId && s.kind !== 'horde').length
+      if (activeHere < SITUATION_CAP_PER_DISTRICT && Math.random() < rates.chance) {
+        const kind = rates.kinds[Math.floor(Math.random() * rates.kinds.length)]
+        const node = randomInteriorNode(districtId)
+        if (node) {
+          const id = sid()
+          state.situations[id] = { id, kind, pos: graph.nodes[node], node, districtId,
+            bornTick: state.tick, lifecycleTicks: SITUATION_LIFECYCLE[kind] + Math.floor(Math.random() * 20) }
+        }
+      }
     }
-    state.situations[situation.id] = situation
+
+    // Hordes drift toward a per-tier target instead of rolling a spawn chance — see HORDES_PER_TIER.
+    const hordeTarget = HORDES_PER_TIER[tier] ?? 0
+    const hordesHere = Object.values(state.situations).filter(s => s.kind === 'horde' && s.districtId === districtId).length
+    if (hordesHere < hordeTarget) {
+      const node = randomInteriorNode(districtId)
+      if (node) {
+        const id = sid()
+        state.situations[id] = { id, kind: 'horde', pos: graph.nodes[node], node, districtId,
+          heading: 0, size: hordeSize(tier) }
+      }
+    }
   }
 }
 
 // A situation past its lifecycle just vanishes — no report ever explains why, because nothing
 // reported it ending either. Any mark that pointed at it goes stale, exactly as design.md wants.
+// Hordes have no lifecycle — they wander (wanderHordes) or cross a border (crossHorde) instead.
 function ageSituations() {
   for (const s of Object.values(state.situations)) {
-    if (state.tick - s.bornTick >= s.lifecycleTicks) delete state.situations[s.id]
+    if (s.kind !== 'horde' && state.tick - s.bornTick >= s.lifecycleTicks) delete state.situations[s.id]
+  }
+}
+
+// A horde drifts a node at a time along the road graph, mostly staying inside its own district —
+// the same "cruise the neighborhood" feel patrol used to have, minus the routing (design.md,
+// Explicitly Out of Scope: patrol is gone; this is not it back — a horde is weather, not a unit).
+function wanderHordes() {
+  for (const s of Object.values(state.situations)) {
+    if (s.kind !== 'horde') continue
+    if (Math.random() >= HORDE_WANDER_CHANCE) continue
+    const options = graph.out[s.node] ?? []
+    if (!options.length) continue
+    const inside = options.filter(e => graph.edgeDistrict[e.id] === s.districtId)
+    const pool = inside.length && Math.random() < HORDE_STAY_IN_DISTRICT ? inside : options
+    const edge = pool[Math.floor(Math.random() * pool.length)]
+    s.node = edge.v
+    s.pos = graph.nodes[edge.v]
+    s.heading = bearingDeg(graph.nodes[edge.u], graph.nodes[edge.v])
+    s.districtId = districtAt(s.pos)?.id ?? s.districtId
+  }
+}
+
+// The inter-district spread crossing (tick()) picks a horde from the source district and moves it
+// into the destination — the horde is the fiction for that +1 zombie (design.md, "Hordes carry the
+// spread in fiction"). Spawns one there if the source has none to send.
+function crossHorde(srcId, destId) {
+  const node = randomInteriorNode(destId)
+  if (!node) return
+  const hordesHere = Object.values(state.situations).filter(s => s.kind === 'horde' && s.districtId === srcId)
+  if (hordesHere.length) {
+    const horde = hordesHere[Math.floor(Math.random() * hordesHere.length)]
+    horde.node = node; horde.pos = graph.nodes[node]; horde.districtId = destId
+  } else {
+    const id = sid()
+    state.situations[id] = { id, kind: 'horde', pos: graph.nodes[node], node, districtId: destId,
+      heading: 0, size: hordeSize(getCallTier(state.districts[destId]?.zombies ?? 0)) }
   }
 }
 
@@ -919,6 +996,8 @@ let mapRenderer = null
       placeContacts:  id => contactsAtPlace(id),
       marks:          () => Object.values(state.marks),
       tick:           () => state.tick,
+      situations:     () => Object.values(state.situations),   // dev-only hordes-debug overlay
+      godMode:        () => state.godMode,
       selectedUnitId: () => state.selectedUnit?.unitId ?? null,
       timeScale:      () => (gamePaused ? 0 : 20),   // 1 tick = 3 s real = 1 game minute
       residencePool:  () => Object.values(RESIDENCES.districts).flat().map(r => r.id).filter(id => !RESIDENCE_EXCLUDE.has(id)),
@@ -972,8 +1051,7 @@ window.DA = { state, PLACES, DISTRICTS, get map() { return mapRenderer }, mover,
   panel.querySelector('[data-shapes="circle"]').innerHTML =
     ROLE_ORDER.map(r => swatch('circle', ROLE_COLOR[r])).join('')
   panel.querySelector('[data-shapes="triangle"]').innerHTML =
-    Object.entries(MARK_COLOR).filter(([k]) => k !== 'horde')   // horde has no spawner yet (step 3)
-      .map(([, color]) => swatch('triangle', color)).join('')
+    Object.values(MARK_COLOR).map(color => swatch('triangle', color)).join('')
 
   for (const layer of ['places', 'badges', 'marks']) {
     const row = panel.querySelector(`[data-layer="${layer}"]`)
@@ -1398,6 +1476,15 @@ const REPORT_LINES = {
     [`$street's packed with people fleeing. No room to move.`, `Whole crowd stampeding down $street. Somebody's going to get hurt.`],
     [`$street was full of people. Now it's just quiet. Too quiet.`, `The crowd on $street scattered. Or worse.`],
   ],
+  // A horde can wander into any district regardless of that district's own tier (crossHorde), so
+  // this needs all five tiers even though one never spawns fresh below tier 2.
+  horde: [
+    [`Thought I saw movement near $street. Might be nothing.`, `Possible sighting, $street. Not sure yet.`],
+    [`Small group spotted near $street. Handful, moving slow.`, `Few of them near $street. Keeping distance.`],
+    [`Group near $street — more than a few. Watch that area.`, `Spotted a crowd of them by $street.`],
+    [`Big group near $street. Wouldn't go that way.`, `Large group moving through $street. Stay clear.`],
+    [`Wall of them coming through $street. Get everyone back.`, `$street is solid with them. Don't go near it.`],
+  ],
 }
 
 // Voice a report on COMMS and create the mark it describes. `d` is the district object; `ratio`
@@ -1666,6 +1753,7 @@ godBtn.addEventListener('click', () => {
   renderGodPanel()
   renderDistrictDetail()
   syncMapPaint()
+  mapRenderer?.pushHordesDebug()
 })
 
 function syncGodBtn() {
@@ -2502,23 +2590,24 @@ function tick() {
   }
 
   // Inter-district spread — pure weather, no unit ever blocks it (design.md: "nothing the player
-  // does reduces it"). Todo.md v0.9.0 step 3 turns this crossing into a horde moving between
-  // districts instead of a bare +1.
+  // does reduces it"). The +1 zombie is physically a horde crossing the boundary (crossHorde) —
+  // the fiction for the number, not a second source of truth.
   if (Math.random() < spreadChance) {
     const sources = Object.keys(state.districts).filter(id => state.districts[id].zombies > 0)
     if (sources.length) {
-      const src  = sources[Math.floor(Math.random() * sources.length)]
-      const srcD = state.districts[src]
+      const src = sources[Math.floor(Math.random() * sources.length)]
       const neighbors = adjacency[src].filter(id => state.districts[id].humans > 0)
       if (neighbors.length) {
         const spreadDest = neighbors[Math.floor(Math.random() * neighbors.length)]
         state.districts[spreadDest].zombies += 1
+        crossHorde(src, spreadDest)
       }
     }
   }
 
   ageSituations()       // self-resolve past their lifecycle, unseen if nobody checked in time
   spawnSituations()     // ground truth — never seen until a report creates a mark for it
+  wanderHordes()        // hordes are pieces that drift; everything else sits still
   director.tick()
   emitPoliceChatter()   // badge-numbered police chatter on COMMS — see design.md, "Reports"
   render()
@@ -2539,6 +2628,7 @@ function render() {
   renderRadio()
   syncMapPaint()
   mapRenderer?.pushMarks()   // marks dim with age every tick even when the set itself is unchanged
+  mapRenderer?.pushHordesDebug()   // dev-only, hidden unless god mode is on
 
   if (state.selectedUnit) {
     const unit = state.units[state.selectedUnit.unitId]
@@ -2700,6 +2790,7 @@ function renderGodPanel() {
       // Spread rate is flat now — no unit suppression term (design.md: nothing the player does
       // touches the crowd). Kept as a dev readout of the constant, not a per-district value.
       const spdLabel = d.zombies > 0 ? (SPREAD_RATE * 100).toFixed(1) + '%' : '—'
+      const hordeCount = Object.values(state.situations).filter(s => s.kind === 'horde' && s.districtId === id).length
 
       const persons = state.contacts
         .filter(c => c.location === id && c.alive)
@@ -2720,6 +2811,10 @@ function renderGodPanel() {
           <div class="gsr-stat">
             <span class="gsr-stat-lbl">SPD</span>
             <span class="gsr-stat-val">${spdLabel}</span>
+          </div>
+          <div class="gsr-stat">
+            <span class="gsr-stat-lbl">HRD</span>
+            <span class="gsr-stat-val">${hordeCount || '—'}</span>
           </div>
         </div>
         ${persons   ? `<div class="gsr-persons">${persons}</div>` : ''}
